@@ -77,10 +77,10 @@ POSTGRES_DB=mysic_db
 # Backend Configuration
 SECRET_KEY=최소-32자-랜덤-문자열-생성
 ENVIRONMENT=production
-CORS_ORIGINS=http://your-ec2-ip,http://your-ec2-ip:8000
+CORS_ORIGINS=http://54.180.92.36,http://54.180.92.36:8000
 
 # Frontend Configuration
-REACT_APP_API_URL=http://your-ec2-ip:8000
+REACT_APP_API_URL=http://54.180.92.36:8000
 ```
 
 **SECRET_KEY 생성:**
@@ -90,7 +90,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 
 **EC2 퍼블릭 IP 확인:**
 ```bash
-curl -s http://169.254.169.254/latest/meta-data/public-ipv4
+curl -s http:/54.180.92.36/latest/meta-data/public-ipv4
 ```
 
 #### 2.3 파일 권한 설정

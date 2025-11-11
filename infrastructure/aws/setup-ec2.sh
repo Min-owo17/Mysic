@@ -78,6 +78,39 @@ else
     echo "ℹ️  Docker Compose가 이미 설치되어 있습니다."
 fi
 
+# Docker Buildx 설치/업데이트
+echo "🔨 Docker Buildx를 설치/업데이트합니다..."
+mkdir -p ~/.docker/cli-plugins
+
+# 아키텍처 감지
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    BUILDX_ARCH="amd64"
+elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    BUILDX_ARCH="arm64"
+else
+    BUILDX_ARCH="amd64"  # 기본값
+fi
+
+# 최신 Buildx 버전 다운로드 및 설치
+# GitHub API를 통해 최신 릴리스 버전 가져오기
+BUILDX_VERSION=$(curl -s https://api.github.com/repos/docker/buildx/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || echo "v0.12.1")
+BUILDX_URL="https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.linux-${BUILDX_ARCH}"
+
+echo "📥 Buildx ${BUILDX_VERSION} 다운로드 중..."
+curl -SL "$BUILDX_URL" -o ~/.docker/cli-plugins/docker-buildx
+chmod +x ~/.docker/cli-plugins/docker-buildx
+
+# Buildx 빌더 생성 및 활성화 (이미 있으면 스킵)
+if ! docker buildx ls | grep -q "builder"; then
+    docker buildx create --use --name builder 2>/dev/null || true
+    docker buildx inspect --bootstrap 2>/dev/null || true
+fi
+
+# Buildx 버전 확인
+BUILDX_VER=$(docker buildx version 2>/dev/null | grep -oP 'v\d+\.\d+\.\d+' | head -1 || echo "unknown")
+echo "✅ Docker Buildx 설치 완료 (버전: $BUILDX_VER)"
+
 # 현재 사용자를 docker 그룹에 추가
 echo "👤 현재 사용자를 docker 그룹에 추가합니다..."
 sudo usermod -aG docker $USER
