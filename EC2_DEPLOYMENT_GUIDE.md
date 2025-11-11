@@ -55,7 +55,7 @@ cd /home/ec2-user
 cd /home/ubuntu
 
 # 프로젝트 클론
-git clone https://github.com/your-username/Mysic.git
+git clone https://github.com/Min-owo17/Mysic.git
 cd Mysic
 ```
 
@@ -77,10 +77,10 @@ POSTGRES_DB=mysic_db
 # Backend Configuration
 SECRET_KEY=최소-32자-랜덤-문자열-생성
 ENVIRONMENT=production
-CORS_ORIGINS=http://54.180.92.36,http://54.180.92.36:8000
+CORS_ORIGINS=http://15.164.128.169,http://15.164.128.169:8000
 
 # Frontend Configuration
-REACT_APP_API_URL=http://54.180.92.36:8000
+REACT_APP_API_URL=http://15.164.128.169:8000
 ```
 
 **SECRET_KEY 생성:**
@@ -90,7 +90,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 
 **EC2 퍼블릭 IP 확인:**
 ```bash
-curl -s http:/54.180.92.36/latest/meta-data/public-ipv4
+curl -s http:/15.164.128.169/latest/meta-data/public-ipv4
 ```
 
 #### 2.3 파일 권한 설정
