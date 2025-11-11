@@ -16,10 +16,11 @@ services:
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-mysic_user} || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - mysic_network_prod
     # 보안을 위해 포트를 외부에 노출하지 않음 (내부 네트워크만 사용)

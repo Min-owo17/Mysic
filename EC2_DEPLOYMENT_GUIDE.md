@@ -200,6 +200,62 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --force-recre
 ls -la .env.production
 ```
 
+### PostgreSQL 컨테이너가 unhealthy 상태일 때
+
+PostgreSQL 컨테이너가 unhealthy 상태인 경우 다음을 시도하세요:
+
+#### 1. 문제 진단
+
+```bash
+# 진단 스크립트 실행
+chmod +x infrastructure/aws/troubleshoot-postgres.sh
+./infrastructure/aws/troubleshoot-postgres.sh
+```
+
+또는 수동으로:
+
+```bash
+# PostgreSQL 로그 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml logs postgres
+
+# 컨테이너 상태 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml ps postgres
+
+# Health check 수동 실행
+docker exec mysic_postgres_prod pg_isready -U mysic_user
+```
+
+#### 2. 해결 방법
+
+**방법 A: 컨테이너 재시작**
+```bash
+docker-compose -f infrastructure/aws/docker-compose.prod.yml restart postgres
+```
+
+**방법 B: 볼륨 삭제 후 재생성 (데이터 손실 주의!)**
+```bash
+# 모든 컨테이너 중지
+docker-compose -f infrastructure/aws/docker-compose.prod.yml down
+
+# 볼륨 삭제
+docker volume rm mysic_postgres_data_prod
+
+# 다시 시작
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d
+```
+
+**방법 C: 환경 변수 확인**
+```bash
+# .env.production 파일 확인
+cat .env.production | grep POSTGRES
+
+# 환경 변수가 올바르게 설정되어 있는지 확인
+# POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB가 모두 설정되어 있어야 합니다
+```
+
+**방법 D: Health check 시간 증가**
+PostgreSQL 초기화에 시간이 오래 걸리는 경우, `docker-compose.prod.yml`의 `start_period`를 늘릴 수 있습니다.
+
 ## 보안 체크리스트
 
 - [ ] `.env.production` 파일 권한 설정: `chmod 600 .env.production`
