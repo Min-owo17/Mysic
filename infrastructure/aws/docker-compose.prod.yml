@@ -1,0 +1,89 @@
+# Docker Compose for Production (AWS EC2)
+version: '3.8'
+
+services:
+  # PostgreSQL Database (EC2 내부 설치 또는 RDS 사용 시 이 서비스 제거)
+  postgres:
+    image: postgres:15-alpine
+    container_name: mysic_postgres_prod
+    restart: always
+    env_file:
+      - ../../.env.production
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mysic_network_prod
+    # 보안을 위해 포트를 외부에 노출하지 않음 (내부 네트워크만 사용)
+    # ports:
+    #   - "5432:5432"
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    container_name: mysic_backend_prod
+    restart: always
+    env_file:
+      - ../../.env.production
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - SECRET_KEY=${SECRET_KEY}
+      - ENVIRONMENT=production
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://your-domain.com}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mysic_network_prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # React Frontend
+  frontend:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.frontend
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+    container_name: mysic_frontend_prod
+    restart: always
+    env_file:
+      - ../../.env.production
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - mysic_network_prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data_prod:
+
+networks:
+  mysic_network_prod:
+    driver: bridge
+

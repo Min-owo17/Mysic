@@ -1,0 +1,70 @@
+# Docker Compose for Local Development
+version: '3.8'
+
+# 환경 변수 파일 로드 (선택사항)
+# env_file:
+#   - ../../.env.local
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mysic_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mysic_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mysic_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mysic_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mysic_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mysic_network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.backend
+    container_name: mysic_backend
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-mysic_user}:${POSTGRES_PASSWORD:-mysic_password}@postgres:5432/${POSTGRES_DB:-mysic_db}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - ENVIRONMENT=development
+      - CORS_ORIGINS=http://localhost,http://localhost:80,http://localhost:3000,http://localhost:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mysic_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # React Frontend
+  frontend:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.frontend
+    container_name: mysic_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - mysic_network
+
+volumes:
+  postgres_data:
+
+networks:
+  mysic_network:
+    driver: bridge
+
