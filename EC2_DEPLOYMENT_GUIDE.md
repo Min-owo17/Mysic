@@ -194,10 +194,146 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --force-recre
 
 ### 환경 변수 로드 문제
 
-`.env.production` 파일이 프로젝트 루트에 있는지 확인:
+**증상**: `The "변수명" variable is not set. Defaulting to a blank string` 메시지가 여러 개 나타남
+
+#### 1. 문제 진단
 
 ```bash
+# .env.production 파일이 프로젝트 루트에 있는지 확인
 ls -la .env.production
+
+# 파일 내용 확인 (비밀번호는 마스킹됨)
+cat .env.production
+
+# 필수 환경 변수 확인
+cat .env.production | grep -E "POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB|SECRET_KEY"
+```
+
+#### 2. 해결 방법
+
+**방법 A: .env.production 파일 생성/수정**
+
+```bash
+# 프로젝트 루트에서 실행 (중요!)
+cd /home/ec2-user/Mysic  # 또는 /home/ubuntu/Mysic
+
+# env.example을 복사하여 .env.production 생성
+cp infrastructure/aws/env.example .env.production
+
+# 파일 편집
+nano .env.production
+```
+
+**필수로 설정해야 할 환경 변수:**
+
+```env
+# Database Configuration (필수)
+POSTGRES_USER=mysic_user
+POSTGRES_PASSWORD=강력한-비밀번호-입력
+POSTGRES_DB=mysic_db
+
+# Backend Configuration (필수)
+SECRET_KEY=최소-32자-랜덤-문자열-생성
+ENVIRONMENT=production
+CORS_ORIGINS=http://15.164.128.169,http://15.164.128.169:8000
+
+# Frontend Configuration (필수)
+REACT_APP_API_URL=http://15.164.128.169:8000
+
+# AWS Configuration (선택사항 - S3 사용 시에만 필요)
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+AWS_REGION=ap-northeast-2
+AWS_S3_BUCKET=your-s3-bucket-name
+```
+
+**SECRET_KEY 생성:**
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+**EC2 퍼블릭 IP 확인:**
+```bash
+curl -s http://169.254.169.254/latest/meta-data/public-ipv4
+```
+
+**방법 B: 파일 권한 설정**
+
+```bash
+# .env.production 파일 권한 설정 (보안)
+chmod 600 .env.production
+```
+
+**방법 C: docker-compose 실행 위치 확인**
+
+`.env.production` 파일은 **프로젝트 루트**에 있어야 합니다. 
+`docker-compose.prod.yml`에서 `../../.env.production` 경로를 참조하므로:
+
+```bash
+# 올바른 실행 위치 확인
+pwd
+# 출력: /home/ec2-user/Mysic (프로젝트 루트여야 함)
+
+# 프로젝트 루트에서 docker-compose 실행
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build
+```
+
+**방법 D: 환경 변수 수동 export (임시 해결책)**
+
+`.env.production` 파일이 제대로 로드되지 않는 경우:
+
+```bash
+# 환경 변수 수동 export
+export $(cat .env.production | grep -v '^#' | xargs)
+
+# docker-compose 실행
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build
+```
+
+**방법 E: 환경 변수 검증 스크립트**
+
+```bash
+# 환경 변수 확인 스크립트 생성
+cat > check-env.sh << 'EOF'
+#!/bin/bash
+echo "환경 변수 확인 중..."
+source .env.production 2>/dev/null || true
+
+required_vars=("POSTGRES_USER" "POSTGRES_PASSWORD" "POSTGRES_DB" "SECRET_KEY" "REACT_APP_API_URL")
+missing_vars=()
+
+for var in "${required_vars[@]}"; do
+    if [ -z "${!var}" ]; then
+        missing_vars+=("$var")
+    fi
+done
+
+if [ ${#missing_vars[@]} -eq 0 ]; then
+    echo "✅ 모든 필수 환경 변수가 설정되어 있습니다."
+else
+    echo "❌ 다음 환경 변수가 설정되지 않았습니다:"
+    printf '   - %s\n' "${missing_vars[@]}"
+    exit 1
+fi
+EOF
+
+chmod +x check-env.sh
+./check-env.sh
+```
+
+#### 3. 재배포
+
+환경 변수를 수정한 후:
+
+```bash
+# 기존 컨테이너 중지
+docker-compose -f infrastructure/aws/docker-compose.prod.yml down
+
+# 다시 시작
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build
+
+# 로그 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml logs -f
 ```
 
 ### PostgreSQL 컨테이너가 unhealthy 상태일 때
