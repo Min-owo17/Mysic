@@ -196,6 +196,11 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --force-recre
 
 **증상**: `The "변수명" variable is not set. Defaulting to a blank string` 메시지가 여러 개 나타남
 
+**원인**: 
+- `.env.production` 파일이 프로젝트 루트에 없거나
+- `docker-compose`를 잘못된 위치에서 실행하거나
+- `check-env.sh` 스크립트를 잘못된 위치에서 실행하는 경우
+
 #### 1. 문제 진단
 
 ```bash
@@ -267,16 +272,25 @@ chmod 600 .env.production
 **방법 C: docker-compose 실행 위치 확인**
 
 `.env.production` 파일은 **프로젝트 루트**에 있어야 합니다. 
-`docker-compose.prod.yml`에서 `../../.env.production` 경로를 참조하므로:
+`docker-compose.prod.yml`에서 `../../.env.production` 경로를 참조하므로, **반드시 프로젝트 루트에서 실행**해야 합니다:
 
 ```bash
-# 올바른 실행 위치 확인
+# 프로젝트 루트로 이동
+cd /home/ec2-user/Mysic  # 또는 /home/ubuntu/Mysic
+
+# 현재 위치 확인
 pwd
 # 출력: /home/ec2-user/Mysic (프로젝트 루트여야 함)
 
-# 프로젝트 루트에서 docker-compose 실행
+# .env.production 파일 확인
+ls -la .env.production
+
+# 프로젝트 루트에서 docker-compose 실행 (중요!)
 docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build
 ```
+
+**⚠️ 중요**: `docker-compose`는 반드시 프로젝트 루트(`/home/ec2-user/Mysic`)에서 실행해야 합니다. 
+다른 디렉토리에서 실행하면 상대 경로(`../../.env.production`)가 잘못된 위치를 가리켜 환경 변수를 찾을 수 없습니다.
 
 **방법 D: 환경 변수 수동 export (임시 해결책)**
 
@@ -292,34 +306,20 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build
 
 **방법 E: 환경 변수 검증 스크립트**
 
+제공된 검증 스크립트를 사용하여 환경 변수를 확인하세요:
+
 ```bash
-# 환경 변수 확인 스크립트 생성
-cat > check-env.sh << 'EOF'
-#!/bin/bash
-echo "환경 변수 확인 중..."
-source .env.production 2>/dev/null || true
+# 스크립트에 실행 권한 부여 (이미 되어 있을 수 있음)
+chmod +x infrastructure/aws/check-env.sh
 
-required_vars=("POSTGRES_USER" "POSTGRES_PASSWORD" "POSTGRES_DB" "SECRET_KEY" "REACT_APP_API_URL")
-missing_vars=()
+# 스크립트 실행 (어디서든 실행 가능 - 자동으로 프로젝트 루트를 찾습니다)
+./infrastructure/aws/check-env.sh
 
-for var in "${required_vars[@]}"; do
-    if [ -z "${!var}" ]; then
-        missing_vars+=("$var")
-    fi
-done
-
-if [ ${#missing_vars[@]} -eq 0 ]; then
-    echo "✅ 모든 필수 환경 변수가 설정되어 있습니다."
-else
-    echo "❌ 다음 환경 변수가 설정되지 않았습니다:"
-    printf '   - %s\n' "${missing_vars[@]}"
-    exit 1
-fi
-EOF
-
-chmod +x check-env.sh
-./check-env.sh
+# 또는 명시적으로 경로 지정
+./infrastructure/aws/check-env.sh /home/ec2-user/Mysic/.env.production
 ```
+
+**참고**: 수정된 스크립트는 실행 위치와 관계없이 자동으로 프로젝트 루트를 찾아 `.env.production` 파일을 검색합니다.
 
 #### 3. 재배포
 
