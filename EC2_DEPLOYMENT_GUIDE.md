@@ -130,9 +130,9 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml ps
 
 #### 4.2 브라우저에서 확인
 
-- **프론트엔드**: http://your-ec2-ip
-- **백엔드 API**: http://your-ec2-ip:8000
-- **API 문서**: http://your-ec2-ip:8000/docs
+- **프론트엔드**: http://15.164.128.169
+- **백엔드 API**: http://15.164.128.169:8000
+- **API 문서**: http://15.164.128.169:8000/docs
 
 ### 5단계: 로그 확인
 
@@ -184,12 +184,166 @@ sudo kill -9 <PID>
 
 ### 컨테이너가 시작되지 않을 때
 
-```bash
-# 로그 확인
-docker-compose -f infrastructure/aws/docker-compose.prod.yml logs
+**증상**: `docker-compose ps`에서 PostgreSQL만 보이고 Backend/Frontend가 보이지 않음
 
-# 컨테이너 재생성
-docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --force-recreate
+#### 1. 문제 진단
+
+```bash
+# 모든 컨테이너 상태 확인 (중지된 컨테이너 포함)
+docker-compose -f infrastructure/aws/docker-compose.prod.yml ps -a
+
+# 중지된 컨테이너 확인
+docker ps -a | grep mysic
+
+# Backend 로그 확인 (가장 중요!)
+docker-compose -f infrastructure/aws/docker-compose.prod.yml logs backend
+
+# Frontend 로그 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml logs frontend
+
+# PostgreSQL 상태 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml ps postgres
+```
+
+#### 2. 일반적인 원인 및 해결 방법
+
+**원인 A: 환경 변수 누락 또는 잘못된 값**
+
+```bash
+# 환경 변수 확인
+./infrastructure/aws/check-env.sh
+
+# 특히 다음 변수들이 필수입니다:
+# - POSTGRES_USER
+# - POSTGRES_PASSWORD
+# - POSTGRES_DB
+# - SECRET_KEY
+# - REACT_APP_API_URL
+```
+
+**원인 B: PostgreSQL Health Check 실패**
+
+Backend는 PostgreSQL이 healthy 상태가 되어야 시작됩니다. PostgreSQL이 unhealthy 상태일 수 있습니다:
+
+```bash
+# PostgreSQL 로그 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml logs postgres
+
+# PostgreSQL health check 수동 실행
+docker exec mysic_postgres_prod pg_isready -U mysic_user
+
+# PostgreSQL 컨테이너 재시작
+docker-compose -f infrastructure/aws/docker-compose.prod.yml restart postgres
+
+# 잠시 대기 후 상태 확인
+sleep 10
+docker-compose -f infrastructure/aws/docker-compose.prod.yml ps
+```
+
+**원인 C: Backend 빌드 실패**
+
+```bash
+# Backend 이미지 빌드 확인
+docker images | grep mysic
+
+# Backend 이미지 재빌드
+docker-compose -f infrastructure/aws/docker-compose.prod.yml build --no-cache backend
+
+# 빌드 로그 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml build backend
+```
+
+**원인 D: Backend 컨테이너가 시작 후 즉시 종료**
+
+```bash
+# Backend 컨테이너의 종료 코드 확인
+docker inspect mysic_backend_prod | grep -A 10 "State"
+
+# Backend 컨테이너를 직접 실행하여 에러 확인
+docker run --rm --env-file .env.production \
+  -e DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB} \
+  -e SECRET_KEY=${SECRET_KEY} \
+  mysic_backend_prod
+```
+
+**원인 E: 포트 충돌**
+
+```bash
+# 8000 포트 사용 확인
+sudo netstat -tulpn | grep :8000
+# 또는
+sudo lsof -i :8000
+
+# 80 포트 사용 확인
+sudo netstat -tulpn | grep :80
+# 또는
+sudo lsof -i :80
+
+# 포트를 사용하는 프로세스 종료
+sudo kill -9 <PID>
+```
+
+**원인 F: 메모리 부족**
+
+```bash
+# 메모리 사용량 확인
+free -h
+docker stats --no-stream
+
+# 사용하지 않는 컨테이너/이미지 정리
+docker system prune -a
+```
+
+#### 3. 해결 방법
+
+**방법 1: 전체 재시작 (권장)**
+
+```bash
+# 프로젝트 루트에서 실행
+cd /home/ec2-user/Mysic
+
+# 모든 컨테이너 중지 및 제거
+docker-compose -f infrastructure/aws/docker-compose.prod.yml down
+
+# 환경 변수 확인
+./infrastructure/aws/check-env.sh
+
+# 이미지 재빌드 및 시작
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build
+
+# 상태 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml ps
+
+# 로그 확인 (실시간)
+docker-compose -f infrastructure/aws/docker-compose.prod.yml logs -f
+```
+
+**방법 2: 단계별 시작**
+
+```bash
+# 1. PostgreSQL만 시작
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d postgres
+
+# 2. PostgreSQL이 healthy 상태가 될 때까지 대기
+sleep 15
+docker-compose -f infrastructure/aws/docker-compose.prod.yml ps postgres
+
+# 3. Backend 시작
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build backend
+
+# 4. Backend 로그 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml logs -f backend
+
+# 5. Backend가 정상 작동하면 Frontend 시작
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build frontend
+```
+
+**방법 3: 컨테이너 재생성**
+
+```bash
+# 특정 서비스만 재생성
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --force-recreate backend
+docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --force-recreate frontend
 ```
 
 ### 환경 변수 로드 문제
