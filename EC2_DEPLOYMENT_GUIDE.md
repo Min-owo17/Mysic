@@ -256,6 +256,65 @@ cat .env.production | grep POSTGRES
 **방법 D: Health check 시간 증가**
 PostgreSQL 초기화에 시간이 오래 걸리는 경우, `docker-compose.prod.yml`의 `start_period`를 늘릴 수 있습니다.
 
+### 메모리 부족 문제
+
+EC2 t3.micro (1GB RAM) 환경에서 메모리 부족으로 컨테이너가 멈추는 경우:
+
+#### 1. 메모리 사용량 확인
+
+```bash
+# 컨테이너별 메모리 사용량 확인
+docker stats --no-stream
+
+# 시스템 메모리 확인
+free -h
+```
+
+#### 2. 메모리 제한 설정
+
+`docker-compose.prod.yml`에 이미 메모리 제한이 설정되어 있습니다:
+- PostgreSQL: 400MB 제한
+- Backend: 400MB 제한
+- Frontend: 128MB 제한
+
+#### 3. 메모리 부족 시 조정
+
+메모리가 부족한 경우 `docker-compose.prod.yml`에서 `mem_limit` 값을 조정:
+
+```yaml
+# 예시: 메모리 제한 감소
+postgres:
+  mem_limit: 300m  # 400m에서 300m로 감소
+
+backend:
+  mem_limit: 300m  # 400m에서 300m로 감소
+```
+
+#### 4. Swap 메모리 설정 (임시 해결책)
+
+```bash
+# 1GB Swap 파일 생성
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# 영구적으로 설정
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+#### 5. 추가 최적화
+
+```bash
+# 사용하지 않는 Docker 이미지 삭제
+docker image prune -a
+
+# 사용하지 않는 볼륨 삭제
+docker volume prune
+```
+
+자세한 내용은 `infrastructure/aws/memory-optimization.md`를 참고하세요.
+
 ## 보안 체크리스트
 
 - [ ] `.env.production` 파일 권한 설정: `chmod 600 .env.production`
