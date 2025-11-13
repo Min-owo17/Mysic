@@ -20,6 +20,53 @@ if [ -f .env.production ]; then
     export $(cat .env.production | grep -v '^#' | grep POSTGRES_USER | xargs) 2>/dev/null || true
 fi
 
+# .env 파일 생성 또는 심볼릭 링크 (docker-compose가 자동으로 읽기 위해)
+echo "🔗 .env 파일 설정 확인 중..."
+if [ ! -f .env ]; then
+    echo "   .env 파일이 없습니다. .env.production을 .env로 심볼릭 링크 생성 시도..."
+    if ln -sf .env.production .env 2>/dev/null; then
+        echo "   ✅ 심볼릭 링크 생성 완료: .env -> .env.production"
+    else
+        echo "   ⚠️  심볼릭 링크 생성 실패. .env.production을 .env로 복사합니다..."
+        cp .env.production .env
+        echo "   ✅ .env 파일 복사 완료"
+    fi
+elif [ -L .env ]; then
+    # .env가 심볼릭 링크인 경우 대상 확인
+    LINK_TARGET=$(readlink .env)
+    if [ "$LINK_TARGET" != ".env.production" ]; then
+        echo "   ⚠️  .env가 다른 파일을 가리키고 있습니다: $LINK_TARGET"
+        echo "   .env.production을 가리키도록 재생성합니다..."
+        rm -f .env
+        if ln -sf .env.production .env 2>/dev/null; then
+            echo "   ✅ 심볼릭 링크 재생성 완료: .env -> .env.production"
+        else
+            cp .env.production .env
+            echo "   ✅ .env 파일 복사 완료"
+        fi
+    else
+        echo "   ✅ .env 심볼릭 링크가 올바르게 설정되어 있습니다: .env -> .env.production"
+    fi
+else
+    # .env가 일반 파일인 경우
+    echo "   ℹ️  .env 파일이 이미 존재합니다."
+    echo "   .env.production과 내용이 동일한지 확인 중..."
+    if cmp -s .env.production .env 2>/dev/null; then
+        echo "   ✅ .env와 .env.production의 내용이 동일합니다."
+    else
+        echo "   ⚠️  .env와 .env.production의 내용이 다릅니다."
+        echo "   .env.production을 .env로 복사하시겠습니까? (y/n)"
+        read -p "   " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            cp .env.production .env
+            echo "   ✅ .env 파일이 .env.production으로 업데이트되었습니다."
+        else
+            echo "   ℹ️  기존 .env 파일을 유지합니다."
+        fi
+    fi
+fi
+
 # Docker 및 Docker Compose 설치 확인
 if ! command -v docker &> /dev/null; then
     echo "❌ Docker가 설치되어 있지 않습니다."
