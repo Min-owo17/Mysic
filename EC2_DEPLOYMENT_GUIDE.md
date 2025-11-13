@@ -171,6 +171,36 @@ git pull
 
 ## 문제 해결
 
+### 스크립트 실행 권한 오류 (Permission denied)
+
+**증상**: `./infrastructure/aws/check-env.sh` 또는 다른 스크립트 실행 시 `Permission denied` 오류 발생
+
+**원인**: 스크립트 파일에 실행 권한이 없음
+
+**해결 방법**:
+
+```bash
+# 프로젝트 루트로 이동
+cd /home/ec2-user/Mysic  # 또는 /home/ubuntu/Mysic
+
+# 모든 스크립트에 실행 권한 부여 (권장)
+chmod +x infrastructure/aws/*.sh
+
+# 또는 특정 스크립트만 권한 부여
+chmod +x infrastructure/aws/check-env.sh
+chmod +x infrastructure/aws/deploy.sh
+chmod +x infrastructure/aws/setup-ec2.sh
+
+# 권한 확인
+ls -l infrastructure/aws/*.sh
+# 출력 예시: -rwxr-xr-x ... (x가 있으면 실행 권한이 있음)
+
+# 이제 스크립트 실행
+./infrastructure/aws/check-env.sh
+```
+
+**참고**: Git에서 클론한 파일은 기본적으로 실행 권한이 없을 수 있습니다. 처음 사용하기 전에 반드시 실행 권한을 부여해야 합니다.
+
 ### 포트 충돌
 
 ```bash
@@ -210,7 +240,11 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml ps postgres
 **원인 A: 환경 변수 누락 또는 잘못된 값**
 
 ```bash
-# 환경 변수 확인
+# 환경 변수 확인 스크립트 실행
+# ⚠️ Permission denied 오류가 발생하면 먼저 실행 권한 부여:
+chmod +x infrastructure/aws/check-env.sh
+
+# 스크립트 실행
 ./infrastructure/aws/check-env.sh
 
 # 특히 다음 변수들이 필수입니다:
@@ -463,7 +497,7 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build
 제공된 검증 스크립트를 사용하여 환경 변수를 확인하세요:
 
 ```bash
-# 스크립트에 실행 권한 부여 (이미 되어 있을 수 있음)
+# ⚠️ 중요: 스크립트에 실행 권한 부여 (필수!)
 chmod +x infrastructure/aws/check-env.sh
 
 # 스크립트 실행 (어디서든 실행 가능 - 자동으로 프로젝트 루트를 찾습니다)
@@ -471,6 +505,25 @@ chmod +x infrastructure/aws/check-env.sh
 
 # 또는 명시적으로 경로 지정
 ./infrastructure/aws/check-env.sh /home/ec2-user/Mysic/.env.production
+```
+
+**⚠️ Permission denied 오류 발생 시:**
+
+`Permission denied` 오류가 발생하면 스크립트에 실행 권한이 없는 것입니다. 다음 명령어로 실행 권한을 부여하세요:
+
+```bash
+# 프로젝트 루트에서 실행
+cd /home/ec2-user/Mysic  # 또는 /home/ubuntu/Mysic
+
+# 실행 권한 부여
+chmod +x infrastructure/aws/check-env.sh
+
+# 권한 확인 (선택사항)
+ls -l infrastructure/aws/check-env.sh
+# 출력 예시: -rwxr-xr-x ... (x가 있으면 실행 권한이 있음)
+
+# 이제 스크립트 실행
+./infrastructure/aws/check-env.sh
 ```
 
 **참고**: 수정된 스크립트는 실행 위치와 관계없이 자동으로 프로젝트 루트를 찾아 `.env.production` 파일을 검색합니다.
