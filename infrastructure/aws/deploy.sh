@@ -166,12 +166,77 @@ while [ $WAIT_COUNT_BACKEND -lt $MAX_WAIT_BACKEND ]; do
     WAIT_COUNT_BACKEND=$((WAIT_COUNT_BACKEND + 2))
 done
 
+# Backend 로그에서 에러 확인
+echo ""
+echo "🔍 Backend 로그에서 에러 확인 중..."
+BACKEND_LOGS=$(docker-compose -f infrastructure/aws/docker-compose.prod.yml logs --tail=100 backend 2>&1)
+
+# ImportError 확인
+if echo "$BACKEND_LOGS" | grep -qi "ImportError.*cannot import name.*settings.*from.*app.core.config"; then
+    echo "⚠️  ImportError 감지: settings import 문제"
+    echo "   config.py와 config/__init__.py 충돌 문제일 수 있습니다."
+    echo ""
+    echo "   해결 방법:"
+    echo "   1. backend/app/core/config.py 파일이 올바르게 설정되어 있는지 확인"
+    echo "   2. backend/app/core/config/__init__.py 파일 확인"
+    echo "   3. Backend 이미지를 재빌드하시겠습니까? (y/n)"
+    read -p "   " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "   🔨 Backend 이미지 재빌드 중..."
+        docker-compose -f infrastructure/aws/docker-compose.prod.yml build --no-cache backend
+        docker-compose -f infrastructure/aws/docker-compose.prod.yml restart backend
+        echo "   ✅ Backend 재빌드 완료. 잠시 대기 후 상태를 확인합니다..."
+        sleep 10
+        BACKEND_STATUS=$(docker inspect --format='{{.State.Status}}' mysic_backend_prod 2>/dev/null || echo "not_found")
+        if [ "$BACKEND_STATUS" != "running" ]; then
+            echo "   ⚠️  Backend가 여전히 문제가 있습니다. 로그를 확인하세요:"
+            docker-compose -f infrastructure/aws/docker-compose.prod.yml logs --tail=50 backend
+        fi
+    fi
+fi
+
+# CORS_ORIGINS 파싱 에러 확인
+if echo "$BACKEND_LOGS" | grep -qi "SettingsError.*error parsing value for field.*CORS_ORIGINS"; then
+    echo "⚠️  CORS_ORIGINS 파싱 에러 감지"
+    echo "   환경변수에서 CORS_ORIGINS를 리스트로 변환하는 과정에서 문제가 발생했습니다."
+    echo ""
+    echo "   해결 방법:"
+    echo "   1. backend/app/core/config.py에 field_validator가 올바르게 설정되어 있는지 확인"
+    echo "   2. .env.production 파일의 CORS_ORIGINS 형식 확인 (쉼표로 구분된 문자열)"
+    echo "   3. Backend 이미지를 재빌드하시겠습니까? (y/n)"
+    read -p "   " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "   🔨 Backend 이미지 재빌드 중..."
+        docker-compose -f infrastructure/aws/docker-compose.prod.yml build --no-cache backend
+        docker-compose -f infrastructure/aws/docker-compose.prod.yml restart backend
+        echo "   ✅ Backend 재빌드 완료. 잠시 대기 후 상태를 확인합니다..."
+        sleep 10
+        BACKEND_STATUS=$(docker inspect --format='{{.State.Status}}' mysic_backend_prod 2>/dev/null || echo "not_found")
+        if [ "$BACKEND_STATUS" != "running" ]; then
+            echo "   ⚠️  Backend가 여전히 문제가 있습니다. 로그를 확인하세요:"
+            docker-compose -f infrastructure/aws/docker-compose.prod.yml logs --tail=50 backend
+        fi
+    fi
+fi
+
+# 기타 Python 에러 확인
+if echo "$BACKEND_LOGS" | grep -qi "ModuleNotFoundError\|AttributeError.*settings\|NameError.*settings"; then
+    echo "⚠️  Python 모듈/설정 관련 에러 감지"
+    echo "   Backend 코드에 문제가 있을 수 있습니다."
+    echo "   로그 확인:"
+    echo "$BACKEND_LOGS" | grep -i "ModuleNotFoundError\|AttributeError\|NameError" | tail -5
+    echo ""
+fi
+
 if [ "$BACKEND_READY" = false ]; then
     echo "❌ Backend가 ${MAX_WAIT_BACKEND}초 내에 준비되지 않았습니다."
     echo "   Backend 로그를 확인하세요:"
     docker-compose -f infrastructure/aws/docker-compose.prod.yml logs --tail=50 backend
     echo ""
-    echo "⚠️  Backend가 재시작 중일 수 있습니다. 로그를 확인하여 문제를 해결하세요."
+    echo "⚠️  Backend가 재시작 중이거나 위의 에러가 원인일 수 있습니다."
+    echo "   로그를 확인하여 문제를 해결하세요."
     exit 1
 fi
 
