@@ -7,7 +7,7 @@ import { blobToBase64 } from "../utils/blob";
  * Throws an error if the API key is not available.
  */
 const getGenAI = () => {
-    const apiKey = process.env.API_KEY;
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
     if (!apiKey) {
         console.error("API_KEY environment variable not set. Please ensure it is configured.");
         throw new Error("API_KEY is not configured.");

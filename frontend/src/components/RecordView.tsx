@@ -157,11 +157,11 @@ const RecordView: React.FC = () => {
     };
 
     return (
-        <div className="p-4 md:p-6 max-w-md mx-auto h-full flex flex-col">
+        <div className="p-4 md:p-6 max-w-md mx-auto min-h-[calc(100vh-8rem)] flex flex-col">
             {error && <div className="bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 p-3 rounded-md my-4 text-sm">{error}</div>}
 
             {uiState === 'idle' && (
-                <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
                     <p className="text-gray-500 dark:text-gray-400 mb-8">버튼을 눌러 기록을 시작하세요</p>
                     <button onClick={handleStartRecording} className="w-48 h-48 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-600/30 transform hover:scale-105 transition-transform duration-300">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5zM8 0a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V3a3 3 0 0 0-3-3z"/></svg>

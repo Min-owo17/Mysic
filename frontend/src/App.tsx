@@ -10,7 +10,7 @@ import ProfileView from './components/ProfileView'
 import SettingsView from './components/SettingsView'
 import BottomNavBar from './components/BottomNavBar'
 import SideNavBar from './components/SideNavBar'
-import Header from './components/layout/Header'
+import { Header } from './components/layout/Header'
 import { useMemo, useState, useContext, ReactNode } from 'react'
 import { View } from './types'
 
@@ -47,7 +47,7 @@ function MainLayout({ children }: { children: ReactNode }) {
       <SideNavBar currentView={currentView} />
       <div className="md:ml-64 pb-16 md:pb-0">
         <Header />
-        <main className="p-4 md:p-8">
+        <main className="p-4 md:p-8 min-h-[calc(100vh-4rem)]">
           {children}
         </main>
       </div>
