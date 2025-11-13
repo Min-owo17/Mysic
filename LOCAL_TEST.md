@@ -46,7 +46,7 @@ docker-compose -f infrastructure/docker/docker-compose.yml ps
 
 #### 프론트엔드
 - **URL**: http://localhost
-- **예상 화면**: "Hello World! 🎵" 메시지가 표시됩니다.
+- **예상 화면**: 로그인/회원가입 페이지(AuthView)가 표시됩니다.
 
 #### 백엔드 API
 - **API 루트**: http://localhost:8000
@@ -132,9 +132,10 @@ Windows/Mac에서 Docker Desktop이 실행 중인지 확인하세요.
 ## 예상 결과
 
 ### 프론트엔드 (http://localhost)
-- "Hello World! 🎵" 제목
-- "Mysic - 악기 연주자 연습 기록 서비스" 설명
-- "Docker 로컬 테스트 성공! ✅" 메시지
+- "Mysic: 연주 일기" 제목이 표시된 로그인/회원가입 페이지
+- 로그인/회원가입 탭 전환 기능
+- 소셜 로그인 버튼 (Google, Kakao, Naver)
+- 다크 모드 지원
 
 ### 백엔드 API (http://localhost:8000)
 ```json

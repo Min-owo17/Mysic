@@ -35,7 +35,7 @@ docker-compose -f infrastructure/docker/docker-compose.yml up -d --build
 
 ### 3단계: 서비스 확인
 
-- **프론트엔드**: http://localhost
+- **프론트엔드**: http://localhost (로그인 페이지가 표시됩니다)
 - **백엔드 API**: http://localhost:8000
 - **API 문서**: http://localhost:8000/docs
 
