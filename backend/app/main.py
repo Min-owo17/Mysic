@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from typing import List
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -9,9 +10,14 @@ app = FastAPI(
 )
 
 # CORS 설정
+# settings.CORS_ORIGINS가 리스트인지 확인 (안전장치)
+cors_origins: List[str] = settings.CORS_ORIGINS
+if isinstance(cors_origins, str):
+    cors_origins = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

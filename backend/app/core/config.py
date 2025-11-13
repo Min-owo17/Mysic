@@ -1,3 +1,10 @@
+# ⚠️ 주의: 이 파일은 더 이상 사용되지 않습니다.
+# Python은 config/ 디렉토리를 패키지로 인식하므로,
+# config/__init__.py 파일의 내용이 사용됩니다.
+# 이 파일은 삭제해도 되지만, 참고용으로 남겨둡니다.
+
+# 실제 설정은 backend/app/core/config/__init__.py를 참고하세요.
+
 from pydantic_settings import BaseSettings
 from typing import List, Union
 from pydantic import field_validator
