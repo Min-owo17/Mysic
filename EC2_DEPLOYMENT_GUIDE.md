@@ -101,7 +101,7 @@ chmod 600 .env.production
 
 ### 3단계: Docker로 서비스 실행
 
-#### 3.1 배포 스크립트 실행 (권장)
+#### 3.1 배포 스크립트 실행 (Git 변경내용 가져오기 포함, 권장)
 
 ```bash
 chmod +x infrastructure/aws/deploy.sh
