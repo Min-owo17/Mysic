@@ -25,9 +25,8 @@ services:
       - mysic_network_prod
     mem_limit: 400m
     mem_reservation: 256m
-    # 보안을 위해 포트를 외부에 노출하지 않음 (내부 네트워크만 사용)
-    # ports:
-    #   - "5432:5432"
+    ports:
+      - "5432:5432"
 
   # FastAPI Backend
   backend:

@@ -101,7 +101,7 @@ chmod 600 .env.production
 
 ### 3단계: Docker로 서비스 실행
 
-#### 3.1 배포 스크립트 실행 (권장)
+#### 3.1 배포 스크립트 실행 (Git 변경내용 가져오기 포함, 권장)
 
 ```bash
 chmod +x infrastructure/aws/deploy.sh
@@ -128,7 +128,7 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml ps
 
 모든 서비스가 `Up` 상태여야 합니다.
 
-#### 4.2 브라우저에서 확인
+#### 4.2 브라우저에서 확인(ec2 서버)
 
 - **프론트엔드**: http://15.164.128.169
 - **백엔드 API**: http://15.164.128.169:8000
@@ -168,6 +168,23 @@ git pull
 # 재배포
 ./infrastructure/aws/deploy.sh
 ```
+
+### Docker 리소스 정리
+
+디스크 공간이 부족할 때 Docker 리소스를 정리합니다:
+
+```bash
+# 정리 스크립트에 실행 권한 부여 (최초 1회)
+chmod +x infrastructure/aws/cleanup-docker.sh
+
+# 안전 모드로 정리 (기본값, 7일 이상 사용하지 않은 이미지만 삭제)
+./infrastructure/aws/cleanup-docker.sh
+
+# 공격적 모드로 정리 (모든 사용하지 않는 리소스 삭제, 주의!)
+./infrastructure/aws/cleanup-docker.sh --aggressive
+```
+
+자세한 내용은 [디스크 공간 부족 문제](#디스크-공간-부족-문제) 섹션을 참고하세요.
 
 ## 문제 해결
 
@@ -657,6 +674,156 @@ docker volume prune
 ```
 
 자세한 내용은 `infrastructure/aws/memory-optimization.md`를 참고하세요.
+
+### 디스크 공간 부족 문제
+
+**증상**: Docker 빌드 중 `no space left on device` 오류 발생
+
+**오류 예시**:
+```
+target backend: failed to solve: rpc error: code = Unknown desc = 
+write /usr/local/lib/python3.11/site-packages/yaml/_yaml.cpython-311-x86_64-linux-gnu.so: 
+no space left on device
+```
+
+**원인**: 
+- EC2 t3.micro는 기본 8GB 스토리지만 제공
+- Docker 이미지, 컨테이너, 볼륨, 빌드 캐시가 누적되면 디스크 공간 부족 발생
+- 빌드 중 패키지 설치 단계에서 디스크가 가득 차면 해당 오류 발생
+
+#### 1. 문제 진단
+
+```bash
+# 전체 디스크 사용량 확인
+df -h
+
+# Docker 관련 디스크 사용량 확인
+docker system df
+
+# 가장 큰 디렉토리 확인
+sudo du -h --max-depth=1 / | sort -hr | head -10
+```
+
+#### 2. 즉시 해결 방법
+
+**방법 A: 정리 스크립트 사용 (권장)**
+
+```bash
+# 프로젝트 루트로 이동
+cd /home/ec2-user/Mysic  # 또는 /home/ubuntu/Mysic
+
+# 스크립트에 실행 권한 부여
+chmod +x infrastructure/aws/cleanup-docker.sh
+
+# 안전 모드로 정리 (기본값)
+./infrastructure/aws/cleanup-docker.sh
+
+# 또는 공격적 모드로 정리 (모든 사용하지 않는 리소스 삭제, 주의!)
+./infrastructure/aws/cleanup-docker.sh --aggressive
+```
+
+**방법 B: 수동 정리**
+
+```bash
+# 사용하지 않는 모든 Docker 리소스 정리
+docker system prune -a --volumes
+
+# 또는 단계별로 정리
+# 1. 중지된 컨테이너 삭제
+docker container prune -f
+
+# 2. 사용하지 않는 이미지 삭제
+docker image prune -a -f
+
+# 3. 사용하지 않는 볼륨 삭제 (주의: 데이터 손실 가능)
+docker volume prune -f
+
+# 4. 빌드 캐시 삭제
+docker builder prune -a -f
+```
+
+**방법 C: 추가 정리**
+
+```bash
+# 특정 이미지만 삭제
+docker images
+docker rmi <이미지_ID>
+
+# 로그 파일 정리
+sudo journalctl --vacuum-time=3d
+
+# 패키지 캐시 정리 (Ubuntu/Debian)
+sudo apt-get clean
+sudo apt-get autoremove -y
+
+# 패키지 캐시 정리 (Amazon Linux)
+sudo yum clean all
+```
+
+#### 3. 정리 후 재배포
+
+```bash
+# 정리 완료 후 다시 배포
+cd /home/ec2-user/Mysic  # 또는 /home/ubuntu/Mysic
+./infrastructure/aws/deploy.sh
+```
+
+#### 4. 예방 방법
+
+**정기적인 정리 스크립트 실행**
+
+`cleanup-docker.sh` 스크립트를 cron에 추가하여 정기적으로 실행:
+
+```bash
+# cron 편집
+crontab -e
+
+# 다음 줄 추가 (매주 일요일 새벽 2시에 실행)
+0 2 * * 0 /home/ec2-user/Mysic/infrastructure/aws/cleanup-docker.sh
+
+# 또는 매일 새벽 3시에 실행
+0 3 * * * /home/ec2-user/Mysic/infrastructure/aws/cleanup-docker.sh
+```
+
+**스토리지 확장 (장기 해결책)**
+
+EC2 인스턴스의 스토리지를 확장하는 것을 고려하세요:
+
+1. **AWS 콘솔에서 EBS 볼륨 크기 증가**
+   - EC2 콘솔 → 볼륨 선택 → 작업 → 볼륨 수정
+   - 크기를 8GB에서 16GB 또는 20GB로 증가
+
+2. **파일 시스템 확장** (Linux)
+   ```bash
+   # 파일 시스템 확인
+   lsblk
+   df -h
+   
+   # 파일 시스템 확장 (Amazon Linux 2)
+   sudo growpart /dev/xvda 1
+   sudo xfs_growfs /
+   
+   # 파일 시스템 확장 (Ubuntu)
+   sudo growpart /dev/nvme0n1 1
+   sudo resize2fs /dev/nvme0n1p1
+   ```
+
+#### 5. 디스크 사용량 모니터링
+
+```bash
+# 디스크 사용량 확인 스크립트
+#!/bin/bash
+echo "=== 디스크 사용량 ==="
+df -h
+echo ""
+echo "=== Docker 리소스 사용량 ==="
+docker system df
+echo ""
+echo "=== 큰 디렉토리 Top 10 ==="
+sudo du -h --max-depth=1 / 2>/dev/null | sort -hr | head -10
+```
+
+**참고**: 정기적으로 디스크 사용량을 확인하고, 80% 이상 사용 중이면 정리 스크립트를 실행하세요.
 
 ## 보안 체크리스트
 
