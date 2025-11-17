@@ -5,8 +5,45 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mysic - 악기 연주자 연습 기록 서비스</title>
+    <script>
+      // On page load or when changing themes, best to add inline in `head` to avoid FOUC
+      if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+
+      // Tailwind CSS config
+      window.tailwind = {
+        darkMode: 'class',
+      }
+    </script>
+    <style>
+      /* PC 화면에서 뷰포트 크기에 따라 UI가 유동적으로 스케일되도록 설정합니다. */
+      @media (min-width: 768px) {
+        html {
+          /* 768px일 때 14px, 1920px일 때 18px가 되도록 설정하고, 그 사이는 선형적으로 증가합니다. */
+          font-size: clamp(14px, calc(11.3333px + 0.3472vw), 18px);
+        }
+      }
+
+      @keyframes fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes scale-in {
+        from { transform: scale(0.9); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.3s ease-out forwards;
+      }
+      .animate-scale-in {
+        animation: scale-in 0.3s ease-out forwards;
+      }
+    </style>
   </head>
-  <body>
+  <body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-white antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
