@@ -128,7 +128,7 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml ps
 
 모든 서비스가 `Up` 상태여야 합니다.
 
-#### 4.2 브라우저에서 확인
+#### 4.2 브라우저에서 확인(ec2 서버)
 
 - **프론트엔드**: http://15.164.128.169
 - **백엔드 API**: http://15.164.128.169:8000
