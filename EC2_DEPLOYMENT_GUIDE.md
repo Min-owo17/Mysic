@@ -873,6 +873,136 @@ class MyModel(Base):
    docker exec -it mysic_backend_prod alembic upgrade head
    ```
 
+#### 6. PostgreSQL 연결 오류: 비밀번호 미제공
+
+**증상**: `alembic upgrade head` 또는 백엔드 실행 시 다음 오류 발생
+```
+sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to server at "postgres" (172.21.0.2), 
+port 5432 failed: fe_sendauth: no password supplied
+```
+
+**원인**: 
+- `.env.production` 파일이 없거나 잘못된 위치에 있음
+- `.env.production` 파일에 `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`가 제대로 설정되지 않음
+- Docker Compose가 환경 변수를 제대로 확장하지 못함
+- 백엔드 컨테이너 내부에서 `DATABASE_URL`이 제대로 설정되지 않음
+
+**해결 방법**:
+
+1. **`.env.production` 파일 확인**:
+   ```bash
+   # 프로젝트 루트에서 실행
+   cd /home/ec2-user/Mysic  # 또는 프로젝트 경로
+   
+   # .env.production 파일 존재 확인
+   ls -la .env.production
+   
+   # .env.production 파일 내용 확인 (비밀번호는 마스킹)
+   cat .env.production | grep POSTGRES
+   ```
+
+2. **`.env.production` 파일 생성/수정**:
+   ```bash
+   # 파일이 없으면 생성
+   if [ ! -f .env.production ]; then
+       cp infrastructure/aws/env.example .env.production
+   fi
+   
+   # 파일 편집
+   nano .env.production
+   ```
+
+   다음 내용이 반드시 포함되어 있어야 합니다:
+   ```env
+   # Database Configuration
+   POSTGRES_USER=mysic_user
+   POSTGRES_PASSWORD=your-secure-password-here  # ⚠️ 실제 비밀번호로 변경 필요
+   POSTGRES_DB=mysic_db
+   ```
+
+3. **DATABASE_URL 직접 설정 (권장)**:
+   
+   `.env.production` 파일에 `DATABASE_URL`을 직접 추가:
+   ```env
+   # Database Configuration
+   POSTGRES_USER=mysic_user
+   POSTGRES_PASSWORD=your-secure-password-here
+   POSTGRES_DB=mysic_db
+   
+   # Database URL (Docker Compose 환경 변수 확장 문제 해결)
+   DATABASE_URL=postgresql://mysic_user:your-secure-password-here@postgres:5432/mysic_db
+   ```
+   
+   ⚠️ **주의**: `DATABASE_URL`의 비밀번호를 실제 비밀번호로 변경해야 합니다.
+
+4. **환경 변수 확인**:
+   ```bash
+   # 백엔드 컨테이너의 환경 변수 확인
+   docker exec -it mysic_backend_prod env | grep DATABASE_URL
+   
+   # DATABASE_URL이 비어있거나 잘못된 경우
+   # 컨테이너 재시작 필요
+   ```
+
+5. **컨테이너 재시작**:
+   ```bash
+   # 모든 컨테이너 중지
+   docker-compose -f infrastructure/aws/docker-compose.prod.yml down
+   
+   # 환경 변수 다시 로드하여 시작
+   docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d
+   
+   # 또는 백엔드만 재시작
+   docker-compose -f infrastructure/aws/docker-compose.prod.yml restart backend
+   ```
+
+6. **연결 테스트**:
+   ```bash
+   # PostgreSQL 연결 테스트
+   docker exec -it mysic_postgres_prod psql -U mysic_user -d mysic_db
+   # 연결되면 \q로 종료
+   
+   # 백엔드에서 DATABASE_URL 확인
+   docker exec -it mysic_backend_prod python -c "
+   import os
+   print('DATABASE_URL:', os.getenv('DATABASE_URL', 'NOT SET'))
+   "
+   ```
+
+**중요: docker-compose.prod.yml의 우선순위 문제**
+
+`docker-compose.prod.yml`의 `environment` 섹션에서 설정한 환경 변수는 `env_file`의 값보다 **우선순위가 높습니다**. 
+
+따라서 `docker-compose.prod.yml`에서 다음과 같이 `DATABASE_URL`을 설정하면:
+```yaml
+environment:
+  - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+```
+
+`.env.production` 파일에 `DATABASE_URL`을 설정해도 **무시됩니다**.
+
+**해결 방법**: `docker-compose.prod.yml`에서 `DATABASE_URL`을 `environment` 섹션에서 제거하고, `.env.production`에서만 읽도록 수정했습니다.
+
+```yaml
+backend:
+  env_file:
+    - ../../.env.production
+  environment:
+    # DATABASE_URL은 .env.production에서 직접 읽도록 함
+    # - DATABASE_URL=...  # ← 이 줄을 제거하거나 주석 처리
+    - SECRET_KEY=${SECRET_KEY}
+    - ENVIRONMENT=production
+    # ... 기타 환경 변수
+```
+
+이제 `.env.production` 파일의 `DATABASE_URL`이 정상적으로 사용됩니다.
+
+**최종 확인**:
+```bash
+# 백엔드 컨테이너에서 마이그레이션 재시도
+docker exec -it mysic_backend_prod alembic upgrade head
+```
+
 ### 디스크 공간 부족 문제
 
 **증상**: Docker 빌드 중 `no space left on device` 오류 발생
