@@ -3,7 +3,7 @@
 - Achievement: 칭호 정보
 - UserAchievement: 사용자가 획득한 칭호
 """
-from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey
+from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -40,6 +40,6 @@ class UserAchievement(Base):
 
     # 복합 유니크 제약조건
     __table_args__ = (
-        {"postgresql_unique_constraint": ("user_id", "achievement_id")},
+        UniqueConstraint("user_id", "achievement_id", name="uq_user_achievement_user_achievement"),
     )
 

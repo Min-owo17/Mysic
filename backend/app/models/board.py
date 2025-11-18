@@ -5,7 +5,7 @@
 - PostLike: 게시글 좋아요
 - CommentLike: 댓글 좋아요
 """
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, ARRAY
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, ARRAY, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -69,7 +69,7 @@ class PostLike(Base):
 
     # 복합 유니크 제약조건
     __table_args__ = (
-        {"postgresql_unique_constraint": ("post_id", "user_id")},
+        UniqueConstraint("post_id", "user_id", name="uq_post_like_post_user"),
     )
 
 
@@ -88,6 +88,6 @@ class CommentLike(Base):
 
     # 복합 유니크 제약조건
     __table_args__ = (
-        {"postgresql_unique_constraint": ("comment_id", "user_id")},
+        UniqueConstraint("comment_id", "user_id", name="uq_comment_like_comment_user"),
     )
 

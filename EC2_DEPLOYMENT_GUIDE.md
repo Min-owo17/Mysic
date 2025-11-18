@@ -800,6 +800,79 @@ alembic upgrade head
 exit
 ```
 
+#### 5. SQLAlchemy ArgumentError: postgresql_unique_constraint 오류
+
+**증상**: `alembic upgrade head` 실행 시 다음 오류 발생
+```
+sqlalchemy.exc.ArgumentError: Argument 'postgresql_unique_constraint' is not accepted 
+by dialect 'postgresql' on behalf of <class 'sqlalchemy.sql.schema.Table'>
+```
+
+**원인**: 
+- `postgresql_unique_constraint`는 유효한 SQLAlchemy 인자가 아닙니다
+- 복합 유니크 제약조건을 정의할 때는 `UniqueConstraint`를 사용해야 합니다
+
+**해결 방법**:
+
+모델 파일에서 `__table_args__`를 다음과 같이 수정:
+
+```python
+# ❌ 잘못된 방법
+from sqlalchemy import Column, Integer, String, ForeignKey
+from app.core.database import Base
+
+class MyModel(Base):
+    __tablename__ = "my_table"
+    
+    id = Column(Integer, primary_key=True)
+    field1 = Column(String(50))
+    field2 = Column(String(50))
+    
+    __table_args__ = (
+        {"postgresql_unique_constraint": ("field1", "field2")},  # ❌ 잘못됨
+    )
+
+# ✅ 올바른 방법
+from sqlalchemy import Column, Integer, String, ForeignKey, UniqueConstraint
+from app.core.database import Base
+
+class MyModel(Base):
+    __tablename__ = "my_table"
+    
+    id = Column(Integer, primary_key=True)
+    field1 = Column(String(50))
+    field2 = Column(String(50))
+    
+    __table_args__ = (
+        UniqueConstraint("field1", "field2", name="uq_my_table_field1_field2"),  # ✅ 올바름
+    )
+```
+
+**수정이 필요한 파일들**:
+- `backend/app/models/user.py` - `SocialAccount` 모델
+- `backend/app/models/board.py` - `PostLike`, `CommentLike` 모델
+- `backend/app/models/group.py` - `GroupMember` 모델
+- `backend/app/models/achievement.py` - `UserAchievement` 모델
+
+**적용 방법**:
+
+1. **로컬에서 수정 후 Git에 푸시**:
+   ```bash
+   # 모든 모델 파일 수정 후
+   git add backend/app/models/*.py
+   git commit -m "Fix: Replace postgresql_unique_constraint with UniqueConstraint"
+   git push
+   
+   # EC2에서
+   git pull
+   docker-compose -f infrastructure/aws/docker-compose.prod.yml restart backend
+   ```
+
+2. **마이그레이션 재시도**:
+   ```bash
+   docker exec -it mysic_backend_prod alembic upgrade head
+   ```
+
 ### 디스크 공간 부족 문제
 
 **증상**: Docker 빌드 중 `no space left on device` 오류 발생

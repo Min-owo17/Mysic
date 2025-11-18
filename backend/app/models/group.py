@@ -3,7 +3,7 @@
 - Group: 그룹 정보
 - GroupMember: 그룹 멤버 정보
 """
-from sqlalchemy import Column, Integer, String, Boolean, Text, TIMESTAMP, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Text, TIMESTAMP, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -42,6 +42,6 @@ class GroupMember(Base):
 
     # 복합 유니크 제약조건
     __table_args__ = (
-        {"postgresql_unique_constraint": ("group_id", "user_id")},
+        UniqueConstraint("group_id", "user_id", name="uq_group_member_group_user"),
     )
 

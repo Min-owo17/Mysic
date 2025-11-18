@@ -4,7 +4,7 @@
 - UserProfile: 사용자 프로필 정보
 - SocialAccount: 소셜 로그인 계정 정보
 """
-from sqlalchemy import Column, Integer, String, Boolean, Text, TIMESTAMP, ForeignKey, ARRAY
+from sqlalchemy import Column, Integer, String, Boolean, Text, TIMESTAMP, ForeignKey, ARRAY, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -68,6 +68,6 @@ class SocialAccount(Base):
 
     # 복합 유니크 제약조건
     __table_args__ = (
-        {"postgresql_unique_constraint": ("provider", "provider_user_id")},
+        UniqueConstraint("provider", "provider_user_id", name="uq_social_account_provider_user"),
     )
 
