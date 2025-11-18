@@ -675,6 +675,131 @@ docker volume prune
 
 자세한 내용은 `infrastructure/aws/memory-optimization.md`를 참고하세요.
 
+### 데이터베이스 마이그레이션 오류
+
+#### 1. 순환 Import 오류 (Circular Import Error)
+
+**증상**: `alembic upgrade head` 실행 시 다음 오류 발생
+```
+ImportError: cannot import name 'Base' from partially initialized module 
+'app.core.database' (most likely due to a circular import)
+```
+
+**원인**: 
+- `alembic/env.py`에서 `Base`를 모델보다 먼저 import하여 순환 참조 발생
+- `app.models.__init__.py`가 `app.core.database`를 import하는데, `alembic/env.py`에서 먼저 `Base`를 import하면 순환 참조 발생
+
+**해결 방법**:
+
+`backend/alembic/env.py` 파일의 import 순서를 수정:
+
+```python
+# ❌ 잘못된 순서 (순환 import 발생)
+from app.core.config import settings
+from app.core.database import Base  # ← 먼저 Base import
+from app.models import *  # ← 모델 import 시 순환 참조 발생
+
+# ✅ 올바른 순서 (수정됨)
+from app.core.config import settings
+from app.models import *  # ← 모델을 먼저 import
+from app.core.database import Base  # ← 그 다음 Base import
+```
+
+**적용 방법**:
+
+1. **로컬에서 수정 후 Git에 푸시**:
+   ```bash
+   # 로컬에서 파일 수정
+   # backend/alembic/env.py 파일을 위 순서로 수정
+   
+   git add backend/alembic/env.py
+   git commit -m "Fix circular import in alembic env.py"
+   git push
+   
+   # EC2에서
+   git pull
+   docker-compose -f infrastructure/aws/docker-compose.prod.yml restart backend
+   ```
+
+2. **EC2에서 직접 수정**:
+   ```bash
+   # 백엔드 컨테이너 내부에서 수정
+   docker exec -it mysic_backend_prod bash
+   nano /app/alembic/env.py
+   # import 순서를 위와 같이 수정
+   exit
+   
+   # 백엔드 컨테이너 재시작
+   docker-compose -f infrastructure/aws/docker-compose.prod.yml restart backend
+   ```
+
+3. **마이그레이션 재시도**:
+   ```bash
+   docker exec -it mysic_backend_prod alembic upgrade head
+   ```
+
+#### 2. 컨테이너 내부 경로 오류
+
+**증상**: `cd /app/backend` 실행 시 `no such file or directory` 오류
+
+**원인**: 
+- Dockerfile에서 `WORKDIR /app`로 설정되어 있고, `backend/` 디렉토리의 내용이 `/app`에 직접 복사됨
+- 따라서 `/app/backend` 경로는 존재하지 않음
+
+**해결 방법**:
+
+```bash
+# 컨테이너 내부로 진입
+docker exec -it mysic_backend_prod bash
+
+# 현재 위치 확인 (보통 /app)
+pwd
+
+# 파일 구조 확인
+ls -la
+
+# 이미 /app에 있으므로 바로 alembic 실행 (cd 불필요)
+alembic upgrade head
+
+# 또는 컨테이너 외부에서 직접 실행 (더 간단)
+docker exec -it mysic_backend_prod alembic upgrade head
+```
+
+#### 3. 데이터베이스 연결 오류
+
+**증상**: `alembic upgrade head` 실행 시 데이터베이스 연결 실패
+
+**해결 방법**:
+
+```bash
+# PostgreSQL 컨테이너 상태 확인
+docker-compose -f infrastructure/aws/docker-compose.prod.yml ps postgres
+
+# PostgreSQL 연결 테스트
+docker exec -it mysic_postgres_prod pg_isready -U mysic_user
+
+# DATABASE_URL 환경 변수 확인
+docker exec -it mysic_backend_prod env | grep DATABASE_URL
+
+# .env.production 파일 확인
+cat .env.production | grep POSTGRES
+```
+
+#### 4. 마이그레이션 파일이 없는 경우
+
+**증상**: `alembic upgrade head` 실행 시 마이그레이션 파일이 없다는 오류
+
+**해결 방법**:
+
+```bash
+# 초기 마이그레이션 생성
+docker exec -it mysic_backend_prod bash
+cd /app
+alembic revision --autogenerate -m "Initial migration"
+alembic upgrade head
+exit
+```
+
 ### 디스크 공간 부족 문제
 
 **증상**: Docker 빌드 중 `no space left on device` 오류 발생

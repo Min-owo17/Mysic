@@ -14,10 +14,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # 설정 파일에서 데이터베이스 URL 가져오기
 from app.core.config import settings
-from app.core.database import Base
 
-# 모든 모델을 import하여 Base.metadata에 등록
-from app.models import *  # noqa
+# 모든 모델을 먼저 import하여 Base.metadata에 등록 (순환 import 방지)
+from app.models import *  # noqa: F401, F403
+
+# Base는 모델 import 후에 import (모델들이 Base를 사용하므로 자동으로 초기화됨)
+from app.core.database import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

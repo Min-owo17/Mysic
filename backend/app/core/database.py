@@ -7,10 +7,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
-# 모든 모델을 모듈 레벨에서 import하여 Base.metadata에 등록
-# import *는 모듈 레벨에서만 허용되므로 여기서 import
-from app.models import *  # noqa: F403, F405
-
 # SQLAlchemy 엔진 생성
 # pool_pre_ping: 연결이 살아있는지 확인
 # pool_recycle: 연결 풀 재사용 시간 (초)
@@ -45,8 +41,8 @@ def init_db():
     데이터베이스 초기화 함수
     모든 테이블을 생성합니다.
     """
-    # 모듈 레벨에서 이미 import되었으므로 추가 import 불필요
-    # Base.metadata에 모든 모델이 자동으로 등록됨
+    # 모든 모델을 import하여 Base.metadata에 등록
+    from app.models import *  # noqa
     
     # 테이블 생성
     Base.metadata.create_all(bind=engine)
