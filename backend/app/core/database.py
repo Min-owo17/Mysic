@@ -40,9 +40,13 @@ def init_db():
     """
     데이터베이스 초기화 함수
     모든 테이블을 생성합니다.
+    
+    주의: 모델은 이미 모듈 레벨에서 import되어 Base.metadata에 등록됩니다.
+    함수 내부에서 import *를 사용할 수 없으므로, 모델 import는 생략합니다.
     """
     # 모든 모델을 import하여 Base.metadata에 등록
-    from app.models import *  # noqa
+    # 모델들은 이미 app.models.__init__.py에서 import되어 Base.metadata에 등록됨
+    import app.models  # noqa: F401 - 모델 모듈을 import하여 Base.metadata에 등록
     
     # 테이블 생성
     Base.metadata.create_all(bind=engine)
