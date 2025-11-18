@@ -145,10 +145,37 @@ def seed_users(db: Session):
             created_users.append(existing)
             continue
         
+        # 디버깅: 비밀번호 확인
+        try:
+            password_bytes = password.encode('utf-8')
+            password_len = len(password_bytes)
+            print(f"   🔍 DEBUG: email={email}, password={repr(password)}, password_bytes_len={password_len}")
+            
+            if password_len > 72:
+                print(f"   ⚠️  WARNING: Password for {email} exceeds 72 bytes! Truncating...")
+                # 72바이트로 제한
+                password_bytes = password_bytes[:72]
+                # 잘린 UTF-8 문자 제거
+                while len(password_bytes) > 0 and (password_bytes[-1] & 0xC0) == 0x80:
+                    password_bytes = password_bytes[:-1]
+                password = password_bytes.decode('utf-8', errors='ignore')
+                print(f"   🔍 DEBUG: Truncated password={repr(password)}, new_len={len(password.encode('utf-8'))}")
+        except Exception as e:
+            print(f"   ⚠️  WARNING: Error checking password for {email}: {e}")
+        
+        # 비밀번호 해싱
+        try:
+            password_hash = get_password_hash(password)
+            print(f"   🔍 DEBUG: Password hash generated successfully for {email}")
+        except Exception as e:
+            print(f"   ❌ ERROR: Failed to hash password for {email}: {e}")
+            print(f"   🔍 DEBUG: password type={type(password)}, password value={repr(password)}")
+            raise
+        
         # 사용자 생성
         user = User(
             email=email,
-            password_hash=get_password_hash(password),
+            password_hash=password_hash,
             nickname=nickname,
             is_active=True,
             last_login_at=datetime.utcnow() - timedelta(days=randint(0, 7))
