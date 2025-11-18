@@ -35,19 +35,20 @@ def get_password_hash(password: str) -> str:
             password_bytes = password_bytes[:-1]
         # 안전하게 디코딩
         password = password_bytes.decode('utf-8', errors='ignore')
-        # 다시 인코딩하여 최종 확인
-        password_bytes = password.encode('utf-8')
     
-    # passlib에 bytes를 직접 전달 (더 확실한 방법)
-    # passlib의 bcrypt는 bytes와 str 모두 지원하지만, bytes를 직접 전달하는 것이 더 안전
+    # passlib에 str 타입으로 전달 (bcrypt 버전 읽기 오류 방지)
+    # passlib의 bcrypt handler는 str을 받아서 내부에서 bytes로 변환합니다
+    # bytes를 직접 전달하면 "error reading bcrypt version" 오류가 발생할 수 있음
     try:
-        # bytes를 직접 전달하는 방법 (passlib이 지원)
-        # bytes 타입으로 전달하면 passlib이 내부에서 처리
-        return pwd_context.hash(password_bytes)
-    except (TypeError, ValueError, AttributeError):
-        # str을 전달하는 방법 (fallback)
-        # 일부 버전의 passlib은 bytes를 직접 받지 않을 수 있음
         return pwd_context.hash(password)
+    except Exception as e:
+        # 오류 발생 시 상세 정보 출력
+        import traceback
+        print(f"ERROR in get_password_hash: {e}")
+        print(f"Password type: {type(password)}, Password value: {repr(password)}")
+        print(f"Password bytes length: {len(password.encode('utf-8'))}")
+        traceback.print_exc()
+        raise
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
