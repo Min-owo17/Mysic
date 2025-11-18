@@ -52,7 +52,7 @@ def seed_instruments(db: Session):
             instrument = Instrument(name=name, display_order=display_order)
             db.add(instrument)
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {len(instruments_data)}개 악기 데이터 생성 완료")
 
 
@@ -77,7 +77,7 @@ def seed_user_types(db: Session):
             user_type = UserType(name=name, display_order=display_order)
             db.add(user_type)
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {len(user_types_data)}개 사용자 특징 데이터 생성 완료")
 
 
@@ -115,7 +115,7 @@ def seed_achievements(db: Session):
             )
             db.add(achievement)
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {len(achievements_data)}개 칭호 데이터 생성 완료")
 
 
@@ -187,7 +187,7 @@ def seed_users(db: Session):
         created_users.append(user)
         print(f"   ✅ 사용자 생성: {email} ({nickname})")
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {len(created_users)}명의 사용자 생성 완료")
     return created_users
 
@@ -230,7 +230,7 @@ def seed_practice_sessions(db: Session, users: list):
             db.add(session)
             total_sessions += 1
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {total_sessions}개의 연습 기록 생성 완료")
 
 
@@ -282,7 +282,7 @@ def seed_groups(db: Session, users: list):
         created_groups.append(group)
         print(f"   ✅ 그룹 생성: {group_name}")
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {len(created_groups)}개의 그룹 생성 완료")
     return created_groups
 
@@ -366,7 +366,7 @@ def seed_posts(db: Session, users: list):
         db.flush()
         created_posts.append(post)
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {len(created_posts)}개의 게시글 생성 완료")
     return created_posts
 
@@ -435,7 +435,7 @@ def seed_comments_and_likes(db: Session, users: list, posts: list):
             post.like_count += 1
             total_likes += 1
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {total_comments}개의 댓글 생성 완료")
     print(f"✅ {total_likes}개의 좋아요 생성 완료")
 
@@ -471,7 +471,7 @@ def seed_user_achievements(db: Session, users: list):
                 db.add(user_achievement)
                 total_achievements += 1
     
-    db.commit()
+    # commit은 main 함수에서 처리
     print(f"✅ {total_achievements}개의 칭호 부여 완료")
 
 
@@ -512,13 +512,19 @@ def main():
         # 7. 칭호 부여
         seed_user_achievements(db, users)
         
+        # 모든 작업이 성공적으로 완료된 경우에만 commit
+        db.commit()
         print("=" * 60)
-        print("✅ 시드 데이터 생성 완료!")
+        print("✅ 시드 데이터 생성 완료! 모든 변경사항이 커밋되었습니다.")
         print("=" * 60)
         
     except Exception as e:
+        # 오류 발생 시 모든 변경사항 롤백
         db.rollback()
-        print(f"❌ 오류 발생: {e}")
+        print("=" * 60)
+        print(f"❌ 오류 발생: 모든 변경사항이 롤백되었습니다.")
+        print(f"❌ 오류 내용: {e}")
+        print("=" * 60)
         import traceback
         traceback.print_exc()
         raise
