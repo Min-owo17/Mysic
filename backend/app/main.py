@@ -24,8 +24,11 @@ app.add_middleware(
 )
 
 # 라우터 등록
-from app.routers import auth
+from app.routers import auth, users, instruments, user_types
 app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(instruments.router)
+app.include_router(user_types.router)
 
 
 @app.get("/")

@@ -1,0 +1,150 @@
+"""
+사용자 관리 관련 Pydantic 스키마
+프로필 조회, 수정, 악기/특징 관리 등의 스키마 정의
+"""
+from pydantic import BaseModel, Field, EmailStr
+from typing import Optional, List
+from datetime import datetime
+
+
+class InstrumentResponse(BaseModel):
+    """악기 정보 응답 스키마"""
+    instrument_id: int
+    name: str
+    display_order: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserTypeResponse(BaseModel):
+    """사용자 특징 정보 응답 스키마"""
+    user_type_id: int
+    name: str
+    display_order: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserProfileInstrumentResponse(BaseModel):
+    """사용자 프로필 악기 정보 응답 스키마"""
+    instrument_id: int
+    instrument_name: str
+    is_primary: bool
+
+    class Config:
+        from_attributes = True
+
+
+class UserProfileUserTypeResponse(BaseModel):
+    """사용자 프로필 특징 정보 응답 스키마"""
+    user_type_id: int
+    user_type_name: str
+
+    class Config:
+        from_attributes = True
+
+
+class UserProfileResponse(BaseModel):
+    """사용자 프로필 응답 스키마"""
+    profile_id: int
+    user_id: int
+    bio: Optional[str] = None
+    hashtags: Optional[List[str]] = None
+    instruments: List[UserProfileInstrumentResponse] = []
+    user_types: List[UserProfileUserTypeResponse] = []
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserDetailResponse(BaseModel):
+    """사용자 상세 정보 응답 스키마 (프로필 포함)"""
+    user_id: int
+    email: str
+    nickname: str
+    profile_image_url: Optional[str] = None
+    is_active: bool
+    last_login_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    profile: Optional[UserProfileResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UpdateProfileRequest(BaseModel):
+    """프로필 수정 요청 스키마"""
+    nickname: Optional[str] = Field(None, min_length=1, max_length=100, description="닉네임 (1-100자)")
+    profile_image_url: Optional[str] = Field(None, max_length=500, description="프로필 이미지 URL")
+    bio: Optional[str] = Field(None, description="자기소개")
+    hashtags: Optional[List[str]] = Field(None, description="해시태그 목록")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "nickname": "새로운닉네임",
+                "profile_image_url": "https://example.com/image.jpg",
+                "bio": "안녕하세요!",
+                "hashtags": ["#피아노", "#클래식"]
+            }
+        }
+
+
+class UpdateInstrumentsRequest(BaseModel):
+    """악기 수정 요청 스키마"""
+    instrument_ids: List[int] = Field(..., description="악기 ID 목록")
+    primary_instrument_id: Optional[int] = Field(None, description="주요 악기 ID (instrument_ids에 포함되어야 함)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "instrument_ids": [1, 2, 3],
+                "primary_instrument_id": 1
+            }
+        }
+
+
+class UpdateUserTypesRequest(BaseModel):
+    """특징 수정 요청 스키마"""
+    user_type_ids: List[int] = Field(..., description="특징 ID 목록")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "user_type_ids": [1, 2, 3]
+            }
+        }
+
+
+class ChangePasswordRequest(BaseModel):
+    """비밀번호 변경 요청 스키마"""
+    current_password: str = Field(..., description="현재 비밀번호")
+    new_password: str = Field(..., min_length=8, max_length=72, description="새 비밀번호 (8-72자)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "current_password": "oldpassword123",
+                "new_password": "newpassword123"
+            }
+        }
+
+
+class MessageResponse(BaseModel):
+    """일반 메시지 응답 스키마"""
+    message: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "프로필이 수정되었습니다."
+            }
+        }
+

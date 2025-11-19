@@ -25,6 +25,83 @@ export interface User {
   updated_at?: string;
 }
 
+// Instrument types
+export interface InstrumentResponse {
+  instrument_id: number;
+  name: string;
+  display_order: number;
+  created_at: string;
+}
+
+// UserType types
+export interface UserTypeResponse {
+  user_type_id: number;
+  name: string;
+  display_order: number;
+  created_at: string;
+}
+
+// UserProfile types
+export interface UserProfileInstrumentResponse {
+  instrument_id: number;
+  instrument_name: string;
+  is_primary: boolean;
+}
+
+export interface UserProfileUserTypeResponse {
+  user_type_id: number;
+  user_type_name: string;
+}
+
+export interface UserProfileResponse {
+  profile_id: number;
+  user_id: number;
+  bio?: string | null;
+  hashtags?: string[] | null;
+  instruments: UserProfileInstrumentResponse[];
+  user_types: UserProfileUserTypeResponse[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserDetailResponse {
+  user_id: number;
+  email: string;
+  nickname: string;
+  profile_image_url?: string | null;
+  is_active: boolean;
+  last_login_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  profile?: UserProfileResponse | null;
+}
+
+// User API Request types
+export interface UpdateProfileRequest {
+  nickname?: string;
+  profile_image_url?: string;
+  bio?: string;
+  hashtags?: string[];
+}
+
+export interface UpdateInstrumentsRequest {
+  instrument_ids: number[];
+  primary_instrument_id?: number;
+}
+
+export interface UpdateUserTypesRequest {
+  user_type_ids: number[];
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
 // Auth types
 export interface LoginRequest {
   email: string;
