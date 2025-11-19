@@ -6,7 +6,7 @@ export const authApi = {
    * 회원가입
    */
   register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post<AuthResponse>('/api/auth/register', data);
+    const response = await apiClient.post<AuthResponse>('/auth/register', data);
     return response.data;
   },
 
@@ -14,7 +14,7 @@ export const authApi = {
    * 로그인
    */
   login: async (data: LoginRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post<AuthResponse>('/api/auth/login', data);
+    const response = await apiClient.post<AuthResponse>('/auth/login', data);
     return response.data;
   },
 
@@ -22,7 +22,7 @@ export const authApi = {
    * 현재 사용자 조회
    */
   getMe: async (): Promise<User> => {
-    const response = await apiClient.get<User>('/api/auth/me');
+    const response = await apiClient.get<User>('/auth/me');
     return response.data;
   },
 
@@ -30,7 +30,7 @@ export const authApi = {
    * 로그아웃
    */
   logout: async (): Promise<void> => {
-    await apiClient.post('/api/auth/logout');
+    await apiClient.post('/auth/logout');
   },
 };
 
