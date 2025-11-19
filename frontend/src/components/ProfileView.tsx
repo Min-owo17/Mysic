@@ -28,14 +28,29 @@ const ProfileView: React.FC = () => {
   // 프로필 데이터 조회
   const { data: profileData, isLoading: isLoadingProfile, error: profileError } = useQuery<UserDetailResponse>({
     queryKey: ['userProfile'],
-    queryFn: () => usersApi.getMyProfile(),
+    queryFn: () => {
+      console.log('프로필 조회 API 호출 시작');
+      return usersApi.getMyProfile();
+    },
     retry: false, // 401 에러 시 재시도 방지
     onError: (error: any) => {
-      // 401 에러가 아닌 경우에만 로깅
-      if (error.response?.status !== 401) {
-        console.error('프로필 조회 실패:', error);
+      console.error('프로필 조회 React Query 에러:', error);
+      console.error('에러 상태 코드:', error.response?.status);
+      console.error('에러 응답 데이터:', error.response?.data);
+      console.error('에러 전체:', error);
+      
+      // 401 에러인 경우 상세 정보 출력
+      if (error.response?.status === 401) {
+        console.error('=== 401 인증 에러 상세 정보 ===');
+        console.error('요청 URL:', error.config?.url);
+        console.error('요청 헤더:', error.config?.headers);
+        console.error('토큰 존재 여부:', !!localStorage.getItem('access_token'));
+        console.error('응답 데이터:', error.response?.data);
+        console.error('============================');
       }
-      // 401 에러는 interceptor가 처리하므로 여기서는 아무것도 하지 않음
+    },
+    onSuccess: (data) => {
+      console.log('프로필 조회 성공:', data);
     },
   });
 

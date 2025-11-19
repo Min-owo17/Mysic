@@ -17,10 +17,23 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('API Request:', {
+        url: config.url,
+        method: config.method,
+        hasToken: true,
+        tokenLength: token.length,
+      });
+    } else {
+      console.warn('API Request (No Token):', {
+        url: config.url,
+        method: config.method,
+        hasToken: false,
+      });
     }
     return config;
   },
   (error) => {
+    console.error('Request Interceptor Error:', error);
     return Promise.reject(error);
   }
 );
@@ -29,17 +42,40 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 모든 에러를 콘솔에 상세히 로깅 (디버깅용)
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      headers: error.response?.headers,
+      fullError: error,
+    });
+
     if (error.response?.status === 401) {
       // Handle unauthorized - clear token and redirect to login
+      console.warn('401 Unauthorized - 인증 토큰이 유효하지 않습니다.');
+      console.warn('요청 URL:', error.config?.url);
+      console.warn('요청 메서드:', error.config?.method);
+      console.warn('응답 데이터:', error.response?.data);
+      
       localStorage.removeItem('access_token');
+      
       // 현재 경로가 /auth가 아닐 때만 리다이렉트
-      // React Query가 에러를 처리할 수 있도록 약간의 지연 추가
       if (window.location.pathname !== '/auth') {
-        // React Query의 에러 처리를 위해 약간의 지연
-        // 이렇게 하면 React Query가 먼저 에러를 처리할 수 있음
+        // 개발 모드에서는 더 긴 지연을 두어 Network 탭 확인 가능
+        // 프로덕션에서는 짧은 지연 사용
+        const isDevelopment = import.meta.env.DEV;
+        const redirectDelay = isDevelopment ? 5000 : 1000; // 개발 모드: 5초, 프로덕션: 1초
+        
+        console.warn(`${redirectDelay / 1000}초 후 로그인 페이지로 리다이렉트됩니다.`);
+        console.warn('Network 탭에서 요청 상세 정보를 확인하세요.');
+        
         setTimeout(() => {
+          console.warn('리다이렉트 실행');
           window.location.href = '/auth';
-        }, 100);
+        }, redirectDelay);
       }
     }
     return Promise.reject(error);
