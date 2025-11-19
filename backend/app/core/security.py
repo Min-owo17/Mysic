@@ -34,11 +34,30 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         # UTF-8 연속 바이트는 0x80-0xBF 범위 (상위 2비트가 10)
         while len(password_bytes) > 0 and (password_bytes[-1] & 0xC0) == 0x80:
             password_bytes = password_bytes[:-1]
-        # 안전하게 디코딩
-        plain_password = password_bytes.decode('utf-8', errors='ignore')
     
-    # passlib을 사용하여 비밀번호 검증
-    return pwd_context.verify(plain_password, hashed_password)
+    # hashed_password가 문자열인 경우 bytes로 변환
+    if isinstance(hashed_password, str):
+        hashed_bytes = hashed_password.encode('utf-8')
+    else:
+        hashed_bytes = hashed_password
+    
+    # bcrypt를 직접 사용하여 비밀번호 검증 (passlib 대신)
+    # 이렇게 하면 72바이트 제한을 우리가 제어할 수 있음
+    try:
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception as e:
+        # bcrypt 직접 사용 실패 시 passlib으로 fallback
+        try:
+            # 잘린 비밀번호를 다시 디코딩하여 passlib에 전달
+            plain_password = password_bytes.decode('utf-8', errors='ignore')
+            return pwd_context.verify(plain_password, hashed_password)
+        except Exception as e2:
+            # 모든 방법 실패
+            import traceback
+            print(f"ERROR in verify_password (bcrypt direct): {e}")
+            print(f"ERROR in verify_password (passlib fallback): {e2}")
+            traceback.print_exc()
+            return False
 
 
 def get_password_hash(password: str) -> str:
