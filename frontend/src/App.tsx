@@ -11,8 +11,9 @@ import SettingsView from './components/SettingsView'
 import BottomNavBar from './components/BottomNavBar'
 import SideNavBar from './components/SideNavBar'
 import { Header } from './components/layout/Header'
-import { useMemo, useState, useContext, ReactNode } from 'react'
+import { useMemo, useState, useContext, ReactNode, useEffect } from 'react'
 import { View } from './types'
+import { authApi } from './services/api/auth'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -58,6 +59,29 @@ function MainLayout({ children }: { children: ReactNode }) {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+
+  // 컴포넌트 마운트 시 토큰 확인
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        try {
+          // 토큰이 있으면 사용자 정보 확인
+          await authApi.getMe()
+          setIsAuthenticated(true)
+        } catch (error) {
+          // 토큰이 유효하지 않으면 삭제
+          localStorage.removeItem('access_token')
+          setIsAuthenticated(false)
+        }
+      } else {
+        setIsAuthenticated(false)
+      }
+      setIsCheckingAuth(false)
+    }
+    checkAuth()
+  }, [])
 
   const contextValue = useMemo(() => ({
     records: [],
@@ -101,9 +125,24 @@ function App() {
     isAuthenticated,
     login: () => setIsAuthenticated(true),
     logout: () => {
+      localStorage.removeItem('access_token')
       setIsAuthenticated(false)
     }
   }), [isAuthenticated])
+
+  // 인증 확인 중일 때는 로딩 표시 (선택사항)
+  if (isCheckingAuth) {
+    return (
+      <ThemeProvider>
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">로딩 중...</p>
+          </div>
+        </div>
+      </ThemeProvider>
+    )
+  }
 
   return (
     <ThemeProvider>

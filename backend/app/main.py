@@ -23,6 +23,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 라우터 등록
+from app.routers import auth
+app.include_router(auth.router)
+
 
 @app.get("/")
 async def root():

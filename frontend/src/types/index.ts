@@ -20,8 +20,9 @@ export interface User {
   nickname: string;
   profile_image_url?: string;
   is_active: boolean;
+  last_login_at?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 // Auth types

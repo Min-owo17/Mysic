@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { commonStyles } from '../styles/commonStyles';
+import { authApi } from '../services/api/auth';
+import toast from 'react-hot-toast';
 
 const AuthView: React.FC = () => {
     const { login } = useAppContext();
@@ -11,16 +13,68 @@ const AuthView: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [nickname, setNickname] = useState('');
     const [resetEmail, setResetEmail] = useState('');
     const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
-
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Mock login/signup
-        login();
-        // 로그인 성공 시 메인 페이지로 리다이렉트
-        navigate('/record');
+        setIsLoading(true);
+
+        try {
+            if (mode === 'login') {
+                // 로그인
+                const response = await authApi.login({ email, password });
+                
+                // 토큰 저장
+                localStorage.setItem('access_token', response.access_token);
+                
+                // 인증 상태 업데이트
+                login();
+                
+                toast.success('로그인 성공!');
+                navigate('/record');
+            } else if (mode === 'signup') {
+                // 비밀번호 확인
+                if (password !== confirmPassword) {
+                    toast.error('비밀번호가 일치하지 않습니다.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                // 비밀번호 길이 확인
+                if (password.length < 8) {
+                    toast.error('비밀번호는 8자 이상이어야 합니다.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                // 닉네임 확인
+                if (!nickname || nickname.trim().length === 0) {
+                    toast.error('닉네임을 입력해주세요.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                // 회원가입
+                const response = await authApi.register({ email, password, nickname: nickname.trim() });
+                
+                // 토큰 저장
+                localStorage.setItem('access_token', response.access_token);
+                
+                // 인증 상태 업데이트
+                login();
+                
+                toast.success('회원가입 성공!');
+                navigate('/record');
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.detail || error.message || '오류가 발생했습니다.';
+            toast.error(errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
     };
     
     const handlePasswordReset = (e: React.FormEvent) => {
@@ -85,6 +139,7 @@ const AuthView: React.FC = () => {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
+                            disabled={isLoading}
                             className={commonStyles.textInputDarkerP3}
                         />
                         <input
@@ -93,6 +148,7 @@ const AuthView: React.FC = () => {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
+                            disabled={isLoading}
                             className={commonStyles.textInputDarkerP3}
                         />
                         <div className="text-right">
@@ -102,9 +158,10 @@ const AuthView: React.FC = () => {
                         </div>
                         <button
                             type="submit"
-                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} py-3`}
+                            disabled={isLoading}
+                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} py-3 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            로그인
+                            {isLoading ? '로그인 중...' : '로그인'}
                         </button>
                     </form>
                 )}
@@ -117,14 +174,27 @@ const AuthView: React.FC = () => {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
+                            disabled={isLoading}
+                            className={commonStyles.textInputDarkerP3}
+                        />
+                        <input
+                            type="text"
+                            placeholder="닉네임"
+                            value={nickname}
+                            onChange={(e) => setNickname(e.target.value)}
+                            required
+                            disabled={isLoading}
+                            maxLength={100}
                             className={commonStyles.textInputDarkerP3}
                         />
                         <input
                             type="password"
-                            placeholder="비밀번호"
+                            placeholder="비밀번호 (8자 이상)"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
+                            disabled={isLoading}
+                            minLength={8}
                             className={commonStyles.textInputDarkerP3}
                         />
                         <input
@@ -133,13 +203,15 @@ const AuthView: React.FC = () => {
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             required
+                            disabled={isLoading}
                             className={commonStyles.textInputDarkerP3}
                         />
                         <button
                             type="submit"
-                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} py-3`}
+                            disabled={isLoading}
+                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} py-3 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            회원가입
+                            {isLoading ? '회원가입 중...' : '회원가입'}
                         </button>
                     </form>
                 )}

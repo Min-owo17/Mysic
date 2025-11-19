@@ -30,7 +30,10 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       // Handle unauthorized - clear token and redirect to login
       localStorage.removeItem('access_token');
-      window.location.href = '/auth/login';
+      // 현재 경로가 /auth가 아닐 때만 리다이렉트
+      if (window.location.pathname !== '/auth') {
+        window.location.href = '/auth';
+      }
     }
     return Promise.reject(error);
   }
