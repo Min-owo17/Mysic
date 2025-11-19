@@ -38,8 +38,8 @@ services:
     env_file:
       - ../../.env.production
     environment:
-      # DATABASE_URL을 명시적으로 설정 (.env.production에서 읽어오거나 기본값 사용)
-      - DATABASE_URL=${DATABASE_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}}
+      # DATABASE_URL은 env_file(.env.production)에서 자동으로 로드되므로 여기서 설정하지 않음
+      # .env.production 파일의 DATABASE_URL 값이 그대로 사용됩니다
       - SECRET_KEY=${SECRET_KEY}
       - ENVIRONMENT=production
       - CORS_ORIGINS=${CORS_ORIGINS:-https://your-domain.com}
