@@ -2,6 +2,7 @@
 인증 관련 API 라우터
 회원가입, 로그인, 로그아웃, 현재 사용자 조회 기능 제공
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -17,6 +18,8 @@ from app.schemas.auth import (
     UserResponse,
     MessageResponse
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["인증"])
 
@@ -118,47 +121,59 @@ async def login(
     - last_login_at 업데이트
     - JWT 토큰 발급
     """
-    # 사용자 조회 (Soft Delete 제외)
-    user = db.query(User).filter(
-        User.email == request.email,
-        User.deleted_at.is_(None)
-    ).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        # 사용자 조회 (Soft Delete 제외)
+        user = db.query(User).filter(
+            User.email == request.email,
+            User.deleted_at.is_(None)
+        ).first()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # 비밀번호 확인
+        if not user.password_hash or not verify_password(request.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # 활성 상태 확인
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="비활성화된 계정입니다."
+            )
+        
+        # last_login_at 업데이트
+        user.last_login_at = datetime.utcnow()
+        db.commit()
+        db.refresh(user)
+        
+        # JWT 토큰 생성
+        access_token = create_access_token(data={"sub": user.user_id})
+        
+        return AuthResponse(
+            access_token=access_token,
+            token_type="bearer",
+            user=UserResponse.model_validate(user)
         )
-    
-    # 비밀번호 확인
-    if not user.password_hash or not verify_password(request.password, user.password_hash):
+    except HTTPException:
+        # HTTPException은 그대로 전달
+        raise
+    except Exception as e:
+        # 기타 예외는 로깅하고 500 에러 반환
+        logger.error(f"Login error: {str(e)}", exc_info=True)
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"서버 오류가 발생했습니다: {str(e)}"
         )
-    
-    # 활성 상태 확인
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="비활성화된 계정입니다."
-        )
-    
-    # last_login_at 업데이트
-    user.last_login_at = datetime.utcnow()
-    db.commit()
-    db.refresh(user)
-    
-    # JWT 토큰 생성
-    access_token = create_access_token(data={"sub": user.user_id})
-    
-    return AuthResponse(
-        access_token=access_token,
-        token_type="bearer",
-        user=UserResponse.model_validate(user)
-    )
 
 
 @router.post("/logout", response_model=MessageResponse)
