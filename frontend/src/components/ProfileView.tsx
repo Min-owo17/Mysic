@@ -26,9 +26,17 @@ const ProfileView: React.FC = () => {
   const queryClient = useQueryClient();
 
   // 프로필 데이터 조회
-  const { data: profileData, isLoading: isLoadingProfile } = useQuery<UserDetailResponse>({
+  const { data: profileData, isLoading: isLoadingProfile, error: profileError } = useQuery<UserDetailResponse>({
     queryKey: ['userProfile'],
     queryFn: () => usersApi.getMyProfile(),
+    retry: false, // 401 에러 시 재시도 방지
+    onError: (error: any) => {
+      // 401 에러가 아닌 경우에만 로깅
+      if (error.response?.status !== 401) {
+        console.error('프로필 조회 실패:', error);
+      }
+      // 401 에러는 interceptor가 처리하므로 여기서는 아무것도 하지 않음
+    },
   });
 
   // 악기 목록 조회
@@ -244,6 +252,23 @@ const ProfileView: React.FC = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
           <p className="mt-4 text-gray-400">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 401 에러가 아닌 다른 에러가 발생한 경우
+  if (profileError && (profileError as any).response?.status !== 401) {
+    return (
+      <div className="p-4 md:p-6 max-w-md md:max-w-2xl mx-auto flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">프로필을 불러오는 중 오류가 발생했습니다.</p>
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['userProfile'] })}
+            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton}`}
+          >
+            다시 시도
+          </button>
         </div>
       </div>
     );

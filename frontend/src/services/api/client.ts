@@ -33,8 +33,13 @@ apiClient.interceptors.response.use(
       // Handle unauthorized - clear token and redirect to login
       localStorage.removeItem('access_token');
       // 현재 경로가 /auth가 아닐 때만 리다이렉트
+      // React Query가 에러를 처리할 수 있도록 약간의 지연 추가
       if (window.location.pathname !== '/auth') {
-        window.location.href = '/auth';
+        // React Query의 에러 처리를 위해 약간의 지연
+        // 이렇게 하면 React Query가 먼저 에러를 처리할 수 있음
+        setTimeout(() => {
+          window.location.href = '/auth';
+        }, 100);
       }
     }
     return Promise.reject(error);
