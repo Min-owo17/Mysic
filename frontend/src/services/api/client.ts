@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Vite 프록시를 사용하므로 상대 경로 사용
+// 환경 변수가 설정되어 있으면 그 값을 사용하고, 없으면 프록시를 통해 /api 사용
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
