@@ -15,17 +15,28 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
+    const fullUrl = `${config.baseURL}${config.url}`;
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log('API Request:', {
-        url: config.url,
+        relativeUrl: config.url,
+        baseURL: config.baseURL,
+        fullUrl: fullUrl,
         method: config.method,
         hasToken: true,
         tokenLength: token.length,
+        tokenPreview: token.substring(0, 20) + '...', // 토큰 일부만 표시
+        headers: {
+          ...config.headers,
+          Authorization: 'Bearer ***', // 토큰 전체는 숨김
+        },
       });
     } else {
       console.warn('API Request (No Token):', {
-        url: config.url,
+        relativeUrl: config.url,
+        baseURL: config.baseURL,
+        fullUrl: fullUrl,
         method: config.method,
         hasToken: false,
       });
@@ -43,22 +54,34 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     // 모든 에러를 콘솔에 상세히 로깅 (디버깅용)
+    const relativeUrl = error.config?.url || 'unknown';
+    const baseURL = error.config?.baseURL || '';
+    const fullUrl = `${baseURL}${relativeUrl}`;
+    
     console.error('API Error:', {
-      url: error.config?.url,
+      relativeUrl: relativeUrl,
+      baseURL: baseURL,
+      fullUrl: fullUrl,
       method: error.config?.method,
       status: error.response?.status,
       statusText: error.response?.statusText,
       data: error.response?.data,
-      headers: error.response?.headers,
-      fullError: error,
+      requestHeaders: error.config?.headers,
+      responseHeaders: error.response?.headers,
     });
 
     if (error.response?.status === 401) {
       // Handle unauthorized - clear token and redirect to login
-      console.warn('401 Unauthorized - 인증 토큰이 유효하지 않습니다.');
-      console.warn('요청 URL:', error.config?.url);
-      console.warn('요청 메서드:', error.config?.method);
-      console.warn('응답 데이터:', error.response?.data);
+      console.error('=== 401 Unauthorized 에러 상세 정보 ===');
+      console.error('실제 요청 URL:', fullUrl);
+      console.error('상대 경로:', relativeUrl);
+      console.error('Base URL:', baseURL);
+      console.error('요청 메서드:', error.config?.method);
+      console.error('Authorization 헤더 존재:', !!error.config?.headers?.Authorization);
+      console.error('Authorization 헤더 값:', error.config?.headers?.Authorization ? 'Bearer ***' : '없음');
+      console.error('응답 데이터:', error.response?.data);
+      console.error('현재 localStorage 토큰 존재:', !!localStorage.getItem('access_token'));
+      console.error('=====================================');
       
       localStorage.removeItem('access_token');
       
