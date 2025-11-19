@@ -50,6 +50,14 @@ const AuthView: React.FC = () => {
                     return;
                 }
 
+                // 비밀번호 바이트 길이 확인 (72바이트 제한)
+                const passwordBytes = new TextEncoder().encode(password).length;
+                if (passwordBytes > 72) {
+                    toast.error('비밀번호는 72바이트(영문 72자)를 초과할 수 없습니다.');
+                    setIsLoading(false);
+                    return;
+                }
+
                 // 닉네임 확인
                 if (!nickname || nickname.trim().length === 0) {
                     toast.error('닉네임을 입력해주세요.');
@@ -146,9 +154,20 @@ const AuthView: React.FC = () => {
                             type="password"
                             placeholder="비밀번호"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e) => {
+                                // 72바이트 제한 (영문/숫자 기준 72자, 한글 기준 약 24자)
+                                const inputValue = e.target.value;
+                                const bytes = new TextEncoder().encode(inputValue).length;
+                                if (bytes <= 72) {
+                                    setPassword(inputValue);
+                                } else {
+                                    // 72바이트를 초과하면 입력 제한
+                                    toast.error('비밀번호는 72바이트(영문 72자)를 초과할 수 없습니다.');
+                                }
+                            }}
                             required
                             disabled={isLoading}
+                            maxLength={72}
                             className={commonStyles.textInputDarkerP3}
                         />
                         <div className="text-right">
@@ -189,21 +208,42 @@ const AuthView: React.FC = () => {
                         />
                         <input
                             type="password"
-                            placeholder="비밀번호 (8자 이상)"
+                            placeholder="비밀번호 (8-72자)"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e) => {
+                                // 72바이트 제한 (영문/숫자 기준 72자, 한글 기준 약 24자)
+                                const inputValue = e.target.value;
+                                const bytes = new TextEncoder().encode(inputValue).length;
+                                if (bytes <= 72) {
+                                    setPassword(inputValue);
+                                } else {
+                                    // 72바이트를 초과하면 입력 제한
+                                    toast.error('비밀번호는 72바이트(영문 72자)를 초과할 수 없습니다.');
+                                }
+                            }}
                             required
                             disabled={isLoading}
                             minLength={8}
+                            maxLength={72}
                             className={commonStyles.textInputDarkerP3}
                         />
                         <input
                             type="password"
                             placeholder="비밀번호 확인"
                             value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            onChange={(e) => {
+                                // 72바이트 제한
+                                const inputValue = e.target.value;
+                                const bytes = new TextEncoder().encode(inputValue).length;
+                                if (bytes <= 72) {
+                                    setConfirmPassword(inputValue);
+                                } else {
+                                    toast.error('비밀번호는 72바이트(영문 72자)를 초과할 수 없습니다.');
+                                }
+                            }}
                             required
                             disabled={isLoading}
+                            maxLength={72}
                             className={commonStyles.textInputDarkerP3}
                         />
                         <button

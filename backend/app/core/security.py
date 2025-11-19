@@ -9,7 +9,35 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against a hash."""
+    """Verify a password against a hash.
+    
+    Note: bcrypt는 비밀번호를 72바이트로 제한합니다.
+    비밀번호가 72바이트를 초과할 경우 자동으로 잘라냅니다.
+    """
+    # 입력 검증 및 강제 변환
+    if not isinstance(plain_password, str):
+        plain_password = str(plain_password)
+    
+    # UTF-8로 인코딩하여 바이트 길이 확인
+    try:
+        password_bytes = plain_password.encode('utf-8')
+    except (UnicodeEncodeError, AttributeError):
+        # 인코딩 실패 시 문자열로 강제 변환 후 재시도
+        plain_password = str(plain_password)
+        password_bytes = plain_password.encode('utf-8')
+    
+    # 72바이트 제한 (bcrypt 제한) - 반드시 적용
+    if len(password_bytes) > 72:
+        # 72바이트로 제한
+        password_bytes = password_bytes[:72]
+        # 잘린 UTF-8 문자 제거 (연속 바이트 제거)
+        # UTF-8 연속 바이트는 0x80-0xBF 범위 (상위 2비트가 10)
+        while len(password_bytes) > 0 and (password_bytes[-1] & 0xC0) == 0x80:
+            password_bytes = password_bytes[:-1]
+        # 안전하게 디코딩
+        plain_password = password_bytes.decode('utf-8', errors='ignore')
+    
+    # passlib을 사용하여 비밀번호 검증
     return pwd_context.verify(plain_password, hashed_password)
 
 
