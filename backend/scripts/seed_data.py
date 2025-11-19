@@ -165,11 +165,23 @@ def seed_users(db: Session):
         
         # 비밀번호 해싱
         try:
+            # 디버깅: 함수가 실제로 어디서 오는지 확인
+            import inspect
+            func_file = inspect.getfile(get_password_hash)
+            func_source = inspect.getsource(get_password_hash)
+            print(f"   🔍 DEBUG: get_password_hash function location: {func_file}")
+            print(f"   🔍 DEBUG: get_password_hash function source (first 300 chars): {func_source[:300]}")
+            print(f"   🔍 DEBUG: About to call get_password_hash with password={repr(password)}")
+            
             password_hash = get_password_hash(password)
             print(f"   🔍 DEBUG: Password hash generated successfully for {email}")
+            print(f"   🔍 DEBUG: Hash length: {len(password_hash)} characters")
         except Exception as e:
             print(f"   ❌ ERROR: Failed to hash password for {email}: {e}")
             print(f"   🔍 DEBUG: password type={type(password)}, password value={repr(password)}")
+            print(f"   🔍 DEBUG: password bytes length={len(password.encode('utf-8'))}")
+            import traceback
+            traceback.print_exc()
             raise
         
         # 사용자 생성
