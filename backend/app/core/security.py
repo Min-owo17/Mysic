@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import bcrypt
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -60,20 +61,33 @@ def get_password_hash(password: str) -> str:
             f"{len(final_bytes)} bytes (password: {repr(password[:50])})"
         )
     
-    # passlib에 str 타입으로 전달 (bcrypt 버전 읽기 오류 방지)
-    # passlib의 bcrypt handler는 str을 받아서 내부에서 bytes로 변환합니다
-    # bytes를 직접 전달하면 "error reading bcrypt version" 오류가 발생할 수 있음
+    # passlib의 bcrypt handler가 내부적으로 72바이트 검증을 먼저 수행할 수 있으므로
+    # bcrypt 라이브러리를 직접 사용하여 더 확실한 제어
     try:
-        return pwd_context.hash(password)
+        # bcrypt는 bytes를 받으므로 UTF-8로 인코딩
+        # final_bytes는 이미 위에서 계산되었고 72바이트 이하로 보장됨
+        password_bytes = final_bytes
+        
+        # bcrypt를 직접 사용하여 해싱
+        # bcrypt.gensalt()로 솔트 생성, rounds는 기본값(12) 사용
+        hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+        
+        # bytes를 str로 변환하여 반환 (passlib 형식과 호환)
+        return hashed.decode('utf-8')
     except Exception as e:
-        # 오류 발생 시 상세 정보 출력
-        import traceback
-        print(f"ERROR in get_password_hash: {e}")
-        print(f"Password type: {type(password)}, Password value: {repr(password)}")
-        print(f"Password bytes length: {len(password.encode('utf-8'))}")
-        print(f"Password bytes (first 100): {password.encode('utf-8')[:100]}")
-        traceback.print_exc()
-        raise
+        # bcrypt 직접 사용 실패 시 passlib으로 fallback
+        try:
+            return pwd_context.hash(password)
+        except Exception as e2:
+            # 오류 발생 시 상세 정보 출력
+            import traceback
+            print(f"ERROR in get_password_hash (bcrypt direct): {e}")
+            print(f"ERROR in get_password_hash (passlib fallback): {e2}")
+            print(f"Password type: {type(password)}, Password value: {repr(password)}")
+            print(f"Password bytes length: {len(password.encode('utf-8'))}")
+            print(f"Password bytes (first 100): {password.encode('utf-8')[:100]}")
+            traceback.print_exc()
+            raise
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
