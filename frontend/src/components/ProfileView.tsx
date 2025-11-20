@@ -13,6 +13,7 @@ import { usersApi } from '../services/api/users';
 import { instrumentsApi } from '../services/api/instruments';
 import { userTypesApi } from '../services/api/userTypes';
 import { commonStyles } from '../styles/commonStyles';
+import { resizeImage, validateImageFile } from '../utils/imageResize';
 
 const CoffeeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-300" viewBox="0 0 20 20" fill="currentColor">
@@ -214,16 +215,35 @@ const ProfileView: React.FC = () => {
   };
 
   // 프로필 이미지 변경
-  const handlePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // TODO: 실제로는 이미지를 서버에 업로드하고 URL을 받아와야 함
-        // 현재는 임시로 base64 사용
-        setProfileImageUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const handlePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0]) {
+      return;
+    }
+
+    const file = e.target.files[0];
+
+    // 파일 유효성 검사
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      alert(validation.error || '파일을 확인할 수 없습니다.');
+      e.target.value = ''; // 파일 입력 초기화
+      return;
+    }
+
+    try {
+      // 이미지 리사이징 및 최적화 (WebP 포맷)
+      const optimizedImage = await resizeImage(file, {
+        maxSize: 300,
+        quality: 0.85,
+        format: 'webp',
+      });
+
+      // 최적화된 이미지로 상태 업데이트
+      setProfileImageUrl(optimizedImage);
+    } catch (error) {
+      console.error('이미지 처리 오류:', error);
+      alert(error instanceof Error ? error.message : '이미지 처리 중 오류가 발생했습니다.');
+      e.target.value = ''; // 파일 입력 초기화
     }
   };
 
@@ -241,14 +261,11 @@ const ProfileView: React.FC = () => {
       
       // profile_image_url: 변경되었고 값이 있을 때만 전송
       if (profileImageUrl !== profileData?.profile_image_url) {
-        // base64 이미지는 매우 길 수 있으므로, 실제로는 서버에 업로드하고 URL을 받아야 함
-        // 현재는 임시로 base64를 전송하되, 길이 제한 확인
+        // WebP로 최적화된 이미지 (약 30-50KB)를 base64로 전송
+        // 향후 S3 업로드 API 구현 시 변경 예정
         if (profileImageUrl && profileImageUrl.trim() !== '') {
-          // base64 데이터 URL이 500자를 초과하면 경고 (임시 조치)
-          if (profileImageUrl.length > 500) {
-            console.warn('프로필 이미지 URL이 500자를 초과합니다. 실제로는 서버에 업로드하고 URL을 받아야 합니다.');
-            // TODO: 이미지 업로드 API 구현 후 수정 필요
-          }
+          // 최적화된 이미지는 일반적으로 50KB 이하이므로 500자 제한은 충분
+          // base64 인코딩 시 원본 크기의 약 133%가 되므로, 50KB 이미지는 약 67KB base64 문자열
           updateData.profile_image_url = profileImageUrl;
         } else {
           // null이나 빈 문자열이면 undefined로 설정 (필드 제외)

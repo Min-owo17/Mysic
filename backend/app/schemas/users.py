@@ -82,7 +82,7 @@ class UserDetailResponse(BaseModel):
 class UpdateProfileRequest(BaseModel):
     """프로필 수정 요청 스키마"""
     nickname: Optional[str] = Field(None, min_length=1, max_length=100, description="닉네임 (1-100자)")
-    profile_image_url: Optional[str] = Field(None, max_length=500, description="프로필 이미지 URL")
+    profile_image_url: Optional[str] = Field(None, max_length=100000, description="프로필 이미지 URL 또는 base64 Data URL (최적화된 WebP 이미지, 약 100KB 이하)")
     bio: Optional[str] = Field(None, description="자기소개")
     hashtags: Optional[List[str]] = Field(None, description="해시태그 목록")
     
