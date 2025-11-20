@@ -102,6 +102,48 @@ export interface MessageResponse {
   message: string;
 }
 
+// Practice types
+export interface PracticeSession {
+  session_id: number;
+  user_id: number;
+  practice_date: string; // YYYY-MM-DD
+  start_time?: string; // ISO 8601
+  end_time?: string; // ISO 8601
+  actual_play_time: number; // seconds
+  status: 'in_progress' | 'completed';
+  instrument?: string;
+  notes?: string;
+  created_at: string; // ISO 8601
+}
+
+export interface PracticeStatistics {
+  total_practice_time: number; // seconds
+  total_sessions: number;
+  consecutive_days: number;
+  last_practice_date?: string; // YYYY-MM-DD
+  average_session_time?: number; // seconds
+}
+
+export interface PracticeSessionListResponse {
+  sessions: PracticeSession[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface PracticeSessionCreate {
+  practice_date: string; // YYYY-MM-DD
+  instrument?: string;
+  notes?: string;
+}
+
+export interface PracticeSessionUpdate {
+  end_time?: string; // ISO 8601
+  actual_play_time?: number; // seconds
+  instrument?: string;
+  notes?: string;
+}
+
 // Auth types
 export interface LoginRequest {
   email: string;

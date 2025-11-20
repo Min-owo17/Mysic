@@ -2,13 +2,16 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { analyzePerformanceNotes, analyzeAudioForPlayingTime } from '../services/geminiService';
 import { useAppContext } from '../context/AppContext';
+import { practiceApi } from '../services/api/practice';
 import { formatTime } from '../utils/time';
 import { instruments } from '../utils/constants';
 import { View } from '../types';
 import { commonStyles } from '../styles/commonStyles';
+import toast from 'react-hot-toast';
 
 type RecordingState = 'idle' | 'recording' | 'analyzingAudio' | 'recorded' | 'saving';
 
@@ -16,6 +19,7 @@ const RecordView: React.FC = () => {
     const { isRecording, recordingTime, audioBlob, startRecording, stopRecording, resetAudio } = useAudioRecorder();
     const { addRecord, userProfile } = useAppContext();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [uiState, setUiState] = useState<RecordingState>('idle');
     const [instrument, setInstrument] = useState(userProfile.instrument || '');
     const [notes, setNotes] = useState('');
@@ -25,9 +29,46 @@ const RecordView: React.FC = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [error, setError] = useState('');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
     
     const [isInstrumentDropdownOpen, setIsInstrumentDropdownOpen] = useState(false);
     const instrumentDropdownRef = useRef<HTMLDivElement>(null);
+
+    // 진행 중인 세션 확인
+    const { data: activeSession } = useQuery({
+        queryKey: ['practice', 'active-session'],
+        queryFn: () => practiceApi.getActiveSession(),
+        refetchInterval: 30000, // 30초마다 확인
+    });
+
+    // 연습 세션 시작 mutation
+    const createSessionMutation = useMutation({
+        mutationFn: practiceApi.createSession,
+        onSuccess: (data) => {
+            setCurrentSessionId(data.session_id);
+            toast.success('연습 세션이 시작되었습니다.');
+        },
+        onError: (error: any) => {
+            const errorMessage = error.response?.data?.detail || '연습 세션 시작에 실패했습니다.';
+            setError(errorMessage);
+            toast.error(errorMessage);
+        },
+    });
+
+    // 연습 세션 종료 mutation
+    const updateSessionMutation = useMutation({
+        mutationFn: ({ sessionId, data }: { sessionId: number; data: any }) => 
+            practiceApi.updateSession(sessionId, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['practice'] });
+            toast.success('연습 세션이 저장되었습니다.');
+        },
+        onError: (error: any) => {
+            const errorMessage = error.response?.data?.detail || '연습 세션 저장에 실패했습니다.';
+            setError(errorMessage);
+            toast.error(errorMessage);
+        },
+    });
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -41,6 +82,14 @@ const RecordView: React.FC = () => {
         };
     }, []);
 
+    // 진행 중인 세션이 있으면 복원
+    useEffect(() => {
+        if (activeSession && activeSession.status === 'in_progress') {
+            setCurrentSessionId(activeSession.session_id);
+            // 진행 중인 세션이 있으면 녹음 상태로 복원하지 않음 (사용자가 수동으로 시작해야 함)
+        }
+    }, [activeSession]);
+
     useEffect(() => {
         if (isRecording) {
             setUiState('recording');
@@ -53,6 +102,15 @@ const RecordView: React.FC = () => {
     const handleStartRecording = async () => {
         setError('');
         try {
+            // 먼저 연습 세션 시작
+            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
+            await createSessionMutation.mutateAsync({
+                practice_date: today,
+                instrument: instrument || undefined,
+                notes: notes || undefined,
+            });
+            
+            // 연습 세션 시작 성공 후 녹음 시작
             await startRecording();
         } catch (err) {
             setError('녹음을 시작할 수 없습니다. 마이크 권한을 허용해주세요.');
@@ -76,7 +134,23 @@ const RecordView: React.FC = () => {
         }
     };
 
-    const handleDiscard = () => {
+    const handleDiscard = async () => {
+        // 진행 중인 세션이 있으면 종료
+        if (currentSessionId) {
+            try {
+                await updateSessionMutation.mutateAsync({
+                    sessionId: currentSessionId,
+                    data: {
+                        actual_play_time: 0,
+                        notes: '취소됨',
+                    },
+                });
+            } catch (err) {
+                console.error('세션 취소 실패:', err);
+            }
+            setCurrentSessionId(null);
+        }
+        
         resetAudio();
         setInstrument(userProfile.instrument || '');
         setNotes('');
@@ -106,29 +180,52 @@ const RecordView: React.FC = () => {
         }
     };
 
-    const handleSave = () => {
-        if (!title || !instrument || !audioBlob) {
-            setError('제목과 악기를 입력해주세요.');
+    const handleSave = async () => {
+        if (!instrument) {
+            setError('악기를 입력해주세요.');
             return;
         }
-        if (analyzedDuration === null) {
+        if (analyzedDuration === null && currentSessionId) {
             setError('연주 시간이 아직 분석되지 않았습니다. 잠시 후 다시 시도해주세요.');
             return;
         }
+        if (!currentSessionId) {
+            setError('연습 세션을 찾을 수 없습니다. 다시 시작해주세요.');
+            return;
+        }
+        
         setUiState('saving');
         
-        setTimeout(() => {
-            addRecord({
-                date: new Date().toISOString(),
-                title,
-                instrument,
-                duration: analyzedDuration,
-                notes,
-                summary,
+        try {
+            // 연습 세션 종료 및 저장
+            await updateSessionMutation.mutateAsync({
+                sessionId: currentSessionId,
+                data: {
+                    actual_play_time: analyzedDuration ?? recordingTime,
+                    instrument: instrument,
+                    notes: notes || undefined,
+                },
             });
+
+            // 로컬 상태에도 저장 (기존 기능 유지)
+            if (title) {
+                addRecord({
+                    date: new Date().toISOString(),
+                    title,
+                    instrument,
+                    duration: analyzedDuration ?? recordingTime,
+                    notes,
+                    summary,
+                });
+            }
             
             setShowSuccessModal(true);
-        }, 500);
+            setCurrentSessionId(null);
+        } catch (err) {
+            console.error(err);
+            setError('연습 세션 저장에 실패했습니다.');
+            setUiState('recorded');
+        }
     };
 
     const handleInstrumentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,8 +260,21 @@ const RecordView: React.FC = () => {
             {uiState === 'idle' && (
                 <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
                     <p className="text-gray-500 dark:text-gray-400 mb-8">버튼을 눌러 기록을 시작하세요</p>
-                    <button onClick={handleStartRecording} className="w-48 h-48 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-600/30 transform hover:scale-105 transition-transform duration-300">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5zM8 0a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V3a3 3 0 0 0-3-3z"/></svg>
+                    {activeSession && activeSession.status === 'in_progress' && (
+                        <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-md text-sm text-yellow-800 dark:text-yellow-200">
+                            진행 중인 연습 세션이 있습니다. 계속하시겠습니까?
+                        </div>
+                    )}
+                    <button 
+                        onClick={handleStartRecording} 
+                        disabled={createSessionMutation.isPending}
+                        className="w-48 h-48 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-600/30 transform hover:scale-105 transition-transform duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {createSessionMutation.isPending ? (
+                            <Spinner size="lg" />
+                        ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5zM8 0a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V3a3 3 0 0 0-3-3z"/></svg>
+                        )}
                     </button>
                 </div>
             )}
@@ -238,8 +348,27 @@ const RecordView: React.FC = () => {
                     {summary && <p className="text-sm bg-gray-100 dark:bg-gray-800 p-3 rounded-md text-gray-600 dark:text-gray-300 italic">"{summary}"</p>}
 
                      <div className="flex gap-4 pt-4">
-                        <button onClick={handleDiscard} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} py-3`}>취소</button>
-                        <button onClick={handleSave} className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} py-3`}>저장</button>
+                        <button 
+                            onClick={handleDiscard} 
+                            disabled={updateSessionMutation.isPending}
+                            className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} py-3 disabled:opacity-50`}
+                        >
+                            취소
+                        </button>
+                        <button 
+                            onClick={handleSave} 
+                            disabled={updateSessionMutation.isPending || analyzedDuration === null}
+                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} py-3 disabled:opacity-50 flex items-center justify-center gap-2`}
+                        >
+                            {updateSessionMutation.isPending ? (
+                                <>
+                                    <Spinner size="sm" />
+                                    저장 중...
+                                </>
+                            ) : (
+                                '저장'
+                            )}
+                        </button>
                      </div>
                  </div>
             )}
