@@ -231,12 +231,42 @@ const ProfileView: React.FC = () => {
   const handleSave = async () => {
     try {
       // 프로필 기본 정보 수정
-      await updateProfileMutation.mutateAsync({
-        nickname: nickname !== profileData?.nickname ? nickname : undefined,
-        profile_image_url: profileImageUrl !== profileData?.profile_image_url ? profileImageUrl || undefined : undefined,
-        bio: bio !== profileData?.profile?.bio ? bio : undefined,
-        hashtags: hashtags.length > 0 ? hashtags : undefined,
-      });
+      // 빈 문자열을 undefined로 변환하여 유효성 검사 통과
+      const updateData: UpdateProfileRequest = {};
+      
+      // nickname: 변경되었고 빈 문자열이 아닐 때만 전송
+      if (nickname !== profileData?.nickname && nickname.trim() !== '') {
+        updateData.nickname = nickname.trim();
+      }
+      
+      // profile_image_url: 변경되었고 값이 있을 때만 전송
+      if (profileImageUrl !== profileData?.profile_image_url) {
+        // base64 이미지는 매우 길 수 있으므로, 실제로는 서버에 업로드하고 URL을 받아야 함
+        // 현재는 임시로 base64를 전송하되, 길이 제한 확인
+        if (profileImageUrl && profileImageUrl.trim() !== '') {
+          // base64 데이터 URL이 500자를 초과하면 경고 (임시 조치)
+          if (profileImageUrl.length > 500) {
+            console.warn('프로필 이미지 URL이 500자를 초과합니다. 실제로는 서버에 업로드하고 URL을 받아야 합니다.');
+            // TODO: 이미지 업로드 API 구현 후 수정 필요
+          }
+          updateData.profile_image_url = profileImageUrl;
+        } else {
+          // null이나 빈 문자열이면 undefined로 설정 (필드 제외)
+          updateData.profile_image_url = undefined;
+        }
+      }
+      
+      // bio: 변경되었을 때만 전송 (빈 문자열도 허용)
+      if (bio !== profileData?.profile?.bio) {
+        updateData.bio = bio || undefined;
+      }
+      
+      // hashtags: 변경되었고 배열이 비어있지 않을 때만 전송
+      if (JSON.stringify(hashtags) !== JSON.stringify(profileData?.profile?.hashtags || [])) {
+        updateData.hashtags = hashtags.length > 0 ? hashtags : undefined;
+      }
+      
+      await updateProfileMutation.mutateAsync(updateData);
 
       // 악기 정보 수정
       if (selectedInstruments.length > 0) {

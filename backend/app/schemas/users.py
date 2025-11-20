@@ -2,7 +2,7 @@
 사용자 관리 관련 Pydantic 스키마
 프로필 조회, 수정, 악기/특징 관리 등의 스키마 정의
 """
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, model_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -85,6 +85,20 @@ class UpdateProfileRequest(BaseModel):
     profile_image_url: Optional[str] = Field(None, max_length=500, description="프로필 이미지 URL")
     bio: Optional[str] = Field(None, description="자기소개")
     hashtags: Optional[List[str]] = Field(None, description="해시태그 목록")
+    
+    @model_validator(mode='before')
+    @classmethod
+    def convert_empty_strings_to_none(cls, data):
+        """빈 문자열을 None으로 변환하여 유효성 검사 통과"""
+        if isinstance(data, dict):
+            # 빈 문자열을 None으로 변환
+            if 'nickname' in data and data['nickname'] == '':
+                data['nickname'] = None
+            if 'profile_image_url' in data and data['profile_image_url'] == '':
+                data['profile_image_url'] = None
+            if 'bio' in data and data['bio'] == '':
+                data['bio'] = None
+        return data
 
     class Config:
         json_schema_extra = {
