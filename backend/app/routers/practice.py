@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, desc
 from datetime import date, datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Union
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -280,13 +280,15 @@ async def get_practice_statistics(
     )
 
 
-@router.get("/sessions/active", response_model=Optional[PracticeSessionResponse])
+@router.get("/sessions/active")
 async def get_active_session(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     현재 진행 중인 연습 세션 조회
+    - 세션이 있으면 PracticeSessionResponse 반환
+    - 세션이 없으면 null 반환
     """
     active_session = db.query(PracticeSession).filter(
         and_(
@@ -295,5 +297,7 @@ async def get_active_session(
         )
     ).first()
     
-    return active_session
+    if active_session:
+        return PracticeSessionResponse.model_validate(active_session)
+    return None
 
