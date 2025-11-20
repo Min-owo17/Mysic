@@ -86,8 +86,8 @@ async def register(
         db.commit()
         db.refresh(new_user)
         
-        # JWT 토큰 생성
-        access_token = create_access_token(data={"sub": new_user.user_id})
+        # JWT 토큰 생성 (user_id를 문자열로 변환 - JWT의 sub 필드는 문자열이어야 함)
+        access_token = create_access_token(data={"sub": str(new_user.user_id)})
         
         return AuthResponse(
             access_token=access_token,
@@ -155,8 +155,8 @@ async def login(
         db.commit()
         db.refresh(user)
         
-        # JWT 토큰 생성
-        access_token = create_access_token(data={"sub": user.user_id})
+        # JWT 토큰 생성 (user_id를 문자열로 변환 - JWT의 sub 필드는 문자열이어야 함)
+        access_token = create_access_token(data={"sub": str(user.user_id)})
         
         return AuthResponse(
             access_token=access_token,

@@ -183,16 +183,16 @@ def decode_access_token(token: str) -> Optional[dict]:
         logger.warning(f"Token has expired: {str(e)}")
         logger.warning(f"Current time: {datetime.utcnow()} (UTC)")
         return None
-    except jwt.InvalidSignatureError as e:
-        logger.error(f"Token signature is invalid: {str(e)}")
-        logger.error(f"This usually means SECRET_KEY mismatch between token creation and verification")
-        return None
     except jwt.JWTClaimsError as e:
         logger.warning(f"Token claims error: {str(e)}")
         return None
     except JWTError as e:
+        # InvalidSignatureError는 python-jose에 없으므로 JWTError로 처리
         logger.warning(f"JWT decode error: {str(e)}")
         logger.warning(f"Error type: {type(e).__name__}")
+        # 시그니처 관련 에러인지 확인
+        if "signature" in str(e).lower() or "invalid" in str(e).lower():
+            logger.error(f"Token signature is invalid. This usually means SECRET_KEY mismatch between token creation and verification.")
         return None
     except Exception as e:
         logger.error(f"Unexpected error decoding token: {str(e)}")
