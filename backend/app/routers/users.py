@@ -189,10 +189,22 @@ async def update_my_profile(
         )
     except Exception as e:
         db.rollback()
-        logger.error(f"프로필 수정 오류: {str(e)}", exc_info=True)
+        error_message = str(e)
+        error_type = type(e).__name__
+        logger.error(f"프로필 수정 오류: {error_message}", exc_info=True)
+        logger.error(f"에러 타입: {error_type}")
+        logger.error(f"요청 데이터: nickname={request.nickname}, profile_image_url 길이={len(request.profile_image_url) if request.profile_image_url else 0}")
+        
+        # 데이터베이스 제약 조건 에러인 경우 더 구체적인 메시지
+        if "value too long" in error_message.lower() or "character varying" in error_message.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="프로필 이미지가 너무 큽니다. 더 작은 이미지를 사용해주세요."
+            )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="프로필 수정 중 오류가 발생했습니다."
+            detail=f"프로필 수정 중 오류가 발생했습니다: {error_message}"
         )
 
 
