@@ -248,6 +248,32 @@ echo ""
 echo "🎨 3단계: Frontend 시작"
 echo "🔍 80번 포트 충돌 확인 중..."
 
+# ============================================
+# 호스트 Nginx 중지 (프론트엔드 컨테이너가 포트 80을 사용하므로)
+# ============================================
+echo "🌐 호스트 Nginx 상태 확인 중..."
+
+# Nginx가 설치되어 있고 실행 중인지 확인
+if command -v nginx &> /dev/null || systemctl list-unit-files | grep -q nginx.service; then
+    if systemctl is-active --quiet nginx 2>/dev/null; then
+        echo "   ⚠️  호스트 Nginx가 실행 중입니다."
+        echo "   프론트엔드 Docker 컨테이너가 포트 80을 사용하므로 호스트 Nginx를 중지합니다..."
+        sudo systemctl stop nginx 2>/dev/null || true
+        echo "   ✅ 호스트 Nginx가 중지되었습니다."
+    fi
+    
+    # Nginx 자동 시작 비활성화 (부팅 시 자동 시작 방지)
+    if systemctl is-enabled --quiet nginx 2>/dev/null; then
+        echo "   호스트 Nginx 자동 시작을 비활성화합니다..."
+        sudo systemctl disable nginx 2>/dev/null || true
+        echo "   ✅ 호스트 Nginx 자동 시작이 비활성화되었습니다."
+    else
+        echo "   ℹ️  호스트 Nginx는 이미 비활성화되어 있습니다."
+    fi
+else
+    echo "   ℹ️  호스트 Nginx가 설치되어 있지 않거나 실행 중이 아닙니다."
+fi
+
 # 80번 포트를 사용하는 프로세스 확인
 PORT_80_IN_USE=false
 PORT_80_PROCESS=""
@@ -266,16 +292,7 @@ DOCKER_PORT_80=$(docker ps --format "{{.Ports}}" | grep ':80->' || true)
 
 if [ -n "$PORT_80_PROCESS" ] || [ -n "$DOCKER_PORT_80" ]; then
     PORT_80_IN_USE=true
-    echo "⚠️  80번 포트가 사용 중입니다."
-    
-    # nginx 확인 및 중지
-    if systemctl is-active --quiet nginx 2>/dev/null; then
-        echo "   Nginx가 실행 중입니다. 중지합니다..."
-        sudo systemctl stop nginx
-        sudo systemctl disable nginx 2>/dev/null || true
-        echo "   ✅ Nginx가 중지되었습니다."
-        PORT_80_IN_USE=false
-    fi
+    echo "⚠️  80번 포트가 여전히 사용 중입니다."
     
     # apache/httpd 확인 및 중지
     if systemctl is-active --quiet httpd 2>/dev/null || systemctl is-active --quiet apache2 2>/dev/null; then
