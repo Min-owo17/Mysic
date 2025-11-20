@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24시간 (개발/테스트용, 프로덕션에서는 더 짧게 설정 권장)
     
     # CORS - 환경변수에서 쉼표로 구분된 문자열을 받을 수 있도록 Union 사용
     CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000,http://localhost:5173,http://localhost"

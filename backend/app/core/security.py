@@ -139,14 +139,27 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
+    logger.info(f"Creating access token for user_id: {data.get('sub')}")
+    logger.info(f"Token will expire at: {expire} (UTC)")
+    logger.info(f"Token expire minutes: {settings.ACCESS_TOKEN_EXPIRE_MINUTES}")
+    logger.info(f"Using SECRET_KEY length: {len(settings.SECRET_KEY)}")
+    logger.info(f"Using ALGORITHM: {settings.ALGORITHM}")
+    
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    
+    logger.info(f"Token created successfully. Token length: {len(encoded_jwt)}")
+    logger.debug(f"Token preview: {encoded_jwt[:20]}...")
+    
     return encoded_jwt
 
 
@@ -155,20 +168,36 @@ def decode_access_token(token: str) -> Optional[dict]:
     import logging
     logger = logging.getLogger(__name__)
     
+    logger.info(f"Attempting to decode token. Token length: {len(token)}")
+    logger.info(f"Using SECRET_KEY length: {len(settings.SECRET_KEY)}")
+    logger.info(f"Using ALGORITHM: {settings.ALGORITHM}")
+    logger.debug(f"Token preview: {token[:20]}...")
+    
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         logger.info(f"Token decoded successfully. User ID: {payload.get('sub')}")
+        logger.info(f"Token expires at: {datetime.fromtimestamp(payload.get('exp', 0))} (UTC)")
+        logger.info(f"Current time: {datetime.utcnow()} (UTC)")
         return payload
-    except jwt.ExpiredSignatureError:
-        logger.warning("Token has expired")
+    except jwt.ExpiredSignatureError as e:
+        logger.warning(f"Token has expired: {str(e)}")
+        logger.warning(f"Current time: {datetime.utcnow()} (UTC)")
+        return None
+    except jwt.InvalidSignatureError as e:
+        logger.error(f"Token signature is invalid: {str(e)}")
+        logger.error(f"This usually means SECRET_KEY mismatch between token creation and verification")
         return None
     except jwt.JWTClaimsError as e:
         logger.warning(f"Token claims error: {str(e)}")
         return None
     except JWTError as e:
         logger.warning(f"JWT decode error: {str(e)}")
+        logger.warning(f"Error type: {type(e).__name__}")
         return None
     except Exception as e:
         logger.error(f"Unexpected error decoding token: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(traceback.format_exc())
         return None
 
