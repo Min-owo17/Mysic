@@ -189,6 +189,30 @@ async def get_practice_sessions(
     )
 
 
+@router.get("/sessions/active")
+async def get_active_session(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    현재 진행 중인 연습 세션 조회
+    - 세션이 있으면 PracticeSessionResponse 반환
+    - 세션이 없으면 null 반환
+    """
+    active_session = db.query(PracticeSession).filter(
+        and_(
+            PracticeSession.user_id == current_user.user_id,
+            PracticeSession.status == "in_progress"
+        )
+    ).first()
+    
+    if active_session:
+        # Pydantic 모델로 변환하여 반환 (FastAPI가 자동으로 JSON 변환)
+        return PracticeSessionResponse.model_validate(active_session)
+    # None을 반환하면 FastAPI가 자동으로 JSON null로 변환
+    return None
+
+
 @router.get("/sessions/{session_id}", response_model=PracticeSessionResponse)
 async def get_practice_session(
     session_id: int,
@@ -278,28 +302,4 @@ async def get_practice_statistics(
         last_practice_date=last_practice_date,
         average_session_time=average_session_time
     )
-
-
-@router.get("/sessions/active")
-async def get_active_session(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    현재 진행 중인 연습 세션 조회
-    - 세션이 있으면 PracticeSessionResponse 반환
-    - 세션이 없으면 null 반환
-    """
-    active_session = db.query(PracticeSession).filter(
-        and_(
-            PracticeSession.user_id == current_user.user_id,
-            PracticeSession.status == "in_progress"
-        )
-    ).first()
-    
-    if active_session:
-        # Pydantic 모델로 변환하여 반환 (FastAPI가 자동으로 JSON 변환)
-        return PracticeSessionResponse.model_validate(active_session)
-    # None을 반환하면 FastAPI가 자동으로 JSON null로 변환
-    return None
 
