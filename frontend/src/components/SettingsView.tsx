@@ -130,18 +130,12 @@ const SettingsView: React.FC = () => {
             // 성공 결과 모달 표시
             setDeleteResult({
                 success: true,
-                message: '회원 탈퇴가 완료되었습니다.'
+                message: '회원 탈퇴가 완료되었습니다. 확인 버튼을 클릭하면 로그인 페이지로 이동합니다.'
             });
             setShowDeleteResultModal(true);
             
-            // 로그아웃 처리
-            logout();
-            localStorage.removeItem('access_token');
-            
-            // 2초 후 로그인 페이지로 이동
-            setTimeout(() => {
-                navigate('/auth');
-            }, 2000);
+            // 로그아웃 처리 (모달이 닫힐 때까지 지연)
+            // 사용자가 확인 버튼을 클릭할 때까지 인증 상태 유지
         } catch (error) {
             console.error('회원 탈퇴 오류:', error);
             
@@ -152,6 +146,20 @@ const SettingsView: React.FC = () => {
             });
             setShowDeleteResultModal(true);
         }
+    };
+    
+    // 회원 탈퇴 성공 후 확인 버튼 클릭 시 처리
+    const handleDeleteResultConfirm = () => {
+        // 로그아웃 처리
+        logout();
+        localStorage.removeItem('access_token');
+        
+        // 모달 닫기
+        setShowDeleteResultModal(false);
+        setDeleteResult(null);
+        
+        // 로그인 페이지로 이동
+        navigate('/auth');
     };
     
     const handleCopyCode = () => {
@@ -237,10 +245,7 @@ const SettingsView: React.FC = () => {
                         <div className="flex gap-4">
                             {deleteResult.success ? (
                                 <button 
-                                    onClick={() => {
-                                        setShowDeleteResultModal(false);
-                                        navigate('/auth');
-                                    }} 
+                                    onClick={handleDeleteResultConfirm}
                                     className="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors"
                                 >
                                     확인
