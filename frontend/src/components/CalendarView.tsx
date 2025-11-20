@@ -1,8 +1,10 @@
 
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
-import { PerformanceRecord } from '../types';
+import { PerformanceRecord, PracticeSession } from '../types';
+import { practiceApi } from '../services/api/practice';
 import { formatTime, getLocalDateString } from '../utils/time';
 import ComparisonView from './ComparisonView';
 import { commonStyles } from '../styles/commonStyles';
@@ -16,6 +18,73 @@ const CalendarView: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
     const [selectedRecord, setSelectedRecord] = useState<PerformanceRecord | null>(null);
     const [showComparisonView, setShowComparisonView] = useState(false);
+
+    // --- Memoized calculations for Weekly View (먼저 정의) ---
+    const currentWeekStart = useMemo(() => {
+        const date = new Date(currentDate);
+        date.setDate(date.getDate() - date.getDay()); // Start from Sunday
+        date.setHours(0, 0, 0, 0);
+        return date;
+    }, [currentDate]);
+
+    // PracticeSession을 PerformanceRecord로 변환하는 함수
+    const convertSessionToRecord = (session: PracticeSession): PerformanceRecord => {
+        return {
+            id: `session-${session.session_id}`,
+            date: session.practice_date,
+            title: session.instrument || '연습 세션',
+            instrument: session.instrument || '알 수 없음',
+            duration: session.actual_play_time,
+            notes: session.notes || '',
+            summary: undefined, // AI 요약은 현재 없음
+        };
+    };
+
+    // 현재 뷰에 맞는 날짜 범위 계산
+    const dateRange = useMemo(() => {
+        if (viewMode === 'monthly') {
+            const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+            const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+            return {
+                start_date: getLocalDateString(start),
+                end_date: getLocalDateString(end),
+            };
+        } else {
+            // 주간 뷰
+            const start = new Date(currentWeekStart);
+            const end = new Date(currentWeekStart);
+            end.setDate(end.getDate() + 6);
+            return {
+                start_date: getLocalDateString(start),
+                end_date: getLocalDateString(end),
+            };
+        }
+    }, [viewMode, currentDate, currentWeekStart]);
+
+    // Practice 세션 데이터 가져오기
+    const { data: sessionsData, isLoading: isLoadingSessions } = useQuery({
+        queryKey: ['practice', 'sessions', dateRange.start_date, dateRange.end_date],
+        queryFn: () => practiceApi.getSessions({
+            start_date: dateRange.start_date,
+            end_date: dateRange.end_date,
+            page: 1,
+            page_size: 1000, // 충분히 큰 값
+        }),
+        enabled: true,
+    });
+
+    // PracticeSession을 PerformanceRecord로 변환
+    const practiceRecords = useMemo(() => {
+        if (!sessionsData?.sessions) return [];
+        return sessionsData.sessions
+            .filter(session => session.status === 'completed') // 완료된 세션만
+            .map(convertSessionToRecord);
+    }, [sessionsData]);
+
+    // 기존 records와 practiceRecords 병합
+    const allRecords = useMemo(() => {
+        return [...records, ...practiceRecords];
+    }, [records, practiceRecords]);
 
     // --- Memoized calculations for Monthly View ---
     const daysInMonth = useMemo(() => {
@@ -33,7 +102,7 @@ const CalendarView: React.FC = () => {
     // --- Common data processing ---
     const recordsByDate = useMemo(() => {
         const map = new Map<string, PerformanceRecord[]>();
-        records.forEach(record => {
+        allRecords.forEach(record => {
             const localDate = new Date(record.date);
             const dateStr = getLocalDateString(localDate);
             if (!map.has(dateStr)) {
@@ -42,15 +111,8 @@ const CalendarView: React.FC = () => {
             map.get(dateStr)?.push(record);
         });
         return map;
-    }, [records]);
+    }, [allRecords]);
 
-    // --- Memoized calculations for Weekly View ---
-    const currentWeekStart = useMemo(() => {
-        const date = new Date(currentDate);
-        date.setDate(date.getDate() - date.getDay()); // Start from Sunday
-        date.setHours(0, 0, 0, 0);
-        return date;
-    }, [currentDate]);
 
     const weeklyChartData = useMemo(() => {
         const weekData = [];
@@ -131,6 +193,12 @@ const CalendarView: React.FC = () => {
                     </button>
                 </div>
             </div>
+            
+            {isLoadingSessions && (
+                <div className="text-center py-2 text-gray-500 dark:text-gray-400 text-sm mb-2">
+                    연습 기록을 불러오는 중...
+                </div>
+            )}
             
             <div className="mb-4 flex justify-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                 <button onClick={() => setViewMode('weekly')} className={`w-1/2 py-2 text-sm font-semibold rounded-md transition-colors ${viewMode === 'weekly' ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>주간</button>
