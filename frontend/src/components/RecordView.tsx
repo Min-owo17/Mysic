@@ -113,13 +113,16 @@ const RecordView: React.FC = () => {
     const handleStartRecording = async () => {
         setError('');
         try {
-            // 먼저 연습 세션 시작
-            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
-            await createSessionMutation.mutateAsync({
-                practice_date: today,
-                instrument: instrument || undefined,
-                notes: notes || undefined,
-            });
+            // 기존 세션이 있으면 새로 생성하지 않음
+            if (!currentSessionId) {
+                // 먼저 연습 세션 시작
+                const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
+                await createSessionMutation.mutateAsync({
+                    practice_date: today,
+                    instrument: instrument || undefined,
+                    notes: notes || undefined,
+                });
+            }
             
             // 연습 세션 시작 성공 후 녹음 시작
             await startRecording();
@@ -264,6 +267,43 @@ const RecordView: React.FC = () => {
         navigate('/calendar');
     };
 
+    // 진행 중인 세션 계속하기
+    const handleContinueSession = () => {
+        if (activeSession) {
+            // 기존 세션 정보 복원
+            setCurrentSessionId(activeSession.session_id);
+            if (activeSession.instrument) {
+                setInstrument(activeSession.instrument);
+            }
+            if (activeSession.notes) {
+                setNotes(activeSession.notes);
+            }
+            // 세션 정보를 표시하고 녹음을 시작할 수 있도록 준비
+            toast.success('기존 세션을 불러왔습니다. 녹음을 시작하세요.');
+        }
+    };
+
+    // 진행 중인 세션 취소하기
+    const handleCancelActiveSession = async () => {
+        if (activeSession) {
+            try {
+                await updateSessionMutation.mutateAsync({
+                    sessionId: activeSession.session_id,
+                    data: {
+                        actual_play_time: 0,
+                        notes: '사용자에 의해 취소됨',
+                    },
+                });
+                toast.success('진행 중인 세션이 취소되었습니다.');
+                // 쿼리 캐시 무효화하여 activeSession을 null로 업데이트
+                queryClient.invalidateQueries({ queryKey: ['practice', 'active-session'] });
+            } catch (err) {
+                console.error('세션 취소 실패:', err);
+                toast.error('세션 취소에 실패했습니다.');
+            }
+        }
+    };
+
     return (
         <div className="p-4 md:p-6 max-w-md mx-auto min-h-[calc(100vh-8rem)] flex flex-col">
             {error && <div className="bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 p-3 rounded-md my-4 text-sm">{error}</div>}
@@ -272,8 +312,39 @@ const RecordView: React.FC = () => {
                 <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
                     <p className="text-gray-500 dark:text-gray-400 mb-8">버튼을 눌러 기록을 시작하세요</p>
                     {activeSession && activeSession.status === 'in_progress' && (
-                        <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-md text-sm text-yellow-800 dark:text-yellow-200">
-                            진행 중인 연습 세션이 있습니다. 계속하시겠습니까?
+                        <div className="mb-6 w-full max-w-sm">
+                            <div className="p-4 bg-yellow-100 dark:bg-yellow-900/30 rounded-md text-sm text-yellow-800 dark:text-yellow-200 mb-4">
+                                <p className="font-semibold mb-2">진행 중인 연습 세션이 있습니다.</p>
+                                {activeSession.start_time && (
+                                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                                        시작 시간: {new Date(activeSession.start_time).toLocaleString('ko-KR')}
+                                    </p>
+                                )}
+                                {activeSession.instrument && (
+                                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                                        악기: {activeSession.instrument}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleContinueSession}
+                                    className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} flex-1 py-2 text-sm`}
+                                >
+                                    예, 계속하기
+                                </button>
+                                <button
+                                    onClick={handleCancelActiveSession}
+                                    disabled={updateSessionMutation.isPending}
+                                    className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} flex-1 py-2 text-sm disabled:opacity-50`}
+                                >
+                                    {updateSessionMutation.isPending ? (
+                                        <Spinner size="sm" />
+                                    ) : (
+                                        '아니오, 취소'
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     )}
                     <button 
