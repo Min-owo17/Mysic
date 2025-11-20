@@ -45,6 +45,8 @@ const SettingsView: React.FC = () => {
     
     const [showResetModal, setShowResetModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showDeleteResultModal, setShowDeleteResultModal] = useState(false);
+    const [deleteResult, setDeleteResult] = useState<{ success: boolean; message: string } | null>(null);
     const [showConfirmPasswordModal, setShowConfirmPasswordModal] = useState(false);
     
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -119,21 +121,36 @@ const SettingsView: React.FC = () => {
 
     const handleDeleteAccount = async () => {
         try {
+            // 확인 모달 닫기
+            setShowDeleteModal(false);
+            
             // 회원 탈퇴 API 호출
             await usersApi.deleteAccount();
             
-            // 성공 시 로그아웃 처리 및 로그인 페이지로 이동
+            // 성공 결과 모달 표시
+            setDeleteResult({
+                success: true,
+                message: '회원 탈퇴가 완료되었습니다.'
+            });
+            setShowDeleteResultModal(true);
+            
+            // 로그아웃 처리
             logout();
             localStorage.removeItem('access_token');
-            setShowDeleteModal(false);
-            navigate('/auth');
             
-            // 성공 메시지 표시 (선택사항)
-            alert('회원 탈퇴가 완료되었습니다.');
+            // 2초 후 로그인 페이지로 이동
+            setTimeout(() => {
+                navigate('/auth');
+            }, 2000);
         } catch (error) {
             console.error('회원 탈퇴 오류:', error);
-            alert('회원 탈퇴 중 오류가 발생했습니다. 다시 시도해주세요.');
-            setShowDeleteModal(false);
+            
+            // 실패 결과 모달 표시
+            setDeleteResult({
+                success: false,
+                message: '회원 탈퇴 중 오류가 발생했습니다. 다시 시도해주세요.'
+            });
+            setShowDeleteResultModal(true);
         }
     };
     
@@ -206,6 +223,51 @@ const SettingsView: React.FC = () => {
                         <div className="flex gap-4">
                             <button onClick={() => setShowDeleteModal(false)} className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">취소</button>
                             <button onClick={handleDeleteAccount} className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700 transition-colors">탈퇴</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showDeleteResultModal && deleteResult && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
+                        <h3 className={`text-xl font-bold mb-2 ${deleteResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                            {deleteResult.success ? '탈퇴 완료' : '탈퇴 실패'}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-300 mb-6">{deleteResult.message}</p>
+                        <div className="flex gap-4">
+                            {deleteResult.success ? (
+                                <button 
+                                    onClick={() => {
+                                        setShowDeleteResultModal(false);
+                                        navigate('/auth');
+                                    }} 
+                                    className="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors"
+                                >
+                                    확인
+                                </button>
+                            ) : (
+                                <>
+                                    <button 
+                                        onClick={() => {
+                                            setShowDeleteResultModal(false);
+                                            setDeleteResult(null);
+                                        }} 
+                                        className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                                    >
+                                        닫기
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setShowDeleteResultModal(false);
+                                            setDeleteResult(null);
+                                            setShowDeleteModal(true);
+                                        }} 
+                                        className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700 transition-colors"
+                                    >
+                                        다시 시도
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
