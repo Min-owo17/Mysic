@@ -298,6 +298,8 @@ async def get_active_session(
     ).first()
     
     if active_session:
+        # Pydantic 모델로 변환하여 반환 (FastAPI가 자동으로 JSON 변환)
         return PracticeSessionResponse.model_validate(active_session)
+    # None을 반환하면 FastAPI가 자동으로 JSON null로 변환
     return None
 

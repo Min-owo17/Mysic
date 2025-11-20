@@ -37,8 +37,19 @@ const RecordView: React.FC = () => {
     // 진행 중인 세션 확인
     const { data: activeSession } = useQuery({
         queryKey: ['practice', 'active-session'],
-        queryFn: () => practiceApi.getActiveSession(),
+        queryFn: async () => {
+            try {
+                return await practiceApi.getActiveSession();
+            } catch (error: any) {
+                // 422 오류는 세션이 없는 경우이므로 null로 처리
+                if (error.response?.status === 422) {
+                    return null;
+                }
+                throw error;
+            }
+        },
         refetchInterval: 30000, // 30초마다 확인
+        retry: false, // 422 오류는 재시도하지 않음
     });
 
     // 연습 세션 시작 mutation
