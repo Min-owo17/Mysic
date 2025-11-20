@@ -249,30 +249,65 @@ echo "🎨 3단계: Frontend 시작"
 echo "🔍 80번 포트 충돌 확인 중..."
 
 # ============================================
-# 호스트 Nginx 중지 (프론트엔드 컨테이너가 포트 80을 사용하므로)
+# 호스트 Nginx 완전 중지 및 비활성화
+# 프론트엔드 컨테이너가 포트 80을 사용하므로 호스트 nginx는 필요 없음
 # ============================================
-echo "🌐 호스트 Nginx 상태 확인 중..."
+echo "🌐 호스트 Nginx 완전 중지 및 비활성화 중..."
 
-# Nginx가 설치되어 있고 실행 중인지 확인
-if command -v nginx &> /dev/null || systemctl list-unit-files | grep -q nginx.service; then
-    if systemctl is-active --quiet nginx 2>/dev/null; then
-        echo "   ⚠️  호스트 Nginx가 실행 중입니다."
-        echo "   프론트엔드 Docker 컨테이너가 포트 80을 사용하므로 호스트 Nginx를 중지합니다..."
-        sudo systemctl stop nginx 2>/dev/null || true
-        echo "   ✅ 호스트 Nginx가 중지되었습니다."
+# Nginx 프로세스 강제 종료 (systemctl이 없어도 작동)
+if command -v pgrep &> /dev/null; then
+    if pgrep -x nginx > /dev/null 2>&1; then
+        echo "   ⚠️  Nginx 프로세스가 실행 중입니다. 종료합니다..."
+        sudo pkill -9 nginx 2>/dev/null || true
+        sleep 2
+        echo "   ✅ Nginx 프로세스가 종료되었습니다."
+    fi
+fi
+
+# systemctl을 통한 Nginx 중지 및 비활성화
+if command -v systemctl &> /dev/null; then
+    # Nginx 서비스가 존재하는지 확인
+    if systemctl list-unit-files 2>/dev/null | grep -q nginx.service; then
+        # 실행 중이면 중지
+        if systemctl is-active --quiet nginx 2>/dev/null; then
+            echo "   ⚠️  호스트 Nginx 서비스가 실행 중입니다. 중지합니다..."
+            sudo systemctl stop nginx 2>/dev/null || true
+            sleep 1
+            echo "   ✅ 호스트 Nginx 서비스가 중지되었습니다."
+        fi
+        
+        # 자동 시작 비활성화
+        if systemctl is-enabled --quiet nginx 2>/dev/null; then
+            echo "   호스트 Nginx 자동 시작을 비활성화합니다..."
+            sudo systemctl disable nginx 2>/dev/null || true
+            echo "   ✅ 호스트 Nginx 자동 시작이 비활성화되었습니다."
+        fi
     fi
     
-    # Nginx 자동 시작 비활성화 (부팅 시 자동 시작 방지)
-    if systemctl is-enabled --quiet nginx 2>/dev/null; then
-        echo "   호스트 Nginx 자동 시작을 비활성화합니다..."
-        sudo systemctl disable nginx 2>/dev/null || true
-        echo "   ✅ 호스트 Nginx 자동 시작이 비활성화되었습니다."
-    else
-        echo "   ℹ️  호스트 Nginx는 이미 비활성화되어 있습니다."
+    # Nginx 기본 설정 파일 비활성화 (충돌 방지)
+    if [ -f /etc/nginx/sites-enabled/default ]; then
+        echo "   Nginx 기본 설정 파일을 비활성화합니다..."
+        sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+        echo "   ✅ Nginx 기본 설정 파일이 비활성화되었습니다."
     fi
-else
-    echo "   ℹ️  호스트 Nginx가 설치되어 있지 않거나 실행 중이 아닙니다."
+    
+    if [ -f /etc/nginx/sites-enabled/mysic ]; then
+        echo "   Nginx mysic 설정 파일을 비활성화합니다..."
+        sudo rm -f /etc/nginx/sites-enabled/mysic 2>/dev/null || true
+        echo "   ✅ Nginx mysic 설정 파일이 비활성화되었습니다."
+    fi
 fi
+
+# 최종 확인: Nginx 프로세스가 완전히 종료되었는지 확인
+if command -v pgrep &> /dev/null; then
+    if pgrep -x nginx > /dev/null 2>&1; then
+        echo "   ⚠️  Nginx 프로세스가 여전히 실행 중입니다. 강제 종료합니다..."
+        sudo pkill -9 nginx 2>/dev/null || true
+        sleep 2
+    fi
+fi
+
+echo "   ✅ 호스트 Nginx가 완전히 중지 및 비활성화되었습니다."
 
 # 80번 포트를 사용하는 프로세스 확인
 PORT_80_IN_USE=false
@@ -369,15 +404,24 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml up -d --build front
 # Frontend가 시작될 때까지 대기 및 상태 확인
 echo "⏳ Frontend가 시작될 때까지 대기 중..."
 FRONTEND_READY=false
-MAX_WAIT_FRONTEND=15
+MAX_WAIT_FRONTEND=30
 WAIT_COUNT_FRONTEND=0
 
 while [ $WAIT_COUNT_FRONTEND -lt $MAX_WAIT_FRONTEND ]; do
     FRONTEND_STATUS=$(docker inspect --format='{{.State.Status}}' mysic_frontend_prod 2>/dev/null || echo "not_found")
     
     if [ "$FRONTEND_STATUS" = "running" ]; then
-        FRONTEND_READY=true
-        break
+        # 컨테이너 내부의 nginx가 제대로 작동하는지 확인
+        if command -v curl &> /dev/null; then
+            if curl -s http://localhost:80/health > /dev/null 2>&1 || curl -s http://localhost:80/ > /dev/null 2>&1; then
+                FRONTEND_READY=true
+                break
+            fi
+        else
+            # curl이 없으면 컨테이너가 running 상태이면 준비된 것으로 간주
+            FRONTEND_READY=true
+            break
+        fi
     elif [ "$FRONTEND_STATUS" = "restarting" ]; then
         echo "   ⚠️  Frontend가 재시작 중입니다. 로그를 확인하세요..."
         docker-compose -f infrastructure/aws/docker-compose.prod.yml logs --tail=20 frontend
@@ -394,8 +438,29 @@ if [ "$FRONTEND_READY" = false ]; then
     docker-compose -f infrastructure/aws/docker-compose.prod.yml logs --tail=50 frontend
     echo ""
     echo "⚠️  Frontend가 재시작 중이거나 포트 충돌이 있을 수 있습니다."
+    echo ""
+    echo "🔍 디버깅 정보:"
+    echo "   - 컨테이너 상태: $FRONTEND_STATUS"
+    echo "   - 80번 포트 사용 확인:"
+    if command -v netstat &> /dev/null; then
+        sudo netstat -tulpn 2>/dev/null | grep ':80 ' || echo "      (확인 불가)"
+    elif command -v ss &> /dev/null; then
+        sudo ss -tulpn 2>/dev/null | grep ':80 ' || echo "      (확인 불가)"
+    fi
+    echo "   - Docker 컨테이너 목록:"
+    docker ps | grep -E "mysic_frontend|nginx|80" || echo "      (없음)"
 else
     echo "✅ Frontend가 준비되었습니다!"
+    
+    # Frontend 컨테이너 내부의 index.html 존재 확인
+    echo "🔍 Frontend 컨테이너 내부 파일 확인 중..."
+    if docker exec mysic_frontend_prod ls /usr/share/nginx/html/index.html > /dev/null 2>&1; then
+        echo "   ✅ index.html 파일이 존재합니다."
+    else
+        echo "   ⚠️  index.html 파일이 없습니다. 빌드가 제대로 되지 않았을 수 있습니다."
+        echo "   Frontend 컨테이너 내부 파일 목록:"
+        docker exec mysic_frontend_prod ls -la /usr/share/nginx/html/ 2>/dev/null || echo "      (확인 불가)"
+    fi
 fi
 
 # 최종 서비스 상태 확인
