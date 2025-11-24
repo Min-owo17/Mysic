@@ -94,3 +94,18 @@ class PracticeSessionListResponse(BaseModel):
             }
         }
 
+
+class WeeklyAveragePracticeResponse(BaseModel):
+    """주간 평균 연습 시간 응답"""
+    daily_averages: list[int] = Field(..., description="일별 평균 연습 시간 (초), 7일치 [일, 월, 화, 수, 목, 금, 토]")
+    consistency_percentage: int = Field(..., description="매일 연습한 사용자 비율 (%)", ge=0, le=100)
+    total_users: int = Field(..., description="비교 대상 사용자 수")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "daily_averages": [2700, 2100, 2400, 2800, 2500, 4200, 4800],
+                "consistency_percentage": 23,
+                "total_users": 10
+            }
+        }

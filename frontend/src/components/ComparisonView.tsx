@@ -1,24 +1,13 @@
 
 
 import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
 import { formatTime, getLocalDateString } from '../utils/time';
-import { PerformanceRecord } from '../types';
+import { PerformanceRecord, PracticeSession } from '../types';
+import { practiceApi } from '../services/api/practice';
 import { commonStyles } from '../styles/commonStyles';
 
-// Mock data for average user with same features. In a real app, this would be fetched.
-const MOCK_AVERAGE_PRACTICE_DATA = [
-    2700, // 일
-    2100, // 월
-    2400, // 화
-    2800, // 수
-    2500, // 목
-    4200, // 금
-    4800, // 토
-];
-
-// Mock data for consistency percentage.
-const MOCK_CONSISTENCY_PERCENTAGE = 23;
 
 
 interface ComparisonChartData {
@@ -43,9 +32,55 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
         return date;
     }, [currentDate]);
 
+    const currentWeekEnd = useMemo(() => {
+        const end = new Date(currentWeekStart);
+        end.setDate(end.getDate() + 6);
+        return end;
+    }, [currentWeekStart]);
+
+    // PracticeSession을 PerformanceRecord로 변환하는 함수
+    const convertSessionToRecord = (session: PracticeSession): PerformanceRecord => {
+        return {
+            id: `session-${session.session_id}`,
+            date: session.practice_date,
+            title: session.instrument || '연습 세션',
+            instrument: session.instrument || '알 수 없음',
+            duration: session.actual_play_time,
+            notes: session.notes || '',
+            summary: undefined,
+        };
+    };
+
+    // 현재 주간의 Practice 세션 데이터 가져오기
+    const { data: sessionsData, isLoading: isLoadingSessions } = useQuery({
+        queryKey: ['practice', 'sessions', 'comparison', getLocalDateString(currentWeekStart), getLocalDateString(currentWeekEnd)],
+        queryFn: () => practiceApi.getSessions({
+            start_date: getLocalDateString(currentWeekStart),
+            end_date: getLocalDateString(currentWeekEnd),
+            page: 1,
+            page_size: 100,
+        }),
+        enabled: true,
+        staleTime: 2 * 60 * 1000,
+        cacheTime: 5 * 60 * 1000,
+    });
+
+    // PracticeSession을 PerformanceRecord로 변환
+    const practiceRecords = useMemo(() => {
+        if (!sessionsData?.sessions) return [];
+        return sessionsData.sessions
+            .filter(session => session.status === 'completed')
+            .map(convertSessionToRecord);
+    }, [sessionsData]);
+
+    // 기존 records와 practiceRecords 병합
+    const allRecords = useMemo(() => {
+        return [...records, ...practiceRecords];
+    }, [records, practiceRecords]);
+
     const recordsByDate = useMemo(() => {
         const map = new Map<string, PerformanceRecord[]>();
-        records.forEach(record => {
+        allRecords.forEach(record => {
             const localDate = new Date(record.date);
             const dateStr = getLocalDateString(localDate);
             if (!map.has(dateStr)) {
@@ -54,7 +89,7 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
             map.get(dateStr)?.push(record);
         });
         return map;
-    }, [records]);
+    }, [allRecords]);
 
     const userWeeklyData = useMemo(() => {
         const weekData = [];
@@ -75,15 +110,27 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
         return weekData;
     }, [currentWeekStart, recordsByDate]);
 
+    // 같은 악기와 특징을 가진 사용자들의 평균 연습 시간 가져오기
+    const { data: averageData, isLoading: isLoadingAverage } = useQuery({
+        queryKey: ['practice', 'average-weekly', getLocalDateString(currentWeekStart), getLocalDateString(currentWeekEnd)],
+        queryFn: () => practiceApi.getAverageWeeklyPractice({
+            start_date: getLocalDateString(currentWeekStart),
+            end_date: getLocalDateString(currentWeekEnd),
+        }),
+        enabled: hasInstrumentAndFeatures,
+        staleTime: 5 * 60 * 1000, // 5분
+        cacheTime: 10 * 60 * 1000, // 10분
+    });
+
     const comparisonChartData: ComparisonChartData[] = useMemo(() => {
-        const dayOffset = currentWeekStart.getDay();
+        const averageDurations = averageData?.daily_averages || [0, 0, 0, 0, 0, 0, 0];
         return userWeeklyData.map((data, index) => ({
             day: data.day,
             date: data.date,
             userDuration: data.totalDuration,
-            averageDuration: MOCK_AVERAGE_PRACTICE_DATA[(index + dayOffset) % 7],
+            averageDuration: averageDurations[index] || 0,
         }));
-    }, [userWeeklyData, currentWeekStart]);
+    }, [userWeeklyData, averageData]);
 
     const maxDuration = useMemo(() => {
         const maxUser = Math.max(...comparisonChartData.map(d => d.userDuration));
@@ -115,7 +162,36 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
         return currentWeekStart >= startOfThisWeek;
     }, [currentWeekStart]);
 
+    // 사용자가 악기와 특징을 모두 지정했는지 확인
+    const hasInstrumentAndFeatures = useMemo(() => {
+        const hasInstrument = !!userProfile.instrument && userProfile.instrument.trim() !== '';
+        const hasFeatures = userProfile.features && userProfile.features.length > 0 && userProfile.features.some(f => f && f.trim() !== '');
+        return hasInstrument && hasFeatures;
+    }, [userProfile]);
+
     const userFeaturesString = [userProfile.instrument, ...userProfile.features].filter(Boolean).join(', ');
+
+    // 악기와 특징이 모두 없을 경우 메시지 표시
+    if (!hasInstrumentAndFeatures) {
+        return (
+            <div className={`${commonStyles.pageContainer} animate-fade-in`}>
+                <div className="flex items-center mb-6">
+                    <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 mr-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <h1 className="text-2xl md:text-3xl font-bold text-purple-600 dark:text-purple-300">주간 연습 비교</h1>
+                </div>
+
+                <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-lg text-center">
+                    <p className="text-gray-600 dark:text-gray-400">
+                        지정된 악기와 특징이 없습니다. 프로필 메뉴에서 지정해 주세요.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={`${commonStyles.pageContainer} animate-fade-in`}>
@@ -127,6 +203,12 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
                 </button>
                 <h1 className="text-2xl md:text-3xl font-bold text-purple-600 dark:text-purple-300">주간 연습 비교</h1>
             </div>
+
+            {isLoadingSessions && (
+                <div className="text-center py-2 text-gray-500 dark:text-gray-400 text-sm mb-2">
+                    연습 기록을 불러오는 중...
+                </div>
+            )}
 
             <div className="flex justify-between items-center mb-4">
                 <button onClick={() => changeWeek(-1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">&lt;</button>
@@ -206,12 +288,25 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
                         </div>
                     
                         <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
-                            <p className="text-gray-700 dark:text-gray-300 text-lg md:text-xl">
-                                유사한 연주자 중 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{MOCK_CONSISTENCY_PERCENTAGE}%</span>가
-                                <br/>
-                                이번 주에 매일 연습했어요!
-                            </p>
-                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">꾸준함이 최고의 연주를 만듭니다.</p>
+                            {isLoadingAverage ? (
+                                <p className="text-gray-500 dark:text-gray-400">평균 데이터를 불러오는 중...</p>
+                            ) : averageData && averageData.total_users > 0 ? (
+                                <>
+                                    <p className="text-gray-700 dark:text-gray-300 text-lg md:text-xl">
+                                        유사한 연주자 중 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{averageData.consistency_percentage}%</span>가
+                                        <br/>
+                                        이번 주에 매일 연습했어요!
+                                    </p>
+                                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+                                        비교 대상: {averageData.total_users}명
+                                    </p>
+                                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">꾸준함이 최고의 연주를 만듭니다.</p>
+                                </>
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400">
+                                    같은 악기와 특징을 가진 다른 사용자가 없습니다.
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>

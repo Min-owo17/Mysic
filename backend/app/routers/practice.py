@@ -2,6 +2,7 @@
 연습 기록 API 라우터
 """
 import logging
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, desc
@@ -16,8 +17,13 @@ from app.schemas.practice import (
     PracticeSessionUpdate,
     PracticeSessionResponse,
     PracticeStatisticsResponse,
-    PracticeSessionListResponse
+    PracticeSessionListResponse,
+    WeeklyAveragePracticeResponse
 )
+from app.models.user import UserProfile
+from app.models.user_profile import UserProfileInstrument, UserProfileUserType
+from app.models.instrument import Instrument
+from app.models.user_type import UserType
 
 logger = logging.getLogger(__name__)
 
@@ -320,5 +326,162 @@ async def get_practice_statistics(
         consecutive_days=consecutive_days,
         last_practice_date=last_practice_date,
         average_session_time=average_session_time
+    )
+
+
+@router.get("/average-weekly", response_model=WeeklyAveragePracticeResponse)
+async def get_average_weekly_practice(
+    start_date: date = Query(..., description="주간 시작 날짜"),
+    end_date: date = Query(..., description="주간 종료 날짜"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    같은 악기와 특징을 가진 사용자들의 주간 평균 연습 시간 조회
+    - 현재 사용자의 주요 악기와 특징을 기반으로 같은 사용자들을 찾음
+    - 해당 사용자들의 주간 연습 시간 평균 계산
+    - 매일 연습한 사용자 비율 계산
+    """
+    # 현재 사용자의 프로필 가져오기
+    user_profile = db.query(UserProfile).filter(
+        UserProfile.user_id == current_user.user_id
+    ).first()
+    
+    if not user_profile:
+        # 프로필이 없으면 빈 데이터 반환
+        return WeeklyAveragePracticeResponse(
+            daily_averages=[0] * 7,
+            consistency_percentage=0,
+            total_users=0
+        )
+    
+    # 현재 사용자의 주요 악기 ID 가져오기
+    primary_instrument = db.query(UserProfileInstrument).filter(
+        and_(
+            UserProfileInstrument.profile_id == user_profile.profile_id,
+            UserProfileInstrument.is_primary == True
+        )
+    ).first()
+    
+    if not primary_instrument:
+        # 주요 악기가 없으면 빈 데이터 반환
+        return WeeklyAveragePracticeResponse(
+            daily_averages=[0] * 7,
+            consistency_percentage=0,
+            total_users=0
+        )
+    
+    # 현재 사용자의 특징 ID 목록 가져오기
+    user_type_ids = db.query(UserProfileUserType.user_type_id).filter(
+        UserProfileUserType.profile_id == user_profile.profile_id
+    ).all()
+    user_type_id_list = [row[0] for row in user_type_ids]
+    
+    if not user_type_id_list:
+        # 특징이 없으면 빈 데이터 반환
+        return WeeklyAveragePracticeResponse(
+            daily_averages=[0] * 7,
+            consistency_percentage=0,
+            total_users=0
+        )
+    
+    # 같은 주요 악기와 모든 특징을 가진 다른 사용자들의 프로필 찾기
+    # 서브쿼리: 같은 주요 악기를 가진 프로필
+    same_instrument_profiles = db.query(UserProfileInstrument.profile_id).filter(
+        and_(
+            UserProfileInstrument.instrument_id == primary_instrument.instrument_id,
+            UserProfileInstrument.is_primary == True,
+            UserProfileInstrument.profile_id != user_profile.profile_id
+        )
+    ).subquery()
+    
+    # 서브쿼리: 같은 특징을 모두 가진 프로필 (특징 개수가 일치하고 모든 특징이 일치)
+    same_user_types_profiles = db.query(
+        UserProfileUserType.profile_id
+    ).filter(
+        UserProfileUserType.user_type_id.in_(user_type_id_list)
+    ).group_by(
+        UserProfileUserType.profile_id
+    ).having(
+        func.count(UserProfileUserType.user_type_id) == len(user_type_id_list)
+    ).subquery()
+    
+    # 두 조건을 모두 만족하는 프로필 찾기
+    matching_profiles = db.query(UserProfile.profile_id).filter(
+        and_(
+            UserProfile.profile_id.in_(db.query(same_instrument_profiles.c.profile_id)),
+            UserProfile.profile_id.in_(db.query(same_user_types_profiles.c.profile_id))
+        )
+    ).all()
+    
+    matching_profile_ids = [row[0] for row in matching_profiles]
+    
+    if not matching_profile_ids:
+        # 매칭되는 사용자가 없으면 빈 데이터 반환
+        return WeeklyAveragePracticeResponse(
+            daily_averages=[0] * 7,
+            consistency_percentage=0,
+            total_users=0
+        )
+    
+    # 매칭된 프로필의 user_id 가져오기
+    matching_user_ids = db.query(UserProfile.user_id).filter(
+        UserProfile.profile_id.in_(matching_profile_ids)
+    ).all()
+    matching_user_id_list = [row[0] for row in matching_user_ids]
+    
+    # 매칭된 사용자들의 주간 연습 세션 가져오기
+    weekly_sessions = db.query(PracticeSession).filter(
+        and_(
+            PracticeSession.user_id.in_(matching_user_id_list),
+            PracticeSession.practice_date >= start_date,
+            PracticeSession.practice_date <= end_date,
+            PracticeSession.status == "completed"
+        )
+    ).all()
+    
+    # 일별로 그룹화하여 평균 계산
+    daily_totals = defaultdict(list)  # {date: [user_id: total_seconds]}
+    user_daily_totals = defaultdict(lambda: defaultdict(int))  # {user_id: {date: total_seconds}}
+    
+    for session in weekly_sessions:
+        user_daily_totals[session.user_id][session.practice_date] += session.actual_play_time
+    
+    # 일별 평균 계산 (7일치)
+    daily_averages = []
+    current_date = start_date
+    days_of_week = ['일', '월', '화', '수', '목', '금', '토']
+    
+    for i in range(7):
+        day_total = 0
+        day_count = 0
+        
+        for user_id in matching_user_id_list:
+            if current_date in user_daily_totals[user_id]:
+                day_total += user_daily_totals[user_id][current_date]
+                day_count += 1
+        
+        if day_count > 0:
+            daily_averages.append(int(day_total / day_count))
+        else:
+            daily_averages.append(0)
+        
+        current_date = current_date + timedelta(days=1)
+    
+    # 매일 연습한 사용자 비율 계산
+    total_users = len(matching_user_id_list)
+    daily_practicing_users = 0
+    
+    for user_id in matching_user_id_list:
+        practiced_days = len([d for d in user_daily_totals[user_id].keys() if start_date <= d <= end_date])
+        if practiced_days == 7:  # 7일 모두 연습
+            daily_practicing_users += 1
+    
+    consistency_percentage = int((daily_practicing_users / total_users * 100)) if total_users > 0 else 0
+    
+    return WeeklyAveragePracticeResponse(
+        daily_averages=daily_averages,
+        consistency_percentage=consistency_percentage,
+        total_users=total_users
     )
 

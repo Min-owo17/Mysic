@@ -61,5 +61,24 @@ export const practiceApi = {
     const response = await apiClient.get<PracticeSession | null>('/practice/sessions/active');
     return response.data;
   },
+
+  /**
+   * 같은 악기와 특징을 가진 사용자들의 주간 평균 연습 시간 조회
+   */
+  getAverageWeeklyPractice: async (params: {
+    start_date: string;
+    end_date: string;
+  }): Promise<{
+    daily_averages: number[];
+    consistency_percentage: number;
+    total_users: number;
+  }> => {
+    const response = await apiClient.get<{
+      daily_averages: number[];
+      consistency_percentage: number;
+      total_users: number;
+    }>('/practice/average-weekly', { params });
+    return response.data;
+  },
 };
 
