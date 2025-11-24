@@ -1,8 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
 import { allFeatures, instruments } from '../utils/constants';
 import { commonStyles } from '../styles/commonStyles';
 import { Post } from '../services/api/board';
+import { usersApi } from '../services/api/users';
+import { UserDetailResponse } from '../types';
 
 interface CreatePostViewProps {
     postToEdit?: Post;
@@ -16,6 +19,41 @@ const CreatePostView: React.FC<CreatePostViewProps> = ({ postToEdit, onSave, onC
     const [content, setContent] = useState(postToEdit?.content || '');
     const [category, setCategory] = useState(postToEdit?.category || 'general');
     const [tags, setTags] = useState<string[]>(postToEdit?.manual_tags || []);
+
+    // 사용자 프로필 정보 조회 (자동 태그 생성을 위해)
+    const { data: profileData } = useQuery<UserDetailResponse>({
+        queryKey: ['userProfile'],
+        queryFn: () => usersApi.getMyProfile(),
+        enabled: !postToEdit, // 수정 모드가 아닐 때만 조회
+    });
+
+    // 새로운 게시물 작성 시 프로필 정보 기반으로 자동 태그 설정
+    useEffect(() => {
+        if (!postToEdit && profileData?.profile) {
+            const autoTags: string[] = [];
+            
+            // 주요 악기 추가
+            const primaryInstrument = profileData.profile.instruments.find(i => i.is_primary);
+            if (primaryInstrument?.instrument_name) {
+                autoTags.push(primaryInstrument.instrument_name);
+            }
+            
+            // 특징(사용자 타입) 추가
+            profileData.profile.user_types.forEach(userType => {
+                if (userType.user_type_name && !autoTags.includes(userType.user_type_name)) {
+                    autoTags.push(userType.user_type_name);
+                }
+            });
+            
+            // 기존 태그와 병합 (중복 제거)
+            if (autoTags.length > 0) {
+                setTags(prevTags => {
+                    const merged = [...new Set([...autoTags, ...prevTags])];
+                    return merged;
+                });
+            }
+        }
+    }, [profileData, postToEdit]);
 
     const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
     const [tagSearch, setTagSearch] = useState('');
