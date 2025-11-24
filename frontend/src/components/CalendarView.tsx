@@ -416,8 +416,8 @@ const CalendarView: React.FC = () => {
             )}
 
             {showDeleteConfirmModal && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.confirmModalContainer}>
                         <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">연습 기록 삭제</h3>
                         <p className="text-gray-600 dark:text-gray-300 mb-6">정말로 이 연습 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
                         <div className="flex gap-4">

@@ -8,6 +8,7 @@ export const commonStyles = {
   modalOverlay: 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in',
   modalContainer: 'bg-white dark:bg-gray-800 rounded-lg shadow-xl w-11/12 max-w-sm transform animate-scale-in',
   modalContainerLarge: 'bg-white dark:bg-gray-800 rounded-lg shadow-xl w-11/12 max-w-md transform animate-scale-in',
+  confirmModalContainer: 'bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in',
 
   // Buttons
   buttonBase: 'font-bold py-2 px-4 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 disabled:cursor-not-allowed',

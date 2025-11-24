@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { View, UserProfile } from '../types';
 import { usersApi } from '../services/api/users';
+import { commonStyles } from '../styles/commonStyles';
 
 // Mock data for feedback history
 const MOCK_FEEDBACK_HISTORY = [
@@ -192,8 +193,8 @@ const SettingsView: React.FC = () => {
     return (
         <>
             {showConfirmPasswordModal && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.confirmModalContainer}>
                         <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-300 mb-2">비밀번호 확인</h3>
                         <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm">정보 변경을 위해 현재 비밀번호를 입력해주세요.</p>
                         <input
@@ -212,8 +213,8 @@ const SettingsView: React.FC = () => {
                 </div>
             )}
             {showResetModal && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.confirmModalContainer}>
                         <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">기록 초기화</h3>
                         <p className="text-gray-600 dark:text-gray-300 mb-6">정말로 모든 연습 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
                         <div className="flex gap-4">
@@ -224,8 +225,8 @@ const SettingsView: React.FC = () => {
                 </div>
             )}
              {showDeleteModal && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.confirmModalContainer}>
                         <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">회원 탈퇴</h3>
                         <p className="text-gray-600 dark:text-gray-300 mb-6">정말로 탈퇴하시겠습니까? 모든 데이터가 영구적으로 삭제되며, 이 작업은 되돌릴 수 없습니다.</p>
                         <div className="flex gap-4">
@@ -236,8 +237,8 @@ const SettingsView: React.FC = () => {
                 </div>
             )}
             {showDeleteResultModal && deleteResult && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.confirmModalContainer}>
                         <h3 className={`text-xl font-bold mb-2 ${deleteResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                             {deleteResult.success ? '탈퇴 완료' : '탈퇴 실패'}
                         </h3>
