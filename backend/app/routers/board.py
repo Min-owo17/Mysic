@@ -254,6 +254,7 @@ async def create_post(
     auto_tags = _get_user_auto_tags(db, current_user.user_id)
     
     # 게시글 생성
+    # updated_at은 None으로 설정하여 신규 게시글임을 명확히 표시
     new_post = Post(
         user_id=current_user.user_id,
         title=post_data.title,
@@ -262,7 +263,8 @@ async def create_post(
         auto_tags=auto_tags if auto_tags else None,
         manual_tags=post_data.manual_tags if post_data.manual_tags else None,
         view_count=0,
-        like_count=0
+        like_count=0,
+        updated_at=None  # 신규 게시글은 updated_at을 NULL로 설정
     )
     
     db.add(new_post)

@@ -70,7 +70,7 @@ class PostResponse(BaseModel):
     like_count: int
     is_liked: bool = False  # 현재 사용자가 좋아요를 눌렀는지 여부
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None  # 수정된 적이 없으면 None
 
     class Config:
         from_attributes = True
