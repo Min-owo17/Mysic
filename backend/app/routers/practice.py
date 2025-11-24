@@ -157,6 +157,16 @@ async def get_practice_sessions(
     - 페이지네이션 지원
     - 날짜 범위 필터링
     - 악기별 필터링
+    - 메모리 최적화: page_size 최대값 100으로 강제 제한
+    """
+    # 메모리 최적화: page_size 최대값 강제 적용
+    if page_size > 100:
+        page_size = 100
+    """
+    연습 기록 목록 조회
+    - 페이지네이션 지원
+    - 날짜 범위 필터링
+    - 악기별 필터링
     """
     query = db.query(PracticeSession).filter(
         PracticeSession.user_id == current_user.user_id
@@ -272,24 +282,33 @@ async def get_practice_statistics(
     if total_sessions > 0:
         average_session_time = total_practice_time / total_sessions
     
-    # 연속 연습 일수 계산
+    # 연속 연습 일수 계산 (메모리 최적화: 단일 쿼리로 최적화)
     consecutive_days = 0
     if last_practice_date:
-        # 오늘부터 역순으로 연속된 날짜 확인
-        check_date = date.today()
-        consecutive_days = 0
+        # 메모리 최적화: 반복 쿼리 대신 단일 쿼리로 연속 일수 계산
+        # 오늘부터 역순으로 연속된 날짜의 세션 존재 여부를 한 번에 조회
         
-        while True:
-            # 해당 날짜에 완료된 세션이 있는지 확인
-            has_session = db.query(PracticeSession).filter(
-                and_(
-                    PracticeSession.user_id == current_user.user_id,
-                    PracticeSession.practice_date == check_date,
-                    PracticeSession.status == "completed"
-                )
-            ).first()
-            
-            if has_session:
+        # 최근 365일 동안의 연습 날짜를 한 번에 조회
+        today = date.today()
+        start_check_date = today - timedelta(days=365)  # 최대 1년치만 확인
+        
+        # 각 날짜별로 세션이 있는지 확인하는 쿼리
+        practice_dates = db.query(
+            func.distinct(PracticeSession.practice_date).label("practice_date")
+        ).filter(
+            and_(
+                PracticeSession.user_id == current_user.user_id,
+                PracticeSession.practice_date >= start_check_date,
+                PracticeSession.practice_date <= today,
+                PracticeSession.status == "completed"
+            )
+        ).order_by(desc(PracticeSession.practice_date)).all()
+        
+        # 메모리에서 연속 일수 계산 (최대 365일까지만)
+        practice_date_set = {row.practice_date for row in practice_dates}
+        check_date = today
+        while check_date >= start_check_date:
+            if check_date in practice_date_set:
                 consecutive_days += 1
                 check_date = check_date - timedelta(days=1)
             else:

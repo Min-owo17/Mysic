@@ -62,15 +62,18 @@ const CalendarView: React.FC = () => {
     }, [viewMode, currentDate, currentWeekStart]);
 
     // Practice 세션 데이터 가져오기
+    // 메모리 최적화: page_size를 100으로 제한 (필요시 페이지네이션으로 확장 가능)
     const { data: sessionsData, isLoading: isLoadingSessions } = useQuery({
         queryKey: ['practice', 'sessions', dateRange.start_date, dateRange.end_date],
         queryFn: () => practiceApi.getSessions({
             start_date: dateRange.start_date,
             end_date: dateRange.end_date,
             page: 1,
-            page_size: 1000, // 충분히 큰 값
+            page_size: 100, // 메모리 최적화: 1000에서 100으로 제한
         }),
         enabled: true,
+        staleTime: 2 * 60 * 1000, // 2분 - 캘린더 데이터는 2분간 fresh
+        cacheTime: 5 * 60 * 1000, // 5분 - 캐시 5분 유지
     });
 
     // PracticeSession을 PerformanceRecord로 변환

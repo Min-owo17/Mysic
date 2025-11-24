@@ -50,6 +50,8 @@ const RecordView: React.FC = () => {
         },
         refetchInterval: 30000, // 30초마다 확인
         retry: false, // 422 오류는 재시도하지 않음
+        staleTime: 10 * 1000, // 10초 - 세션 상태는 10초간 fresh
+        cacheTime: 1 * 60 * 1000, // 1분 - 캐시 1분 유지
     });
 
     // 연습 세션 시작 mutation
@@ -134,11 +136,16 @@ const RecordView: React.FC = () => {
     
     const handleStopAndAnalyze = async () => {
         setUiState('analyzingAudio');
+        let tempBlob: Blob | null = null;
         try {
             const blob = await stopRecording();
+            tempBlob = blob;
             setError('');
+            // 메모리 최적화: Base64 변환은 analyzeAudioForPlayingTime 내부에서만 수행
             const { playingTimeInSeconds } = await analyzeAudioForPlayingTime(blob);
             setAnalyzedDuration(playingTimeInSeconds);
+            // 분석 완료 후 임시 Blob 참조 해제 (가비지 컬렉션 유도)
+            tempBlob = null;
         } catch (err) {
             console.error(err);
             setError('연주 시간 분석에 실패하여, 전체 녹음 시간으로 기록됩니다.');

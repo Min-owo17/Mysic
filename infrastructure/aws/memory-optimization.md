@@ -66,21 +66,35 @@ frontend:
 
 ### PostgreSQL 메모리 최적화
 
-PostgreSQL 환경 변수 추가:
+PostgreSQL 메모리 최적화는 `docker-compose.prod.yml` 파일의 `command` 섹션에서 직접 설정됩니다:
 
 ```yaml
 postgres:
-  environment:
-    - POSTGRES_USER=${POSTGRES_USER}
-    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    - POSTGRES_DB=${POSTGRES_DB}
-    - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
-    # 메모리 최적화 설정
-    - shared_buffers=64MB
-    - effective_cache_size=128MB
-    - maintenance_work_mem=32MB
-    - work_mem=4MB
+  command: >
+    postgres
+    -c shared_buffers=64MB
+    -c effective_cache_size=128MB
+    -c maintenance_work_mem=32MB
+    -c work_mem=4MB
+    -c max_connections=50
+    -c wal_buffers=4MB
+    -c checkpoint_completion_target=0.9
+    -c random_page_cost=1.1
+    -c effective_io_concurrency=200
 ```
+
+**설정 설명:**
+- `shared_buffers=64MB`: 공유 메모리 버퍼 (전체 메모리의 약 25%)
+- `effective_cache_size=128MB`: OS와 PostgreSQL이 함께 사용할 수 있는 예상 캐시 크기
+- `maintenance_work_mem=32MB`: 유지보수 작업에 사용되는 메모리
+- `work_mem=4MB`: 정렬 및 해시 작업에 사용되는 메모리 (쿼리당)
+- `max_connections=50`: 최대 연결 수 (메모리 제한에 맞춰 조정)
+- `wal_buffers=4MB`: WAL 버퍼 크기
+- `checkpoint_completion_target=0.9`: 체크포인트 완료 목표
+- `random_page_cost=1.1`: SSD 환경에 맞춘 랜덤 페이지 비용
+- `effective_io_concurrency=200`: SSD 환경에 맞춘 I/O 동시성
+
+**참고:** `infrastructure/aws/postgresql.conf` 파일도 참고용으로 제공되며, 필요시 수동으로 적용할 수 있습니다.
 
 ## 메모리 부족 문제 해결
 
