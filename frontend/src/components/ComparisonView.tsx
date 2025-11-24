@@ -294,7 +294,7 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
 
                             return (
                                 <div key={index} className="flex flex-col items-center h-full w-full justify-end group">
-                                    <div className="relative w-full flex-1 flex items-end justify-center gap-1">
+                                    <div className="relative w-full flex-1 flex items-end justify-center">
                                         {/* Tooltip */}
                                         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 dark:bg-gray-900 text-white text-xs px-2 py-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap shadow-lg">
                                             <div className="flex items-center gap-1.5">
@@ -307,26 +307,30 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
                                             </div>
                                         </div>
 
-                                        {/* Bars with bottom labels */}
-                                        <div className="relative w-1/2 max-w-[12px] md:max-w-[16px] flex items-end justify-center">
+                                        {/* Bars container */}
+                                        <div className="relative w-full h-full flex items-end justify-center gap-1">
+                                            {/* 나의 연습 막대 */}
                                             <div
-                                                className="w-full rounded-t-sm bg-purple-500 transition-all duration-300"
+                                                className="w-1/2 max-w-[12px] md:max-w-[16px] rounded-t-sm bg-purple-500 transition-all duration-300"
                                                 style={{ height: `${userBarHeight}%` }}
                                             ></div>
-                                            {data.userDuration > 0 && (
-                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full bg-gray-800 dark:bg-gray-900 text-white text-xs px-1 py-0.5 rounded-md opacity-100 pointer-events-none z-10 whitespace-nowrap">
-                                                    {formatTime(data.userDuration)}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="relative w-1/2 max-w-[12px] md:max-w-[16px] flex items-end justify-center">
+                                            {/* 평균 연습 막대 */}
                                             <div
-                                                className="w-full rounded-t-sm bg-teal-500 transition-all duration-300"
+                                                className="w-1/2 max-w-[12px] md:max-w-[16px] rounded-t-sm bg-teal-500 transition-all duration-300"
                                                 style={{ height: `${avgBarHeight}%` }}
                                             ></div>
-                                            {data.averageDuration > 0 && (
-                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full bg-gray-800 dark:bg-gray-900 text-white text-xs px-1 py-0.5 rounded-md opacity-100 pointer-events-none z-10 whitespace-nowrap">
-                                                    {formatTime(data.averageDuration)}
+                                            
+                                            {/* 하단 수치 라벨 (마우스 호버와 동일한 형식) */}
+                                            {(data.userDuration > 0 || data.averageDuration > 0) && (
+                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full bg-gray-800 dark:bg-gray-900 text-white text-xs px-2 py-1 rounded-md opacity-100 pointer-events-none z-10 whitespace-nowrap">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-2.5 h-2.5 rounded-full bg-purple-500"></div>
+                                                        <span>{formatTime(data.userDuration)}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 mt-1">
+                                                        <div className="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
+                                                        <span>{formatTime(data.averageDuration)}</span>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
