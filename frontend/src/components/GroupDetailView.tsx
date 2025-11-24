@@ -5,6 +5,7 @@ import { Group, PerformanceRecord, UserProfile } from '../types';
 import { formatTime } from '../utils/time';
 import { useAppContext } from '../context/AppContext';
 import { getLocalDateString } from '../utils/time';
+import { defaultAvatar } from '../utils/avatar';
 import MemberCalendarModal from './MemberCalendarModal';
 import { commonStyles } from '../styles/commonStyles';
 
@@ -107,14 +108,6 @@ const InviteMemberModal: React.FC<{
         return users;
     }, [allUsers, group.members, searchQuery, userProfile.nickname]);
     
-    const defaultAvatar = (name: string): string => {
-        const initial = (name.split(' ').map(n => n[0]).join('') || name[0]).toUpperCase();
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-            <circle cx="20" cy="20" r="20" fill="#6B7280" />
-            <text x="50%" y="50%" dy=".1em" dominant-baseline="central" text-anchor="middle" font-size="16" font-family="sans-serif" fill="white" font-weight="bold">${initial}</text>
-        </svg>`;
-        return `data:image/svg+xml;base64,${btoa(svg)}`;
-    };
 
     const handleInvite = (memberName: string) => {
         sendGroupInvitation(group.id, memberName);
@@ -190,14 +183,6 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
     const isOwner = userProfile.nickname === ownerName;
 
     const getMemberData = (memberName: string) => {
-        const defaultAvatar = (name: string): string => {
-            const initial = (name.split(' ').map(n => n[0]).join('') || name[0]).toUpperCase();
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-                <circle cx="20" cy="20" r="20" fill="#6B7280" />
-                <text x="50%" y="50%" dy=".1em" dominant-baseline="central" text-anchor="middle" font-size="16" font-family="sans-serif" fill="white" font-weight="bold">${initial}</text>
-            </svg>`;
-            return `data:image/svg+xml;base64,${btoa(svg)}`;
-        };
         
         const normalizedMemberName = memberName === 'You' ? userProfile.nickname : memberName;
 

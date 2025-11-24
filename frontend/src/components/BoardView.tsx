@@ -6,17 +6,9 @@ import PostDetailView from './PostDetailView';
 import { boardApi, Post } from '../services/api/board';
 import { allFeatures, instruments } from '../utils/constants';
 import { timeAgo } from '../utils/time';
+import { defaultAvatar } from '../utils/avatar';
 import { commonStyles } from '../styles/commonStyles';
 import toast from 'react-hot-toast';
-
-const defaultAvatar = (name: string): string => {
-    const initial = (name.split(' ').map(n => n[0]).join('') || name[0]).toUpperCase();
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-        <circle cx="20" cy="20" r="20" fill="#6B7280" />
-        <text x="50%" y="50%" dy=".1em" dominant-baseline="central" text-anchor="middle" font-size="16" font-family="sans-serif" fill="white" font-weight="bold">${initial}</text>
-    </svg>`;
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
-};
 
 const BoardView: React.FC = () => {
   const { 

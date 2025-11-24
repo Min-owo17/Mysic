@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
 import { commonStyles } from '../styles/commonStyles';
 import { boardApi, Post, PostComment } from '../services/api/board';
+import { defaultAvatar } from '../utils/avatar';
 import toast from 'react-hot-toast';
 
 interface PostDetailViewProps {
@@ -11,15 +12,6 @@ interface PostDetailViewProps {
   onEditRequest: (post: Post) => void;
   onDeleteRequest: (postId: number) => void;
 }
-
-const defaultAvatar = (name: string): string => {
-    const initial = (name.split(' ').map(n => n[0]).join('') || name[0]).toUpperCase();
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-        <circle cx="20" cy="20" r="20" fill="#6B7280" />
-        <text x="50%" y="50%" dy=".1em" dominant-baseline="central" text-anchor="middle" font-size="16" font-family="sans-serif" fill="white" font-weight="bold">${initial}</text>
-    </svg>`;
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
-};
 
 const StarIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
