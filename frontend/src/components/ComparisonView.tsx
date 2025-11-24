@@ -91,6 +91,13 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
         return map;
     }, [allRecords]);
 
+    // 사용자가 악기와 특징을 모두 지정했는지 확인
+    const hasInstrumentAndFeatures = useMemo(() => {
+        const hasInstrument = !!userProfile.instrument && userProfile.instrument.trim() !== '';
+        const hasFeatures = userProfile.features && userProfile.features.length > 0 && userProfile.features.some(f => f && f.trim() !== '');
+        return hasInstrument && hasFeatures;
+    }, [userProfile]);
+
     const userWeeklyData = useMemo(() => {
         const weekData = [];
         const days = ['일', '월', '화', '수', '목', '금', '토'];
@@ -161,13 +168,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
         startOfThisWeek.setDate(today.getDate() - today.getDay());
         return currentWeekStart >= startOfThisWeek;
     }, [currentWeekStart]);
-
-    // 사용자가 악기와 특징을 모두 지정했는지 확인
-    const hasInstrumentAndFeatures = useMemo(() => {
-        const hasInstrument = !!userProfile.instrument && userProfile.instrument.trim() !== '';
-        const hasFeatures = userProfile.features && userProfile.features.length > 0 && userProfile.features.some(f => f && f.trim() !== '');
-        return hasInstrument && hasFeatures;
-    }, [userProfile]);
 
     const userFeaturesString = [userProfile.instrument, ...userProfile.features].filter(Boolean).join(', ');
 
