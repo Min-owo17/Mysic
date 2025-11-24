@@ -4,8 +4,9 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
 import { formatTime, getLocalDateString } from '../utils/time';
-import { PerformanceRecord, PracticeSession } from '../types';
+import { PerformanceRecord, PracticeSession, UserDetailResponse } from '../types';
 import { practiceApi } from '../services/api/practice';
+import { usersApi } from '../services/api/users';
 import { commonStyles } from '../styles/commonStyles';
 
 
@@ -22,8 +23,16 @@ interface ComparisonViewProps {
 }
 
 const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
-    const { userProfile, records } = useAppContext();
+    const { records } = useAppContext();
     const [currentDate, setCurrentDate] = useState(new Date());
+
+    // 실제 프로필 데이터 가져오기
+    const { data: profileData } = useQuery<UserDetailResponse>({
+        queryKey: ['userProfile'],
+        queryFn: () => usersApi.getMyProfile(),
+        staleTime: 2 * 60 * 1000,
+        cacheTime: 5 * 60 * 1000,
+    });
 
     const currentWeekStart = useMemo(() => {
         const date = new Date(currentDate);
@@ -93,10 +102,16 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
 
     // 사용자가 악기와 특징을 모두 지정했는지 확인
     const hasInstrumentAndFeatures = useMemo(() => {
-        const hasInstrument = !!userProfile.instrument && userProfile.instrument.trim() !== '';
-        const hasFeatures = userProfile.features && userProfile.features.length > 0 && userProfile.features.some(f => f && f.trim() !== '');
-        return hasInstrument && hasFeatures;
-    }, [userProfile]);
+        if (!profileData?.profile) return false;
+        
+        // 주요 악기 확인 (is_primary가 true인 악기)
+        const hasPrimaryInstrument = profileData.profile.instruments.some(inst => inst.is_primary);
+        
+        // 특징 확인
+        const hasUserTypes = profileData.profile.user_types && profileData.profile.user_types.length > 0;
+        
+        return hasPrimaryInstrument && hasUserTypes;
+    }, [profileData]);
 
     const userWeeklyData = useMemo(() => {
         const weekData = [];
@@ -169,7 +184,15 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
         return currentWeekStart >= startOfThisWeek;
     }, [currentWeekStart]);
 
-    const userFeaturesString = [userProfile.instrument, ...userProfile.features].filter(Boolean).join(', ');
+    const userFeaturesString = useMemo(() => {
+        if (!profileData?.profile) return '';
+        
+        const primaryInstrument = profileData.profile.instruments.find(inst => inst.is_primary);
+        const instrumentName = primaryInstrument?.instrument_name || '';
+        const userTypeNames = profileData.profile.user_types.map(ut => ut.user_type_name);
+        
+        return [instrumentName, ...userTypeNames].filter(Boolean).join(', ');
+    }, [profileData]);
 
     // 악기와 특징이 모두 없을 경우 메시지 표시
     if (!hasInstrumentAndFeatures) {
