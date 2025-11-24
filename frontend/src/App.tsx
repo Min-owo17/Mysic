@@ -12,6 +12,7 @@ import BottomNavBar from './components/BottomNavBar'
 import SideNavBar from './components/SideNavBar'
 import { Header } from './components/layout/Header'
 import { useMemo, useState, useContext, ReactNode, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { View } from './types'
 import { authApi } from './services/api/auth'
 
@@ -60,6 +61,7 @@ function MainLayout({ children }: { children: ReactNode }) {
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+  const queryClient = useQueryClient()
 
   // 컴포넌트 마운트 시 토큰 확인
   useEffect(() => {
@@ -74,6 +76,8 @@ function App() {
           // 토큰이 유효하지 않으면 삭제
           localStorage.removeItem('access_token')
           setIsAuthenticated(false)
+          // 캐시도 클리어
+          queryClient.clear()
         }
       } else {
         setIsAuthenticated(false)
@@ -81,7 +85,7 @@ function App() {
       setIsCheckingAuth(false)
     }
     checkAuth()
-  }, [])
+  }, [queryClient])
 
   const contextValue = useMemo(() => ({
     records: [],
@@ -127,8 +131,10 @@ function App() {
     logout: () => {
       localStorage.removeItem('access_token')
       setIsAuthenticated(false)
+      // React Query 캐시 클리어 - 이전 사용자의 데이터가 남지 않도록
+      queryClient.clear()
     }
-  }), [isAuthenticated])
+  }), [isAuthenticated, queryClient])
 
   // 인증 확인 중일 때는 로딩 표시 (선택사항)
   if (isCheckingAuth) {

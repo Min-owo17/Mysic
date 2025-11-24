@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { queryClient } from '../../main';
 
 // Vite 프록시를 사용하므로 상대 경로 사용
 // 환경 변수가 설정되어 있으면 그 값을 사용하고, 없으면 프록시를 통해 /api 사용
@@ -84,6 +85,9 @@ apiClient.interceptors.response.use(
       console.error('=====================================');
       
       localStorage.removeItem('access_token');
+      
+      // React Query 캐시 클리어 - 이전 사용자의 데이터가 남지 않도록
+      queryClient.clear();
       
       // 현재 경로가 /auth가 아닐 때만 리다이렉트
       if (window.location.pathname !== '/auth') {

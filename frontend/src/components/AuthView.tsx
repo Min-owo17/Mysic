@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
 import { commonStyles } from '../styles/commonStyles';
 import { authApi } from '../services/api/auth';
@@ -9,6 +10,7 @@ import toast from 'react-hot-toast';
 const AuthView: React.FC = () => {
     const { login } = useAppContext();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [mode, setMode] = useState<'login' | 'signup' | 'forgotPassword'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -26,6 +28,9 @@ const AuthView: React.FC = () => {
             if (mode === 'login') {
                 // 로그인
                 const response = await authApi.login({ email, password });
+                
+                // 이전 사용자의 캐시 데이터 클리어
+                queryClient.clear();
                 
                 // 토큰 저장
                 localStorage.setItem('access_token', response.access_token);
@@ -67,6 +72,9 @@ const AuthView: React.FC = () => {
 
                 // 회원가입
                 const response = await authApi.register({ email, password, nickname: nickname.trim() });
+                
+                // 이전 사용자의 캐시 데이터 클리어
+                queryClient.clear();
                 
                 // 토큰 저장
                 localStorage.setItem('access_token', response.access_token);

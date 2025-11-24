@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import App from './App'
 import './styles/index.css'
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
