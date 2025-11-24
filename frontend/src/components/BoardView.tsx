@@ -1,12 +1,13 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { BoardPost, UserProfile } from '../types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
 import CreatePostView from './CreatePostView';
 import PostDetailView from './PostDetailView';
+import { boardApi, Post } from '../services/api/board';
 import { allFeatures, instruments } from '../utils/constants';
 import { timeAgo } from '../utils/time';
 import { commonStyles } from '../styles/commonStyles';
+import toast from 'react-hot-toast';
 
 const defaultAvatar = (name: string): string => {
     const initial = (name.split(' ').map(n => n[0]).join('') || name[0]).toUpperCase();
@@ -17,32 +18,59 @@ const defaultAvatar = (name: string): string => {
     return `data:image/svg+xml;base64,${btoa(svg)}`;
 };
 
-
 const BoardView: React.FC = () => {
   const { 
-    posts, addPost, updatePost, deletePost, 
     userProfile, userProfiles, 
     postNotifications, markPostNotificationsAsRead
   } = useAppContext();
+  const queryClient = useQueryClient();
+  
   const [isWriting, setIsWriting] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<BoardPost | null>(null);
-  const [editingPost, setEditingPost] = useState<BoardPost | null>(null);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>(userProfile.features || []);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState('');
   const tagDropdownRef = useRef<HTMLDivElement>(null);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+  const [page, setPage] = useState(1);
 
   // --- Report Modal State ---
-  const [reportingPost, setReportingPost] = useState<BoardPost | null>(null);
+  const [reportingPost, setReportingPost] = useState<Post | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [showReportSuccess, setShowReportSuccess] = useState(false);
   const reportReasons = ['분쟁 유발', '욕설/비방', '음란물', '광고/홍보성', '개인정보 유출', '기타'];
 
+  // 게시글 목록 조회
+  const { data: postsData, isLoading, error } = useQuery({
+    queryKey: ['board', 'posts', page, searchQuery, selectedCategory, selectedTags],
+    queryFn: () => boardApi.getPosts({
+      page,
+      page_size: 20,
+      category: selectedCategory || undefined,
+      tag: selectedTags.length > 0 ? selectedTags[0] : undefined, // 첫 번째 태그만 사용
+      search: searchQuery || undefined,
+    }),
+    staleTime: 2 * 60 * 1000, // 2분
+  });
+
+  // 게시글 삭제 Mutation
+  const deletePostMutation = useMutation({
+    mutationFn: (postId: number) => boardApi.deletePost(postId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['board', 'posts'] });
+      toast.success('게시글이 삭제되었습니다.');
+      setSelectedPost(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '게시글 삭제에 실패했습니다.');
+    },
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -71,7 +99,7 @@ const BoardView: React.FC = () => {
     }
     // Mock submission
     console.log({
-        targetId: reportingPost?.id,
+        targetId: reportingPost?.post_id,
         targetType: 'post',
         reason: reportReason,
         details: reportDetails,
@@ -83,33 +111,54 @@ const BoardView: React.FC = () => {
     setTimeout(() => setShowReportSuccess(false), 3000);
   };
 
-
-  const handleSavePost = (postData: { title: string; content: string; tags: string[] }) => {
-    addPost(postData);
-    setIsWriting(false);
-  };
-
-  const handleUpdatePost = (postData: { title: string; content: string; tags: string[] }) => {
-    if (editingPost) {
-      updatePost(editingPost.id, postData);
-      setEditingPost(null);
-      // After editing, refresh the selected post to show updated data
-      const updatedPost = posts.find(p => p.id === editingPost.id);
-      if(updatedPost) {
-          setSelectedPost({...updatedPost, ...postData});
-      }
+  const handleSavePost = async (postData: { title: string; content: string; tags: string[]; category?: string }) => {
+    try {
+      await boardApi.createPost({
+        title: postData.title,
+        content: postData.content,
+        category: postData.category || 'general',
+        manual_tags: postData.tags.length > 0 ? postData.tags : undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ['board', 'posts'] });
+      toast.success('게시글이 작성되었습니다.');
+      setIsWriting(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || '게시글 작성에 실패했습니다.');
     }
   };
 
-  const handleDeletePost = (postId: string) => {
-      deletePost(postId);
+  const handleUpdatePost = async (postData: { title: string; content: string; tags: string[]; category?: string }) => {
+    if (!editingPost) return;
+    
+    try {
+      await boardApi.updatePost(editingPost.post_id, {
+        title: postData.title,
+        content: postData.content,
+        category: postData.category || editingPost.category,
+        manual_tags: postData.tags.length > 0 ? postData.tags : undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ['board', 'posts'] });
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', editingPost.post_id] });
+      toast.success('게시글이 수정되었습니다.');
+      setEditingPost(null);
       setSelectedPost(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || '게시글 수정에 실패했습니다.');
+    }
   };
 
+  const handleDeletePost = (postId: number) => {
+    deletePostMutation.mutate(postId);
+  };
+
+  // 모든 태그 수집 (게시글에서)
   const allAvailableTags = useMemo(() => {
-    const tagsFromPosts = posts.flatMap(post => post.tags || []);
+    const tagsFromPosts = postsData?.posts.flatMap(post => [
+      ...(post.auto_tags || []),
+      ...(post.manual_tags || [])
+    ]) || [];
     return [...new Set(['우수 게시글', ...userProfile.features, ...tagsFromPosts, ...allFeatures, ...instruments])].sort();
-  }, [posts, userProfile.features]);
+  }, [postsData, userProfile.features]);
 
   const handleAddTag = (tag: string) => {
     if (!selectedTags.includes(tag)) {
@@ -129,57 +178,47 @@ const BoardView: React.FC = () => {
     );
   }, [tagSearch, selectedTags, allAvailableTags]);
 
-
+  // 필터링 및 정렬된 게시글
   const filteredAndSortedPosts = useMemo(() => {
-    let filteredPosts = [...posts];
+    if (!postsData?.posts) return [];
     
+    let filteredPosts = [...postsData.posts];
+    
+    // 북마크 필터는 나중에 구현 (현재는 API에 없음)
     if (showBookmarksOnly) {
-        const bookmarkedIds = new Set(userProfile.bookmarkedPosts || []);
-        return filteredPosts
-            .filter(post => bookmarkedIds.has(post.id))
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return [];
     }
 
-    if (searchQuery.trim()) {
-      const lowercasedQuery = searchQuery.toLowerCase();
-      filteredPosts = filteredPosts.filter(post =>
-        !post.isDeleted &&
-        (post.title.toLowerCase().includes(lowercasedQuery) ||
-        post.content.toLowerCase().includes(lowercasedQuery))
-      );
-    }
-
+    // 태그 필터링 (백엔드에서 이미 처리되지만, 프론트엔드에서도 추가 필터링 가능)
     if (selectedTags.length > 0) {
-        const isExcellentFilterActive = selectedTags.includes('우수 게시글');
-        const normalTags = selectedTags.filter(tag => tag !== '우수 게시글');
+      const isExcellentFilterActive = selectedTags.includes('우수 게시글');
+      const normalTags = selectedTags.filter(tag => tag !== '우수 게시글');
 
-        filteredPosts = filteredPosts.filter(post => {
-            if (post.isDeleted) {
-                return false;
-            }
-            const excellentCondition = !isExcellentFilterActive || (post.likes && post.likes >= 30);
-            const normalTagsCondition = normalTags.length === 0 || normalTags.every(tag => post.tags?.includes(tag));
-            return excellentCondition && normalTagsCondition;
-        });
+      filteredPosts = filteredPosts.filter(post => {
+        const excellentCondition = !isExcellentFilterActive || post.like_count >= 30;
+        const allPostTags = [...(post.auto_tags || []), ...(post.manual_tags || [])];
+        const normalTagsCondition = normalTags.length === 0 || normalTags.every(tag => allPostTags.includes(tag));
+        return excellentCondition && normalTagsCondition;
+      });
     }
 
+    // 맞춤 게시글 우선 정렬
     const userFeaturesSet = new Set(userProfile.features);
     filteredPosts.sort((a, b) => {
-      // Deleted posts go to the bottom
-      if (a.isDeleted && !b.isDeleted) return 1;
-      if (!a.isDeleted && b.isDeleted) return -1;
-        
-      const aIsPrioritized = selectedTags.length === 0 && (a.tags?.some(tag => userFeaturesSet.has(tag)) ?? false);
-      const bIsPrioritized = selectedTags.length === 0 && (b.tags?.some(tag => userFeaturesSet.has(tag)) ?? false);
+      const aTags = [...(a.auto_tags || []), ...(a.manual_tags || [])];
+      const bTags = [...(b.auto_tags || []), ...(b.manual_tags || [])];
+      
+      const aIsPrioritized = selectedTags.length === 0 && aTags.some(tag => userFeaturesSet.has(tag));
+      const bIsPrioritized = selectedTags.length === 0 && bTags.some(tag => userFeaturesSet.has(tag));
 
       if (aIsPrioritized && !bIsPrioritized) return -1;
       if (!aIsPrioritized && bIsPrioritized) return 1;
 
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
     return filteredPosts;
-  }, [posts, searchQuery, selectedTags, userProfile.features, showBookmarksOnly, userProfile.bookmarkedPosts]);
+  }, [postsData, selectedTags, userProfile.features, showBookmarksOnly]);
 
   const unreadCount = useMemo(() => postNotifications.filter(n => !n.read).length, [postNotifications]);
 
@@ -193,38 +232,46 @@ const BoardView: React.FC = () => {
   };
 
   const handlePostNotificationClick = (postId: string) => {
-      const post = posts.find(p => p.id === postId);
-      if (post) {
+      // API에서 게시글 조회
+      const postIdNum = parseInt(postId, 10);
+      if (!isNaN(postIdNum)) {
+        boardApi.getPost(postIdNum).then(post => {
           setSelectedPost(post);
           setIsNotificationPanelOpen(false);
+        });
       }
   };
 
-  const getProfile = (name: string): Partial<UserProfile> => {
-    if (name === userProfile.nickname) return userProfile;
-    return userProfiles[name] || {};
+  const getProfile = (nickname: string) => {
+    if (nickname === userProfile.nickname) return userProfile;
+    return userProfiles[nickname] || {};
   };
 
   if (editingPost) {
-    return <CreatePostView postToEdit={editingPost} onSave={handleUpdatePost} onCancel={() => setEditingPost(null)} />;
+    return <CreatePostView 
+      postToEdit={editingPost} 
+      onSave={handleUpdatePost} 
+      onCancel={() => setEditingPost(null)} 
+    />;
   }
   if (isWriting) {
-    return <CreatePostView onSave={handleSavePost} onCancel={() => setIsWriting(false)} />;
+    return <CreatePostView 
+      onSave={handleSavePost} 
+      onCancel={() => setIsWriting(false)} 
+    />;
   }
   
   if (selectedPost) {
-    const currentPost = posts.find(p => p.id === selectedPost.id) ?? selectedPost;
     return <PostDetailView
-      post={currentPost}
+      post={selectedPost}
       onBack={() => setSelectedPost(null)}
       onEditRequest={(postToEdit) => {
         setSelectedPost(null);
         setEditingPost(postToEdit);
       }}
-      onDeleteRequest={handleDeletePost}
+      onDeleteRequest={(postId) => handleDeletePost(postId)}
     />;
   }
-
 
   return (
     <div className={commonStyles.pageContainerFullHeight}>
@@ -282,7 +329,7 @@ const BoardView: React.FC = () => {
                  <button
                     onClick={() => {
                         setShowBookmarksOnly(prev => !prev);
-                        if (!showBookmarksOnly) { // Entering bookmark view
+                        if (!showBookmarksOnly) {
                             setSearchQuery('');
                             setSelectedTags([]);
                         }
@@ -352,6 +399,34 @@ const BoardView: React.FC = () => {
               </svg>
           </div>
 
+          {/* 카테고리 필터 */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedCategory('')}
+              className={`px-3 py-1 rounded-md text-sm ${selectedCategory === '' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              전체
+            </button>
+            <button
+              onClick={() => setSelectedCategory('tip')}
+              className={`px-3 py-1 rounded-md text-sm ${selectedCategory === 'tip' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              팁
+            </button>
+            <button
+              onClick={() => setSelectedCategory('question')}
+              className={`px-3 py-1 rounded-md text-sm ${selectedCategory === 'question' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              질문
+            </button>
+            <button
+              onClick={() => setSelectedCategory('free')}
+              className={`px-3 py-1 rounded-md text-sm ${selectedCategory === 'free' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              자유
+            </button>
+          </div>
+
           <div className="relative" ref={tagDropdownRef}>
             <div 
               className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 focus-within:ring-2 focus-within:ring-purple-500 transition-colors flex flex-wrap gap-2 items-center"
@@ -399,28 +474,24 @@ const BoardView: React.FC = () => {
       )}
       
       <div className="flex-1 space-y-4 overflow-y-auto pr-2 -mr-2">
-        {filteredAndSortedPosts.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-10 text-gray-500">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+            <p className="mt-4">게시글을 불러오는 중...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-10 text-red-400">
+            <p>게시글을 불러오는 중 오류가 발생했습니다.</p>
+          </div>
+        ) : filteredAndSortedPosts.length > 0 ? (
           filteredAndSortedPosts.map(post => {
-            if (post.isDeleted) {
-                return (
-                    <div key={post.id} className={`${commonStyles.card} opacity-60`}>
-                        <h2 className="text-lg font-bold text-gray-500 italic">{post.title}</h2>
-                        <p className="text-gray-400 mt-2">{post.content}</p>
-                    </div>
-                );
-            }
-
-            const isRecommended = selectedTags.length === 0 && post.tags?.some(tag => userProfile.features.includes(tag));
-            const totalComments = (post.comments || []).reduce((count, comment) => {
-              return count + 1 + (comment.replies?.length || 0);
-            }, 0);
-            
-            const authorProfile = getProfile(post.author);
-            const isExcellentPost = post.likes && post.likes >= 30;
+            const isRecommended = selectedTags.length === 0 && post.all_tags?.some(tag => userProfile.features.includes(tag));
+            const authorProfile = getProfile(post.author.nickname);
+            const isExcellentPost = post.like_count >= 30;
 
             return (
               <div 
-                key={post.id} 
+                key={post.post_id} 
                 className={`${commonStyles.cardHover} cursor-pointer`}
                 onClick={() => setSelectedPost(post)}
               >
@@ -432,16 +503,16 @@ const BoardView: React.FC = () => {
                     </div>
                   )}
                   <div className="flex items-center gap-3 mb-2">
-                      <img src={authorProfile?.profilePicture || defaultAvatar(post.author)} alt={post.author} className="w-9 h-9 rounded-full bg-gray-700" />
+                      <img src={authorProfile?.profilePicture || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-9 h-9 rounded-full bg-gray-700" />
                       <div>
-                          <p className="font-semibold text-gray-200 leading-tight">{post.author}</p>
+                          <p className="font-semibold text-gray-200 leading-tight">{post.author.nickname}</p>
                           {authorProfile?.title && <p className="text-xs text-yellow-300 leading-tight">{authorProfile.title}</p>}
                       </div>
                   </div>
                   <h2 className="text-lg font-bold text-purple-300 mt-1 pr-16">{post.title}</h2>
                 </div>
                 <p className="text-gray-300 mt-2 line-clamp-2">{post.content}</p>
-                {((post.tags && post.tags.length > 0) || isExcellentPost) && (
+                {((post.all_tags && post.all_tags.length > 0) || isExcellentPost) && (
                     <div className="flex flex-wrap gap-2 mt-3">
                         {isExcellentPost && (
                             <span className="bg-yellow-500/20 text-yellow-300 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
@@ -449,7 +520,7 @@ const BoardView: React.FC = () => {
                                 우수 게시글
                             </span>
                         )}
-                        {post.tags?.map(tag => (
+                        {post.all_tags?.map(tag => (
                             <span key={tag} className={commonStyles.tag}>
                                 #{tag}
                             </span>
@@ -459,14 +530,14 @@ const BoardView: React.FC = () => {
                  <div className={`flex items-center gap-4 mt-4 pt-3 ${commonStyles.divider}/50 text-sm text-gray-400`}>
                     <span className="flex items-center gap-1.5">
                       <HeartIcon />
-                      {post.likes || 0}
+                      {post.like_count || 0}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <CommentIcon />
-                      {totalComments}
+                      {post.view_count || 0}
                     </span>
                     <div className="flex-grow" />
-                    {post.author !== userProfile.nickname && (
+                    {post.author.nickname !== userProfile.nickname && (
                         <button 
                             onClick={(e) => {
                                 e.stopPropagation();

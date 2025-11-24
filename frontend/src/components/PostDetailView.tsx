@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { BoardPost, Comment, UserProfile } from '../types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
 import { commonStyles } from '../styles/commonStyles';
+import { boardApi, Post, PostComment } from '../services/api/board';
+import toast from 'react-hot-toast';
 
 interface PostDetailViewProps {
-  post: BoardPost;
+  post: Post;
   onBack: () => void;
-  onEditRequest: (post: BoardPost) => void;
-  onDeleteRequest: (postId: string) => void;
+  onEditRequest: (post: Post) => void;
+  onDeleteRequest: (postId: number) => void;
 }
 
 const defaultAvatar = (name: string): string => {
@@ -25,53 +27,122 @@ const StarIcon = () => (
     </svg>
 );
 
-const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onBack, onEditRequest, onDeleteRequest }) => {
-  const { userProfile, userProfiles, addComment, addReply, togglePostLike, toggleCommentLike, togglePostBookmark } = useAppContext();
+const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBack, onEditRequest, onDeleteRequest }) => {
+  const { userProfile, userProfiles } = useAppContext();
+  const queryClient = useQueryClient();
+  
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
   
   // --- Report Modal State ---
-  const [reportingItem, setReportingItem] = useState<{ id: string; type: 'post' | 'comment' } | null>(null);
+  const [reportingItem, setReportingItem] = useState<{ id: number; type: 'post' | 'comment' } | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [showReportSuccess, setShowReportSuccess] = useState(false);
   const reportReasons = ['분쟁 유발', '욕설/비방', '음란물', '광고/홍보성', '개인정보 유출', '기타'];
 
-  const isAuthor = post.author === userProfile.nickname;
-  const isPostLiked = post.likedBy?.includes(userProfile.nickname) ?? false;
-  const isBookmarked = userProfile.bookmarkedPosts?.includes(post.id) ?? false;
-  
-  const totalComments = (post.comments || []).reduce((count, comment) => {
-    return count + 1 + (comment.replies?.length || 0);
-  }, 0);
+  // 게시글 상세 조회 (최신 정보)
+  const { data: postData, isLoading: isLoadingPost } = useQuery({
+    queryKey: ['board', 'post', initialPost.post_id],
+    queryFn: () => boardApi.getPost(initialPost.post_id),
+    initialData: initialPost, // 초기 데이터로 전달받은 post 사용
+    staleTime: 1 * 60 * 1000, // 1분
+  });
 
-  const getProfile = (name: string): Partial<UserProfile> => {
-    if (name === userProfile.nickname) return userProfile;
-    return userProfiles[name] || {};
+  // 댓글 목록 조회
+  const { data: commentsData, isLoading: isLoadingComments } = useQuery({
+    queryKey: ['board', 'post', initialPost.post_id, 'comments'],
+    queryFn: () => boardApi.getComments(initialPost.post_id),
+    staleTime: 1 * 60 * 1000, // 1분
+  });
+
+  const post = postData || initialPost;
+
+  // 게시글 좋아요 Mutation
+  const togglePostLikeMutation = useMutation({
+    mutationFn: () => boardApi.togglePostLike(initialPost.post_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', initialPost.post_id] });
+      queryClient.invalidateQueries({ queryKey: ['board', 'posts'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '좋아요 처리에 실패했습니다.');
+    },
+  });
+
+  // 댓글 작성 Mutation
+  const createCommentMutation = useMutation({
+    mutationFn: (data: { content: string; parent_comment_id?: number }) => 
+      boardApi.createComment(initialPost.post_id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', initialPost.post_id, 'comments'] });
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', initialPost.post_id] });
+      setNewComment('');
+      setIsSubmitting(false);
+      toast.success('댓글이 작성되었습니다.');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '댓글 작성에 실패했습니다.');
+      setIsSubmitting(false);
+    },
+  });
+
+  // 댓글 좋아요 Mutation
+  const toggleCommentLikeMutation = useMutation({
+    mutationFn: (commentId: number) => boardApi.toggleCommentLike(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', initialPost.post_id, 'comments'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '좋아요 처리에 실패했습니다.');
+    },
+  });
+
+  // 댓글 삭제 Mutation
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: number) => boardApi.deleteComment(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', initialPost.post_id, 'comments'] });
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', initialPost.post_id] });
+      toast.success('댓글이 삭제되었습니다.');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '댓글 삭제에 실패했습니다.');
+    },
+  });
+
+  const isAuthor = post.author.nickname === userProfile.nickname;
+  const isPostLiked = post.is_liked;
+  const isBookmarked = false; // 북마크 기능은 나중에 구현
+  
+  const totalComments = commentsData?.total || 0;
+
+  const getProfile = (nickname: string) => {
+    if (nickname === userProfile.nickname) return userProfile;
+    return userProfiles[nickname] || {};
   };
 
   const handleSubmitComment = () => {
     if (!newComment.trim()) return;
     setIsSubmitting(true);
-    setTimeout(() => {
-        addComment(post.id, { content: newComment });
-        setNewComment('');
-        setIsSubmitting(false);
-    }, 300);
+    createCommentMutation.mutate({ content: newComment });
   };
   
-  const handleSubmitReply = (parentCommentId: string) => {
+  const handleSubmitReply = (parentCommentId: number) => {
     if (!replyContent.trim()) return;
-    addReply(post.id, parentCommentId, { content: replyContent });
+    createCommentMutation.mutate({ 
+      content: replyContent,
+      parent_comment_id: parentCommentId
+    });
     setReplyContent('');
     setReplyingTo(null);
-  }
+  };
 
   const handleDeleteConfirm = () => {
-    onDeleteRequest(post.id);
+    onDeleteRequest(post.post_id);
     setShowDeleteConfirm(false);
   };
 
@@ -99,9 +170,119 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onBack, onEditReq
     setTimeout(() => setShowReportSuccess(false), 3000);
   };
 
+  const authorProfile = getProfile(post.author.nickname);
+  const isExcellentPost = post.like_count >= 30;
 
-  const authorProfile = getProfile(post.author);
-  const isExcellentPost = post.likes && post.likes >= 30;
+  // 댓글을 재귀적으로 렌더링하는 함수
+  const renderComment = (comment: PostComment, depth: number = 0) => {
+    const isCommentLiked = comment.is_liked;
+    const commentAuthorProfile = getProfile(comment.author.nickname);
+    const isCommentAuthor = comment.author.nickname === userProfile.nickname;
+
+    return (
+      <div key={comment.comment_id} className={depth > 0 ? 'ml-8 mt-3' : ''}>
+        <div className={`bg-gray-800/${depth > 0 ? '30' : '50'} p-3 rounded-lg`}>
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-3">
+              <img 
+                src={commentAuthorProfile?.profilePicture || defaultAvatar(comment.author.nickname)} 
+                alt={comment.author.nickname} 
+                className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gray-700`} 
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-purple-300 text-sm">{comment.author.nickname}</p>
+                  {commentAuthorProfile?.title && <p className="text-xs text-yellow-300 font-normal">{commentAuthorProfile.title}</p>}
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {new Date(comment.created_at).toLocaleString('ko-KR', { 
+                    year: 'numeric', 
+                    month: 'numeric', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {depth === 0 && (
+                <button 
+                  onClick={() => {
+                    setReplyingTo(replyingTo === comment.comment_id ? null : comment.comment_id);
+                    setReplyContent('');
+                  }} 
+                  className="text-xs text-gray-400 hover:text-white font-semibold"
+                >
+                  답글
+                </button>
+              )}
+              <button 
+                onClick={() => toggleCommentLikeMutation.mutate(comment.comment_id)} 
+                className={`flex items-center gap-1.5 text-sm transition-colors duration-200 ${isCommentLiked ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
+              >
+                <HeartIcon filled={isCommentLiked} className="h-4 w-4" />
+                <span>{comment.like_count || 0}</span>
+              </button>
+              {isCommentAuthor && (
+                <button 
+                  onClick={() => {
+                    if (window.confirm('댓글을 삭제하시겠습니까?')) {
+                      deleteCommentMutation.mutate(comment.comment_id);
+                    }
+                  }}
+                  className="text-gray-500 hover:text-red-400"
+                  aria-label="댓글 삭제"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              )}
+              {!isCommentAuthor && (
+                <button 
+                  onClick={() => setReportingItem({ id: comment.comment_id, type: 'comment' })} 
+                  className="text-gray-500 hover:text-red-400" 
+                  aria-label="댓글 신고"
+                >
+                  <SirenIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+          <p className={`text-gray-300 mt-2 ${depth > 0 ? 'text-sm pl-8' : 'pl-11'}`}>{comment.content}</p>
+        </div>
+        
+        {/* 답글 입력 폼 */}
+        {replyingTo === comment.comment_id && (
+          <div className="ml-8 mt-3 pl-4 border-l-2 border-gray-700/50">
+            <div className="flex gap-2">
+              <textarea
+                value={replyContent}
+                onChange={(e) => setReplyContent(e.target.value)}
+                placeholder={`${comment.author.nickname}님에게 답글 남기기...`}
+                rows={2}
+                autoFocus
+                className="flex-1 bg-gray-700 border border-gray-600 rounded-md p-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none transition-colors"
+              />
+              <button
+                onClick={() => handleSubmitReply(comment.comment_id)}
+                disabled={!replyContent.trim() || createCommentMutation.isPending}
+                className="bg-purple-600 text-white font-bold px-3 text-sm rounded-md hover:bg-purple-500 disabled:bg-purple-800 disabled:cursor-not-allowed transition-colors"
+              >
+                등록
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 답글 목록 */}
+        {comment.replies && comment.replies.length > 0 && (
+          <div className="ml-8 mt-3 space-y-3 border-l-2 border-gray-700/50 pl-4">
+            {comment.replies.map(reply => renderComment(reply, 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto h-full flex flex-col animate-fade-in">
@@ -187,40 +368,46 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onBack, onEditReq
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-6">
-        <div className="bg-gray-800 p-4 rounded-lg">
+        {isLoadingPost ? (
+          <div className="text-center py-10">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+            <p className="mt-4 text-gray-400">게시글을 불러오는 중...</p>
+          </div>
+        ) : (
+          <div className="bg-gray-800 p-4 rounded-lg">
             <div className="flex justify-between items-start">
               <h2 className="text-2xl font-bold text-purple-300 flex-1 pr-4">{post.title}</h2>
-              {!post.isDeleted && (
-                  <div className="flex gap-2 flex-shrink-0">
-                    {isAuthor ? (
-                      <>
-                        <button onClick={() => onEditRequest(post)} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full transition-colors">
-                          <PencilIcon />
-                        </button>
-                        <button onClick={() => setShowDeleteConfirm(true)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-full transition-colors">
-                          <TrashIcon />
-                        </button>
-                      </>
-                    ) : (
-                      <button onClick={() => setReportingItem({ id: post.id, type: 'post' })} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-full transition-colors" aria-label="게시물 신고">
-                          <SirenIcon />
-                      </button>
-                    )}
-                  </div>
-              )}
+              <div className="flex gap-2 flex-shrink-0">
+                {isAuthor ? (
+                  <>
+                    <button onClick={() => onEditRequest(post)} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full transition-colors">
+                      <PencilIcon />
+                    </button>
+                    <button onClick={() => setShowDeleteConfirm(true)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-full transition-colors">
+                      <TrashIcon />
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => setReportingItem({ id: post.post_id, type: 'post' })} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-full transition-colors" aria-label="게시물 신고">
+                      <SirenIcon />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-3 mt-3">
-              <img src={authorProfile?.profilePicture || defaultAvatar(post.author)} alt={post.author} className="w-10 h-10 rounded-full bg-gray-700" />
+              <img src={authorProfile?.profilePicture || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-10 h-10 rounded-full bg-gray-700" />
               <div>
-                  <p className="font-semibold text-gray-200">{post.author}</p>
+                  <p className="font-semibold text-gray-200">{post.author.nickname}</p>
                   {authorProfile?.title && <p className="text-xs text-yellow-300">{authorProfile.title}</p>}
               </div>
             </div>
           <p className="text-xs text-gray-400 mt-2">
-            {new Date(post.createdAt).toLocaleDateString('ko-KR')}
-            {post.updatedAt && <span className="text-gray-500 text-xs ml-2">(수정됨)</span>}
+            {new Date(post.created_at).toLocaleDateString('ko-KR')}
+            {post.updated_at && post.updated_at !== post.created_at && (
+              <span className="text-gray-500 text-xs ml-2">(수정됨)</span>
+            )}
           </p>
-          {((post.tags && post.tags.length > 0) || isExcellentPost) && (
+          {((post.all_tags && post.all_tags.length > 0) || isExcellentPost) && (
             <div className="flex flex-wrap gap-2 mt-3">
               {isExcellentPost && (
                 <span className="bg-yellow-500/20 text-yellow-300 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
@@ -228,7 +415,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onBack, onEditReq
                     우수 게시글
                 </span>
               )}
-              {post.tags?.map(tag => (
+              {post.all_tags?.map(tag => (
                 <span key={tag} className="bg-purple-600/50 text-purple-200 text-xs font-medium px-2 py-1 rounded-full">
                   #{tag}
                 </span>
@@ -236,149 +423,65 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onBack, onEditReq
             </div>
           )}
           <p className="text-gray-200 mt-6 whitespace-pre-wrap leading-relaxed">{post.content}</p>
-           {!post.isDeleted && (
-             <div className="mt-6 pt-4 border-t border-gray-700/50 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => togglePostLike(post.id)} className={`flex items-center gap-2 text-lg font-semibold transition-colors duration-200 ${isPostLiked ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}>
-                      <HeartIcon filled={isPostLiked} />
-                      <span>{post.likes || 0}</span>
-                    </button>
-                </div>
-                <button 
-                  onClick={() => togglePostBookmark(post.id)} 
-                  className={`p-2 rounded-full transition-colors duration-200 ${isBookmarked ? 'text-yellow-400 bg-yellow-500/20' : 'text-gray-400 hover:text-yellow-400 hover:bg-gray-700/50'}`} 
-                  aria-label={isBookmarked ? '북마크 해제' : '북마크'}>
-                    <BookmarkIcon filled={isBookmarked} />
-                </button>
+           <div className="mt-6 pt-4 border-t border-gray-700/50 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => togglePostLikeMutation.mutate()} 
+                    className={`flex items-center gap-2 text-lg font-semibold transition-colors duration-200 ${isPostLiked ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
+                  >
+                    <HeartIcon filled={isPostLiked} />
+                    <span>{post.like_count || 0}</span>
+                  </button>
               </div>
-            )}
-        </div>
+              <button 
+                onClick={() => {}} 
+                className={`p-2 rounded-full transition-colors duration-200 ${isBookmarked ? 'text-yellow-400 bg-yellow-500/20' : 'text-gray-400 hover:text-yellow-400 hover:bg-gray-700/50'}`} 
+                aria-label={isBookmarked ? '북마크 해제' : '북마크'}
+                disabled
+              >
+                  <BookmarkIcon filled={isBookmarked} />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div>
           <h3 className="text-lg font-semibold text-gray-300 mb-4 border-b border-gray-700 pb-2">댓글 ({totalComments})</h3>
-          <div className="space-y-4">
-            {post.comments && post.comments.length > 0 ? (
-              post.comments.map(comment => {
-                 const isCommentLiked = comment.likedBy?.includes(userProfile.nickname) ?? false;
-                 const commentAuthorProfile = getProfile(comment.author);
-                 return (
-                    <div key={comment.id}>
-                        <div className="bg-gray-800/50 p-3 rounded-lg">
-                            <div className="flex justify-between items-start">
-                                <div className="flex items-center gap-3">
-                                  <img src={commentAuthorProfile?.profilePicture || defaultAvatar(comment.author)} alt={comment.author} className="w-8 h-8 rounded-full bg-gray-700" />
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-bold text-purple-300 text-sm">{comment.author}</p>
-                                        {commentAuthorProfile?.title && <p className="text-xs text-yellow-300 font-normal">{commentAuthorProfile.title}</p>}
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-0.5">{new Date(comment.createdAt).toLocaleString('ko-KR', { year:'numeric', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <button onClick={() => { setReplyingTo(replyingTo === comment.id ? null : comment.id); setReplyContent(''); }} className="text-xs text-gray-400 hover:text-white font-semibold">답글</button>
-                                  <button onClick={() => toggleCommentLike(post.id, comment.id)} className={`flex items-center gap-1.5 text-sm transition-colors duration-200 ${isCommentLiked ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}>
-                                      <HeartIcon filled={isCommentLiked} className="h-4 w-4" />
-                                      <span>{comment.likes || 0}</span>
-                                  </button>
-                                  {comment.author !== userProfile.nickname && (
-                                    <button onClick={() => setReportingItem({ id: comment.id, type: 'comment' })} className="text-gray-500 hover:text-red-400" aria-label="댓글 신고">
-                                        <SirenIcon className="h-4 w-4" />
-                                    </button>
-                                  )}
-                                </div>
-                            </div>
-                            <p className="text-gray-300 mt-2 pl-11">{comment.content}</p>
-                        </div>
-                        
-                        {comment.replies && comment.replies.length > 0 && (
-                            <div className="ml-8 mt-3 space-y-3 border-l-2 border-gray-700/50 pl-4">
-                                {comment.replies.map(reply => {
-                                    const isReplyLiked = reply.likedBy?.includes(userProfile.nickname) ?? false;
-                                    const replyAuthorProfile = getProfile(reply.author);
-                                    return (
-                                        <div key={reply.id} className="bg-gray-800/30 p-3 rounded-lg">
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex items-center gap-2">
-                                                  <img src={replyAuthorProfile?.profilePicture || defaultAvatar(reply.author)} alt={reply.author} className="w-6 h-6 rounded-full bg-gray-700" />
-                                                  <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="font-bold text-purple-300 text-sm">{reply.author}</p>
-                                                        {replyAuthorProfile?.title && <p className="text-xs text-yellow-300 font-normal">{replyAuthorProfile.title}</p>}
-                                                    </div>
-                                                    <p className="text-xs text-gray-500 mt-0.5">{new Date(reply.createdAt).toLocaleString('ko-KR', { year:'numeric', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</p>
-                                                  </div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => toggleCommentLike(post.id, reply.id)} className={`flex items-center gap-1.5 text-sm transition-colors duration-200 ${isReplyLiked ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}>
-                                                        <HeartIcon filled={isReplyLiked} className="h-4 w-4" />
-                                                        <span>{reply.likes || 0}</span>
-                                                    </button>
-                                                    {reply.author !== userProfile.nickname && (
-                                                        <button onClick={() => setReportingItem({ id: reply.id, type: 'comment' })} className="text-gray-500 hover:text-red-400" aria-label="답글 신고">
-                                                            <SirenIcon className="h-4 w-4" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <p className="text-gray-300 mt-2 text-sm pl-8">{reply.content}</p>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {replyingTo === comment.id && (
-                           <div className="ml-8 mt-3 pl-4 border-l-2 border-gray-700/50">
-                             <div className="flex gap-2">
-                               <textarea
-                                 value={replyContent}
-                                 onChange={(e) => setReplyContent(e.target.value)}
-                                 placeholder={`${comment.author}님에게 답글 남기기...`}
-                                 rows={2}
-                                 autoFocus
-                                 className="flex-1 bg-gray-700 border border-gray-600 rounded-md p-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none transition-colors"
-                               />
-                               <button
-                                 onClick={() => handleSubmitReply(comment.id)}
-                                 disabled={!replyContent.trim()}
-                                 className="bg-purple-600 text-white font-bold px-3 text-sm rounded-md hover:bg-purple-500 disabled:bg-purple-800 disabled:cursor-not-allowed transition-colors"
-                               >
-                                 등록
-                               </button>
-                             </div>
-                           </div>
-                        )}
-                    </div>
-                 );
-              })
-            ) : (
-              <p className="text-gray-500 text-center py-4">아직 댓글이 없습니다.</p>
-            )}
-          </div>
+          {isLoadingComments ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+              <p className="mt-2 text-gray-400 text-sm">댓글을 불러오는 중...</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {commentsData && commentsData.comments.length > 0 ? (
+                commentsData.comments.map(comment => renderComment(comment))
+              ) : (
+                <p className="text-gray-500 text-center py-4">아직 댓글이 없습니다.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {!post.isDeleted && (
-        <div className="mt-4 pt-4 border-t border-gray-700 flex-shrink-0">
-          <div className="flex gap-2">
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="댓글을 입력하세요..."
-              rows={2}
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-md p-2 focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none transition-colors"
-            />
-            <button
-              onClick={handleSubmitComment}
-              disabled={!newComment.trim() || isSubmitting}
-              className="bg-purple-600 text-white font-bold px-4 rounded-md hover:bg-purple-500 disabled:bg-purple-800 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-            >
-              {isSubmitting ? <Spinner /> : '등록'}
-            </button>
-          </div>
+      <div className="mt-4 pt-4 border-t border-gray-700 flex-shrink-0">
+        <div className="flex gap-2">
+          <textarea
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="댓글을 입력하세요..."
+            rows={2}
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-md p-2 focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none transition-colors"
+          />
+          <button
+            onClick={handleSubmitComment}
+            disabled={!newComment.trim() || isSubmitting || createCommentMutation.isPending}
+            className="bg-purple-600 text-white font-bold px-4 rounded-md hover:bg-purple-500 disabled:bg-purple-800 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+          >
+            {isSubmitting || createCommentMutation.isPending ? <Spinner /> : '등록'}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -391,8 +494,8 @@ const PencilIcon = () => (
       <path d="M13.586 3.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0l-1.5-1.5a2 2 0 010-2.828l3-3zM11.5 6.5l-6 6V15h2.5l6-6-2.5-2.5z" />
     </svg>
 );
-const TrashIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+const TrashIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
       <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
     </svg>
 );

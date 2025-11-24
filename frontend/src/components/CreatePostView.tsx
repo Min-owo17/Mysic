@@ -1,13 +1,12 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { BoardPost } from '../types';
 import { useAppContext } from '../context/AppContext';
 import { allFeatures, instruments } from '../utils/constants';
 import { commonStyles } from '../styles/commonStyles';
+import { Post } from '../services/api/board';
 
 interface CreatePostViewProps {
-    postToEdit?: BoardPost;
-    onSave: (postData: { title: string; content: string; tags: string[] }) => void;
+    postToEdit?: Post;
+    onSave: (postData: { title: string; content: string; tags: string[]; category?: string }) => void;
     onCancel: () => void;
 }
 
@@ -15,7 +14,8 @@ const CreatePostView: React.FC<CreatePostViewProps> = ({ postToEdit, onSave, onC
     const { userProfile } = useAppContext();
     const [title, setTitle] = useState(postToEdit?.title || '');
     const [content, setContent] = useState(postToEdit?.content || '');
-    const [tags, setTags] = useState(postToEdit?.tags || userProfile.features || []);
+    const [category, setCategory] = useState(postToEdit?.category || 'general');
+    const [tags, setTags] = useState<string[]>(postToEdit?.manual_tags || []);
 
     const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
     const [tagSearch, setTagSearch] = useState('');
@@ -56,7 +56,7 @@ const CreatePostView: React.FC<CreatePostViewProps> = ({ postToEdit, onSave, onC
 
     const handleSaveClick = () => {
         if (title.trim() && content.trim()) {
-            onSave({ title, content, tags });
+            onSave({ title, content, tags, category });
         }
     };
     
@@ -87,6 +87,21 @@ const CreatePostView: React.FC<CreatePostViewProps> = ({ postToEdit, onSave, onC
                 </div>
 
                 <div>
+                    <label htmlFor="category" className={commonStyles.label}>카테고리</label>
+                    <select
+                        id="category"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className={commonStyles.textInputP3}
+                    >
+                        <option value="general">일반</option>
+                        <option value="tip">팁</option>
+                        <option value="question">질문</option>
+                        <option value="free">자유</option>
+                    </select>
+                </div>
+
+                <div>
                     <label htmlFor="content" className={commonStyles.label}>본문</label>
                     <textarea
                         id="content"
@@ -99,7 +114,8 @@ const CreatePostView: React.FC<CreatePostViewProps> = ({ postToEdit, onSave, onC
                 </div>
 
                 <div className="relative" ref={tagDropdownRef}>
-                    <label htmlFor="tags" className={commonStyles.label}>태그</label>
+                    <label htmlFor="tags" className={commonStyles.label}>태그 (선택사항)</label>
+                    <p className="text-xs text-gray-400 mb-2">작성자의 악기와 특징은 자동으로 태그로 추가됩니다.</p>
                     <div className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 focus-within:ring-2 focus-within:ring-purple-500 transition-colors flex flex-wrap gap-2 items-center">
                         {tags.map(tag => (
                             <span key={tag} className="bg-purple-600/50 text-purple-200 text-sm font-medium px-2 py-1 rounded-full flex items-center gap-1">
