@@ -307,15 +307,29 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
                                             </div>
                                         </div>
 
-                                        {/* Bars */}
-                                        <div
-                                            className="w-1/2 max-w-[12px] md:max-w-[16px] rounded-t-sm bg-purple-500 transition-all duration-300"
-                                            style={{ height: `${userBarHeight}%` }}
-                                        ></div>
-                                        <div
-                                            className="w-1/2 max-w-[12px] md:max-w-[16px] rounded-t-sm bg-teal-500 transition-all duration-300"
-                                            style={{ height: `${avgBarHeight}%` }}
-                                        ></div>
+                                        {/* Bars with bottom labels */}
+                                        <div className="relative w-1/2 max-w-[12px] md:max-w-[16px] flex items-end justify-center">
+                                            <div
+                                                className="w-full rounded-t-sm bg-purple-500 transition-all duration-300"
+                                                style={{ height: `${userBarHeight}%` }}
+                                            ></div>
+                                            {data.userDuration > 0 && (
+                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full bg-gray-800 dark:bg-gray-900 text-white text-xs px-1 py-0.5 rounded-md opacity-100 pointer-events-none z-10 whitespace-nowrap">
+                                                    {formatTime(data.userDuration)}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="relative w-1/2 max-w-[12px] md:max-w-[16px] flex items-end justify-center">
+                                            <div
+                                                className="w-full rounded-t-sm bg-teal-500 transition-all duration-300"
+                                                style={{ height: `${avgBarHeight}%` }}
+                                            ></div>
+                                            {data.averageDuration > 0 && (
+                                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full bg-gray-800 dark:bg-gray-900 text-white text-xs px-1 py-0.5 rounded-md opacity-100 pointer-events-none z-10 whitespace-nowrap">
+                                                    {formatTime(data.averageDuration)}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
                                         <p>{data.day}</p>
