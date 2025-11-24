@@ -20,6 +20,7 @@ const CalendarView: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
     const [selectedRecord, setSelectedRecord] = useState<PerformanceRecord | null>(null);
     const [showComparisonView, setShowComparisonView] = useState(false);
+    const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
 
     // --- Memoized calculations for Weekly View (먼저 정의) ---
     const currentWeekStart = useMemo(() => {
@@ -197,7 +198,7 @@ const CalendarView: React.FC = () => {
         },
     });
 
-    const handleDelete = () => {
+    const handleDeleteClick = () => {
         if (!selectedRecord) return;
         
         const sessionId = extractSessionId(selectedRecord.id);
@@ -206,9 +207,21 @@ const CalendarView: React.FC = () => {
             return;
         }
 
-        if (window.confirm('정말 이 연습 기록을 삭제하시겠습니까?')) {
-            deleteSessionMutation.mutate(sessionId);
+        setShowDeleteConfirmModal(true);
+    };
+
+    const handleDeleteConfirm = () => {
+        if (!selectedRecord) return;
+        
+        const sessionId = extractSessionId(selectedRecord.id);
+        if (!sessionId) {
+            toast.error('삭제할 수 없는 기록입니다.');
+            setShowDeleteConfirmModal(false);
+            return;
         }
+
+        deleteSessionMutation.mutate(sessionId);
+        setShowDeleteConfirmModal(false);
     };
 
     const weekRangeString = useMemo(() => {
@@ -355,7 +368,7 @@ const CalendarView: React.FC = () => {
                             <h3 className="text-xl font-bold text-purple-600 dark:text-purple-300">{selectedRecord.title}</h3>
                             {extractSessionId(selectedRecord.id) && (
                                 <button
-                                    onClick={handleDelete}
+                                    onClick={handleDeleteClick}
                                     disabled={deleteSessionMutation.isPending}
                                     className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                     aria-label="삭제"
@@ -398,6 +411,30 @@ const CalendarView: React.FC = () => {
                         >
                             닫기
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {showDeleteConfirmModal && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
+                        <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">연습 기록 삭제</h3>
+                        <p className="text-gray-600 dark:text-gray-300 mb-6">정말로 이 연습 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+                        <div className="flex gap-4">
+                            <button 
+                                onClick={() => setShowDeleteConfirmModal(false)} 
+                                className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                            >
+                                취소
+                            </button>
+                            <button 
+                                onClick={handleDeleteConfirm}
+                                disabled={deleteSessionMutation.isPending}
+                                className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                삭제
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
