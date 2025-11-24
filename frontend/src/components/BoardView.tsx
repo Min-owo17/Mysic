@@ -465,7 +465,7 @@ const BoardView: React.FC = () => {
         </div>
       )}
       
-      <div className="flex-1 space-y-4 overflow-y-auto pr-2 -mr-2">
+      <div className="flex-1 space-y-4 overflow-y-auto pr-2 -mr-2 pb-24 md:pb-20">
         {isLoading ? (
           <div className="text-center py-10 text-gray-500">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
@@ -552,14 +552,17 @@ const BoardView: React.FC = () => {
         )}
       </div>
       
-       <div className={`mt-4 pt-4 ${commonStyles.divider}`}>
-        <button 
-          onClick={() => setIsWriting(true)}
-          className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} py-3 flex items-center justify-center gap-2`}
-        >
-          <PencilIcon />
-          새 게시물 작성
-        </button>
+       {/* 고정된 게시물 작성 버튼 - 모바일: BottomNavBar 위, 데스크톱: 화면 하단 */}
+       <div className="fixed bottom-16 md:bottom-0 left-0 right-0 md:left-64 z-30 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 md:border-t-0 shadow-lg md:shadow-none">
+        <div className="max-w-md md:max-w-3xl lg:max-w-5xl mx-auto p-4 md:p-6">
+          <button 
+            onClick={() => setIsWriting(true)}
+            className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} py-3 flex items-center justify-center gap-2 w-full`}
+          >
+            <PencilIcon />
+            새 게시물 작성
+          </button>
+        </div>
       </div>
     </div>
   );
