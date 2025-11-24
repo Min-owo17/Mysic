@@ -232,7 +232,7 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
-                    <h1 className="text-2xl md:text-3xl font-bold text-purple-600 dark:text-purple-300">주간 연습 비교</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-purple-600 dark:text-purple-300">연습 통계</h1>
                 </div>
 
                 <div className="bg-gray-100 dark:bg-gray-800/50 p-4 rounded-lg text-center">
@@ -252,7 +252,7 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
                     </svg>
                 </button>
-                <h1 className="text-2xl md:text-3xl font-bold text-purple-600 dark:text-purple-300">주간 연습 비교</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-purple-600 dark:text-purple-300">연습 통계</h1>
             </div>
 
             {isLoadingSessions && (
@@ -369,25 +369,31 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
                             <>
                                 <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
                                     <p className="text-gray-700 dark:text-gray-300">
-                                        지금까지 연습한 총 시간은 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{formatHours(statisticsData.total_practice_time)}시간</span> 입니다!
+                                        지금까지 연습한 총 시간은
+                                        <br/>
+                                        <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{formatHours(statisticsData.total_practice_time)}시간</span>
                                     </p>
                                 </div>
 
                                 <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
                                     <p className="text-gray-700 dark:text-gray-300">
-                                        지금까지 연습한 횟수는 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.total_sessions}회</span> 입니다!
+                                        지금까지 연습한 횟수는
+                                        <br/>
+                                        <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.total_sessions}회</span>
                                     </p>
                                 </div>
 
                                 <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
                                     <p className="text-gray-700 dark:text-gray-300">
-                                        지금까지의 연속 연습 일수는 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.consecutive_days}일</span>이며, 마지막 연습일은 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{formatDateKorean(statisticsData.last_practice_date)}</span> 입니다!
+                                        지금까지의 연속 연습 일수는 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.consecutive_days}일</span>
+                                        <br/>
+                                        마지막 연습일은 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{formatDateKorean(statisticsData.last_practice_date)}</span>
                                     </p>
                                 </div>
 
                                 <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
                                     <p className="text-gray-700 dark:text-gray-300">
-                                        평균 연습 시간은 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.average_session_time ? formatMinutes(statisticsData.average_session_time) : 0}분</span> 입니다!
+                                        평균 연습 시간은 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.average_session_time ? formatMinutes(statisticsData.average_session_time) : 0}분</span>
                                     </p>
                                 </div>
                             </>
