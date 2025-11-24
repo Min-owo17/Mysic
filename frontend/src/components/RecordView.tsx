@@ -472,7 +472,7 @@ const RecordView: React.FC = () => {
                 <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
                     <div className={`${commonStyles.modalContainer} p-6 text-center flex flex-col items-center`}>
                         <CheckCircleIcon />
-                        <h3 className="text-2xl font-bold text-purple-600 dark:text-purple-300 mt-4">저장 완료!</h3>
+                        <h3 className={`${commonStyles.mainTitle} mt-4`}>저장 완료!</h3>
                         <p className="text-gray-500 dark:text-gray-400 mt-2">연습 성과를 친구들과 공유해보세요.</p>
                         
                         <div className={`w-full my-6 ${commonStyles.divider}`}></div>

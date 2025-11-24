@@ -423,14 +423,14 @@ const CalendarView: React.FC = () => {
                         <div className="flex gap-4">
                             <button 
                                 onClick={() => setShowDeleteConfirmModal(false)} 
-                                className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                                className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}
                             >
                                 취소
                             </button>
                             <button 
                                 onClick={handleDeleteConfirm}
                                 disabled={deleteSessionMutation.isPending}
-                                className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}
                             >
                                 삭제
                             </button>

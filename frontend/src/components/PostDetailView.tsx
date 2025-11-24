@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BoardPost, Comment, UserProfile } from '../types';
 import { useAppContext } from '../context/AppContext';
+import { commonStyles } from '../styles/commonStyles';
 
 interface PostDetailViewProps {
   post: BoardPost;
@@ -105,7 +106,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onBack, onEditReq
   return (
     <div className="p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto h-full flex flex-col animate-fade-in">
       {reportingItem && (
-         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
+         <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
             <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm transform animate-scale-in">
                 <h3 className="text-xl font-bold text-red-400 mb-4">{reportingItem.type === 'post' ? '게시물' : '댓글'} 신고</h3>
                 <p className="text-sm text-gray-400 mb-1">신고 사유를 선택해주세요.</p>
@@ -134,11 +135,11 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onBack, onEditReq
                     />
                 )}
                 <div className="flex gap-4 mt-6">
-                    <button onClick={handleCloseReportModal} className="w-full bg-gray-600 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-500">취소</button>
+                    <button onClick={handleCloseReportModal} className={`${commonStyles.buttonBase} w-full bg-gray-600 text-white hover:bg-gray-500 focus:ring-gray-500`}>취소</button>
                     <button
                         onClick={handleSubmitReport}
                         disabled={!reportReason || (reportReason === '기타' && !reportDetails.trim())}
-                        className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-500 disabled:bg-red-800 disabled:cursor-not-allowed"
+                        className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} disabled:bg-red-800`}
                     >
                         제출
                     </button>
@@ -154,20 +155,20 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post, onBack, onEditReq
       )}
       
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
+        <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
             <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
                 <h3 className="text-xl font-bold text-red-400 mb-2">게시물 삭제</h3>
                 <p className="text-gray-300 mb-6">정말로 이 게시물을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
                 <div className="flex gap-4">
                     <button
                         onClick={() => setShowDeleteConfirm(false)}
-                        className="w-full bg-gray-600 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                        className={`${commonStyles.buttonBase} w-full bg-gray-600 text-white hover:bg-gray-500 focus:ring-gray-500 focus:ring-offset-gray-800`}
                     >
                         취소
                     </button>
                     <button
                         onClick={handleDeleteConfirm}
-                        className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-500 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                        className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} focus:ring-offset-gray-800`}
                     >
                         삭제
                     </button>

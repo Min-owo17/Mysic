@@ -102,7 +102,7 @@ const AuthView: React.FC = () => {
             <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
                 <div className={`${commonStyles.modalContainer} p-8 text-center flex flex-col items-center`}>
                     <MailSentIcon />
-                    <h3 className="text-2xl font-bold text-purple-600 dark:text-purple-300 mt-4">인증 메일 발송 완료</h3>
+                    <h3 className={`${commonStyles.mainTitle} mt-4`}>인증 메일 발송 완료</h3>
                     <p className="text-gray-600 dark:text-gray-400 mt-2">
                         <span className="font-semibold text-purple-600 dark:text-purple-300">{resetEmail}</span>(으)로<br/>비밀번호 재설정 안내 메일을 보냈습니다.
                     </p>

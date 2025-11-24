@@ -206,8 +206,8 @@ const SettingsView: React.FC = () => {
                         />
                         {confirmError && <p className="text-red-500 dark:text-red-400 text-xs mt-2 text-left">{confirmError}</p>}
                         <div className="flex gap-4 mt-6">
-                            <button onClick={() => { setShowConfirmPasswordModal(false); setConfirmError(''); setConfirmPassword(''); }} className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">취소</button>
-                            <button onClick={handlePasswordConfirm} className="w-full bg-purple-600 text-white font-bold py-2 px-4 rounded-md hover:bg-purple-500">확인</button>
+                            <button onClick={() => { setShowConfirmPasswordModal(false); setConfirmError(''); setConfirmPassword(''); }} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
+                            <button onClick={handlePasswordConfirm} className={`${commonStyles.buttonBase} ${commonStyles.primaryButton}`}>확인</button>
                         </div>
                     </div>
                 </div>
@@ -218,8 +218,8 @@ const SettingsView: React.FC = () => {
                         <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">기록 초기화</h3>
                         <p className="text-gray-600 dark:text-gray-300 mb-6">정말로 모든 연습 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
                         <div className="flex gap-4">
-                            <button onClick={() => setShowResetModal(false)} className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">취소</button>
-                            <button onClick={handleResetRecords} className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700 transition-colors">초기화</button>
+                            <button onClick={() => setShowResetModal(false)} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
+                            <button onClick={handleResetRecords} className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}>초기화</button>
                         </div>
                     </div>
                 </div>
@@ -230,8 +230,8 @@ const SettingsView: React.FC = () => {
                         <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">회원 탈퇴</h3>
                         <p className="text-gray-600 dark:text-gray-300 mb-6">정말로 탈퇴하시겠습니까? 모든 데이터가 영구적으로 삭제되며, 이 작업은 되돌릴 수 없습니다.</p>
                         <div className="flex gap-4">
-                            <button onClick={() => setShowDeleteModal(false)} className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">취소</button>
-                            <button onClick={handleDeleteAccount} className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700 transition-colors">탈퇴</button>
+                            <button onClick={() => setShowDeleteModal(false)} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
+                            <button onClick={handleDeleteAccount} className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}>탈퇴</button>
                         </div>
                     </div>
                 </div>
@@ -247,7 +247,7 @@ const SettingsView: React.FC = () => {
                             {deleteResult.success ? (
                                 <button 
                                     onClick={handleDeleteResultConfirm}
-                                    className="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors"
+                                    className={`${commonStyles.buttonBase} w-full bg-green-600 text-white hover:bg-green-700 focus:ring-green-500`}
                                 >
                                     확인
                                 </button>
@@ -258,7 +258,7 @@ const SettingsView: React.FC = () => {
                                             setShowDeleteResultModal(false);
                                             setDeleteResult(null);
                                         }} 
-                                        className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                                        className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}
                                     >
                                         닫기
                                     </button>
@@ -268,7 +268,7 @@ const SettingsView: React.FC = () => {
                                             setDeleteResult(null);
                                             setShowDeleteModal(true);
                                         }} 
-                                        className="w-full bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700 transition-colors"
+                                        className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}
                                     >
                                         다시 시도
                                     </button>
@@ -280,18 +280,18 @@ const SettingsView: React.FC = () => {
             )}
             
             {showFeedbackModal && (
-                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-11/12 max-w-md transform animate-scale-in">
-                        <div className="flex border-b border-gray-200 dark:border-gray-700">
-                            <button onClick={() => setFeedbackType('inquiry')} className={`flex-1 p-3 font-semibold text-sm ${feedbackType === 'inquiry' ? 'text-purple-600 dark:text-purple-300 border-b-2 border-purple-500 dark:border-purple-400' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}>문의하기</button>
-                            <button onClick={() => setFeedbackType('suggestion')} className={`flex-1 p-3 font-semibold text-sm ${feedbackType === 'suggestion' ? 'text-purple-600 dark:text-purple-300 border-b-2 border-purple-500 dark:border-purple-400' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50'}`}>제안하기</button>
+                 <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.modalContainerLarge}>
+                        <div className={`flex border-b ${commonStyles.divider}`}>
+                            <button onClick={() => setFeedbackType('inquiry')} className={`${commonStyles.navTab} ${feedbackType === 'inquiry' ? commonStyles.navTabActive : commonStyles.navTabInactive}`}>문의하기</button>
+                            <button onClick={() => setFeedbackType('suggestion')} className={`${commonStyles.navTab} ${feedbackType === 'suggestion' ? commonStyles.navTabActive : commonStyles.navTabInactive}`}>제안하기</button>
                         </div>
                         <div className="p-6 space-y-4">
-                             <input type="text" value={feedbackTitle} onChange={e => setFeedbackTitle(e.target.value)} placeholder="제목" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none" />
-                             <textarea value={feedbackContent} onChange={e => setFeedbackContent(e.target.value)} placeholder="내용을 입력해주세요..." rows={6} className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none"></textarea>
+                             <input type="text" value={feedbackTitle} onChange={e => setFeedbackTitle(e.target.value)} placeholder="제목" className={commonStyles.textInputDarkerP3} />
+                             <textarea value={feedbackContent} onChange={e => setFeedbackContent(e.target.value)} placeholder="내용을 입력해주세요..." rows={6} className={`${commonStyles.textInputDarkerP3} resize-none`}></textarea>
                              <div className="flex gap-4">
-                                <button onClick={handleCloseFeedbackModal} className="w-full bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white font-bold py-2 px-4 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">취소</button>
-                                <button onClick={handleSendFeedback} disabled={!feedbackTitle.trim() || !feedbackContent.trim()} className="w-full bg-purple-600 text-white font-bold py-2 px-4 rounded-md hover:bg-purple-700 disabled:bg-purple-300 dark:disabled:bg-purple-800 disabled:cursor-not-allowed">보내기</button>
+                                <button onClick={handleCloseFeedbackModal} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
+                                <button onClick={handleSendFeedback} disabled={!feedbackTitle.trim() || !feedbackContent.trim()} className={`${commonStyles.buttonBase} ${commonStyles.primaryButton}`}>보내기</button>
                             </div>
                         </div>
                     </div>
@@ -305,8 +305,8 @@ const SettingsView: React.FC = () => {
             )}
 
             {showHistoryModal && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-11/12 max-w-lg flex flex-col transform animate-scale-in max-h-[90vh]">
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={`${commonStyles.modalContainerLarge} max-w-lg flex flex-col max-h-[90vh]`}>
                         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
                             <h3 className="text-xl font-bold text-purple-600 dark:text-purple-300">나의 문의 내역</h3>
                             <button onClick={() => setShowHistoryModal(false)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
@@ -323,7 +323,7 @@ const SettingsView: React.FC = () => {
                                         <svg className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${expandedHistoryId === item.id ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                                     </button>
                                     {expandedHistoryId === item.id && (
-                                        <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-700/50 animate-fade-in">
+                                        <div className={`px-4 pb-4 ${commonStyles.divider} animate-fade-in`}>
                                             <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap py-3">{item.content}</p>
                                             {item.answer && (
                                                 <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
