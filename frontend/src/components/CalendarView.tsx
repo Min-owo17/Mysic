@@ -216,25 +216,31 @@ const CalendarView: React.FC = () => {
                         <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">&gt;</button>
                     </div>
                     
-                    <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        {['일', '월', '화', '수', '목', '금', '토'].map(day => <div key={day}>{day}</div>)}
-                    </div>
-                    
-                    <div className="grid grid-cols-7 gap-1">
-                        {Array.from({ length: startDayOfMonth }).map((_, i) => <div key={`empty-${i}`}></div>)}
-                        {daysInMonth.map(day => {
-                            const dateStr = getLocalDateString(day);
-                            const hasRecord = recordsByDate.has(dateStr);
-                            const isToday = isSameDay(day, new Date());
-                            const isSelected = selectedDate && isSameDay(day, selectedDate);
-                            
-                            return (
-                                <button key={day.toISOString()} onClick={() => setSelectedDate(day)} className={`relative p-2 h-10 w-10 md:h-14 md:w-14 flex items-center justify-center rounded-full transition-colors ${isSelected ? 'bg-purple-600 text-white' : isToday ? 'bg-gray-200 dark:bg-gray-700' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                                    <span>{day.getDate()}</span>
-                                    {hasRecord && <div className={`absolute bottom-1 h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-purple-400'}`}></div>}
-                                </button>
-                            );
-                        })}
+                    <div className="h-[calc((100vh-4rem)*0.45)] flex flex-col bg-gray-100/50 dark:bg-gray-800/50 rounded-lg p-2">
+                        <div className="grid grid-cols-7 gap-1 mb-2">
+                            {['일', '월', '화', '수', '목', '금', '토'].map(day => (
+                                <div key={day} className="h-10 w-10 md:h-14 md:w-14 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
+                                    {day}
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="grid grid-cols-7 gap-1 flex-1">
+                            {Array.from({ length: startDayOfMonth }).map((_, i) => <div key={`empty-${i}`} className="h-10 w-10 md:h-14 md:w-14"></div>)}
+                            {daysInMonth.map(day => {
+                                const dateStr = getLocalDateString(day);
+                                const hasRecord = recordsByDate.has(dateStr);
+                                const isToday = isSameDay(day, new Date());
+                                const isSelected = selectedDate && isSameDay(day, selectedDate);
+                                
+                                return (
+                                    <button key={day.toISOString()} onClick={() => setSelectedDate(day)} className={`relative p-2 h-10 w-10 md:h-14 md:w-14 flex items-center justify-center rounded-full transition-colors ${isSelected ? 'bg-purple-600 text-white' : isToday ? 'bg-gray-200 dark:bg-gray-700' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                                        <span>{day.getDate()}</span>
+                                        {hasRecord && <div className={`absolute bottom-1 h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-purple-400'}`}></div>}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </>
             )}
