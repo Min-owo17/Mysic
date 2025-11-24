@@ -144,6 +144,34 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
         cacheTime: 10 * 60 * 1000, // 10분
     });
 
+    // 연습 통계 데이터 가져오기
+    const { data: statisticsData, isLoading: isLoadingStatistics } = useQuery({
+        queryKey: ['practice', 'statistics'],
+        queryFn: () => practiceApi.getStatistics(),
+        staleTime: 2 * 60 * 1000, // 2분
+        cacheTime: 5 * 60 * 1000, // 5분
+    });
+
+    // 시간 포맷팅 함수 (초를 시간으로 변환)
+    const formatHours = (seconds: number): number => {
+        return Math.floor(seconds / 3600);
+    };
+
+    // 시간 포맷팅 함수 (초를 분으로 변환)
+    const formatMinutes = (seconds: number): number => {
+        return Math.floor(seconds / 60);
+    };
+
+    // 날짜 포맷팅 함수 (YYYY-MM-DD를 "0000년 0월 0일" 형식으로)
+    const formatDateKorean = (dateString?: string): string => {
+        if (!dateString) return '없음';
+        const date = new Date(dateString);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        return `${year}년 ${month}월 ${day}일`;
+    };
+
     const comparisonChartData: ComparisonChartData[] = useMemo(() => {
         const averageDurations = averageData?.daily_averages || [0, 0, 0, 0, 0, 0, 0];
         return userWeeklyData.map((data, index) => ({
@@ -331,6 +359,39 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ onBack }) => {
                                 </p>
                             )}
                         </div>
+
+                        {/* 연습 통계 섹션 */}
+                        {isLoadingStatistics ? (
+                            <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
+                                <p className="text-gray-500 dark:text-gray-400">통계 데이터를 불러오는 중...</p>
+                            </div>
+                        ) : statisticsData ? (
+                            <>
+                                <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
+                                    <p className="text-gray-700 dark:text-gray-300">
+                                        지금까지 연습한 총 시간은 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{formatHours(statisticsData.total_practice_time)}시간</span> 입니다!
+                                    </p>
+                                </div>
+
+                                <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
+                                    <p className="text-gray-700 dark:text-gray-300">
+                                        지금까지 연습한 횟수는 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.total_sessions}회</span> 입니다!
+                                    </p>
+                                </div>
+
+                                <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
+                                    <p className="text-gray-700 dark:text-gray-300">
+                                        지금까지의 연속 연습 일수는 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.consecutive_days}일</span>이며, 마지막 연습일은 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{formatDateKorean(statisticsData.last_practice_date)}</span> 입니다!
+                                    </p>
+                                </div>
+
+                                <div className="bg-gray-100 dark:bg-gray-800/50 p-4 md:p-6 rounded-lg text-center animate-fade-in">
+                                    <p className="text-gray-700 dark:text-gray-300">
+                                        평균 연습 시간은 <span className="text-3xl md:text-4xl font-bold text-teal-600 dark:text-teal-300">{statisticsData.average_session_time ? formatMinutes(statisticsData.average_session_time) : 0}분</span> 입니다!
+                                    </p>
+                                </div>
+                            </>
+                        ) : null}
                     </div>
                 </div>
 
