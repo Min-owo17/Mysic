@@ -247,7 +247,7 @@ const CalendarView: React.FC = () => {
                         <button onClick={() => changeWeek(1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">&gt;</button>
                     </div>
 
-                    <div className="h-[calc((100vh-4rem)/2)] flex justify-around items-end gap-2 px-2 bg-gray-100/50 dark:bg-gray-800/50 rounded-lg pt-4 pb-2">
+                    <div className="h-[calc((100vh-4rem)*0.45)] flex justify-around items-end gap-2 px-2 bg-gray-100/50 dark:bg-gray-800/50 rounded-lg pt-4 pb-2">
                         {weeklyChartData.map((data, index) => {
                             const barHeight = (data.totalDuration / maxWeeklyDuration) * 100;
                             const isSelected = isSameDay(data.fullDate, selectedDate);
@@ -261,7 +261,7 @@ const CalendarView: React.FC = () => {
                                                 className={`w-3/4 max-w-[20px] rounded-t-sm transition-all duration-300 cursor-pointer ${isSelected ? 'bg-purple-500' : 'bg-purple-300 dark:bg-purple-800 group-hover:bg-purple-400 dark:group-hover:bg-purple-600'}`}
                                                 style={{ height: `${barHeight}%` }}
                                             ></button>
-                                            <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-800 dark:bg-gray-900 text-white text-xs px-2 py-1 rounded-md opacity-100 pointer-events-none z-10 whitespace-nowrap">
+                                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full bg-gray-800 dark:bg-gray-900 text-white text-xs px-2 py-1 rounded-md opacity-100 pointer-events-none z-10 whitespace-nowrap">
                                                 {formatTime(data.totalDuration)}
                                             </div>
                                         </div>
