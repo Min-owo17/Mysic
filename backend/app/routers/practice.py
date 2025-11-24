@@ -254,6 +254,41 @@ async def get_practice_session(
     return session
 
 
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_practice_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    연습 세션 삭제
+    """
+    session = db.query(PracticeSession).filter(
+        and_(
+            PracticeSession.session_id == session_id,
+            PracticeSession.user_id == current_user.user_id
+        )
+    ).first()
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="연습 세션을 찾을 수 없습니다."
+        )
+    
+    try:
+        db.delete(session)
+        db.commit()
+        logger.info(f"연습 세션 삭제: user_id={current_user.user_id}, session_id={session_id}")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"연습 세션 삭제 실패: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="연습 세션 삭제에 실패했습니다."
+        )
+
+
 @router.get("/statistics", response_model=PracticeStatisticsResponse)
 async def get_practice_statistics(
     current_user: User = Depends(get_current_user),

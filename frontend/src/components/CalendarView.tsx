@@ -1,18 +1,20 @@
 
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppContext } from '../context/AppContext';
 import { PerformanceRecord, PracticeSession } from '../types';
 import { practiceApi } from '../services/api/practice';
 import { formatTime, getLocalDateString } from '../utils/time';
 import ComparisonView from './ComparisonView';
 import { commonStyles } from '../styles/commonStyles';
+import toast from 'react-hot-toast';
 
 type ViewMode = 'monthly' | 'weekly';
 
 const CalendarView: React.FC = () => {
     const { records } = useAppContext();
+    const queryClient = useQueryClient();
     const [viewMode, setViewMode] = useState<ViewMode>('weekly');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
@@ -171,6 +173,44 @@ const CalendarView: React.FC = () => {
         d1.getMonth() === d2.getMonth() &&
         d1.getDate() === d2.getDate();
 
+    // session_id 추출 함수 (id가 'session-{session_id}' 형식)
+    const extractSessionId = (recordId: string): number | null => {
+        if (recordId.startsWith('session-')) {
+            const sessionId = parseInt(recordId.replace('session-', ''), 10);
+            return isNaN(sessionId) ? null : sessionId;
+        }
+        return null;
+    };
+
+    // 연습 세션 삭제 mutation
+    const deleteSessionMutation = useMutation({
+        mutationFn: (sessionId: number) => practiceApi.deleteSession(sessionId),
+        onSuccess: () => {
+            // 관련 쿼리 무효화하여 데이터 새로고침
+            queryClient.invalidateQueries({ queryKey: ['practice', 'sessions'] });
+            queryClient.invalidateQueries({ queryKey: ['practice', 'statistics'] });
+            toast.success('연습 기록이 삭제되었습니다.');
+            setSelectedRecord(null);
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || '연습 기록 삭제에 실패했습니다.');
+        },
+    });
+
+    const handleDelete = () => {
+        if (!selectedRecord) return;
+        
+        const sessionId = extractSessionId(selectedRecord.id);
+        if (!sessionId) {
+            toast.error('삭제할 수 없는 기록입니다.');
+            return;
+        }
+
+        if (window.confirm('정말 이 연습 기록을 삭제하시겠습니까?')) {
+            deleteSessionMutation.mutate(sessionId);
+        }
+    };
+
     const weekRangeString = useMemo(() => {
         const endOfWeek = new Date(currentWeekStart);
         endOfWeek.setDate(endOfWeek.getDate() + 6);
@@ -310,9 +350,21 @@ const CalendarView: React.FC = () => {
 
             {selectedRecord && (
                 <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
-                    <div className={`${commonStyles.modalContainer} p-6 space-y-4`}>
-                        <div>
+                    <div className={`${commonStyles.modalContainer} p-6 space-y-4 relative`}>
+                        <div className="flex justify-between items-start">
                             <h3 className="text-xl font-bold text-purple-600 dark:text-purple-300">{selectedRecord.title}</h3>
+                            {extractSessionId(selectedRecord.id) && (
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={deleteSessionMutation.isPending}
+                                    className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    aria-label="삭제"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
                         
                         <div className={`text-sm text-gray-500 dark:text-gray-400 border-b border-t ${commonStyles.divider} py-3 grid grid-cols-2 gap-2`}>

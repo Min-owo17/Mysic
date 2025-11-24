@@ -47,6 +47,13 @@ export const practiceApi = {
   },
 
   /**
+   * 연습 세션 삭제
+   */
+  deleteSession: async (sessionId: number): Promise<void> => {
+    await apiClient.delete(`/practice/sessions/${sessionId}`);
+  },
+
+  /**
    * 연습 통계 조회
    */
   getStatistics: async (): Promise<PracticeStatistics> => {
