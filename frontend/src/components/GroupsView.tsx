@@ -29,7 +29,7 @@ const GroupsView: React.FC = () => {
   const { data: groupsData, isLoading, error } = useQuery({
     queryKey: ['groups', 'my', page],
     queryFn: () => groupsApi.getGroups({
-      page,
+      page: Number(page) || 1,
       page_size: 20,
     }),
     staleTime: 2 * 60 * 1000, // 2분
@@ -39,7 +39,7 @@ const GroupsView: React.FC = () => {
   const { data: searchGroupsData, isLoading: isLoadingSearch } = useQuery({
     queryKey: ['groups', 'search', searchQuery, searchPage],
     queryFn: () => groupsApi.getGroups({
-      page: searchPage,
+      page: Number(searchPage) || 1,
       page_size: 20,
       is_public: true, // 공개 그룹만 검색
       search: searchQuery || undefined,
@@ -204,11 +204,21 @@ const GroupsView: React.FC = () => {
   };
 
   const acceptInvitation = (invitationId: string) => {
-    acceptInvitationMutation.mutate(parseInt(invitationId));
+    const id = parseInt(invitationId, 10);
+    if (isNaN(id)) {
+      toast.error('유효하지 않은 초대 ID입니다.');
+      return;
+    }
+    acceptInvitationMutation.mutate(id);
   };
 
   const declineInvitation = (invitationId: string) => {
-    declineInvitationMutation.mutate(parseInt(invitationId));
+    const id = parseInt(invitationId, 10);
+    if (isNaN(id)) {
+      toast.error('유효하지 않은 초대 ID입니다.');
+      return;
+    }
+    declineInvitationMutation.mutate(id);
   };
 
   if (selectedGroup) {

@@ -180,7 +180,14 @@ export const groupsApi = {
   getGroupInvitations: async (params?: {
     status?: 'pending' | 'accepted' | 'declined' | 'expired';
   }): Promise<GroupInvitationListResponse> => {
-    const response = await apiClient.get<GroupInvitationListResponse>('/groups/invitations', { params });
+    // params가 undefined이거나 빈 객체인 경우를 처리
+    const queryParams: Record<string, string> = {};
+    if (params?.status) {
+      queryParams.status = params.status;
+    }
+    const response = await apiClient.get<GroupInvitationListResponse>('/groups/invitations', { 
+      params: Object.keys(queryParams).length > 0 ? queryParams : undefined 
+    });
     return response.data;
   },
 

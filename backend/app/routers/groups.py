@@ -851,6 +851,11 @@ async def get_group_invitations(
     """
     내가 받은 그룹 초대 목록 조회
     - 현재 사용자가 받은 초대만 조회합니다.
+    - status 파라미터는 선택사항이며, 제공되지 않으면 모든 상태의 초대를 조회합니다.
+    """
+    내가 받은 그룹 초대 목록 조회
+    - 현재 사용자가 받은 초대만 조회합니다.
+    - status 파라미터는 선택사항이며, 제공되지 않으면 모든 상태의 초대를 조회합니다.
     """
     try:
         query = db.query(GroupInvitation).options(
