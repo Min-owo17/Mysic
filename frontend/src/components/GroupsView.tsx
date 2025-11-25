@@ -73,17 +73,6 @@ const GroupsView: React.FC = () => {
     };
   }, []);
 
-  const unreadCount = useMemo(() => groupNotifications.filter(n => !n.read).length, [groupNotifications]);
-
-  const handleToggleNotifications = () => {
-      setIsNotificationPanelOpen(prev => {
-          if (!prev && unreadCount > 0) {
-              markGroupNotificationsAsRead();
-          }
-          return !prev;
-      });
-  };
-
   // 내가 가입한 그룹 필터링
   const myGroups = useMemo(() => {
     if (!groupsData?.groups) return [];
@@ -198,9 +187,20 @@ const GroupsView: React.FC = () => {
     }));
   }, [invitationsData, userProfile]);
 
+  const unreadCount = useMemo(() => groupNotifications.filter(n => !n.read).length, [groupNotifications]);
+
   const markGroupNotificationsAsRead = () => {
     // 실제로는 백엔드에서 읽음 처리하지만, 현재는 프론트엔드에서만 처리
     // 필요시 백엔드에 읽음 처리 API 추가 가능
+  };
+
+  const handleToggleNotifications = () => {
+      setIsNotificationPanelOpen(prev => {
+          if (!prev && unreadCount > 0) {
+              markGroupNotificationsAsRead();
+          }
+          return !prev;
+      });
   };
 
   const acceptInvitation = (invitationId: string) => {
