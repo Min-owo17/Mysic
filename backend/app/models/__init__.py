@@ -10,7 +10,7 @@ from app.models.instrument import Instrument
 from app.models.user_type import UserType
 from app.models.user_profile import UserProfileInstrument, UserProfileUserType
 from app.models.practice import PracticeSession, RecordingFile
-from app.models.group import Group, GroupMember
+from app.models.group import Group, GroupMember, GroupInvitation
 from app.models.board import Post, Comment, PostLike, CommentLike
 from app.models.achievement import Achievement, UserAchievement
 
@@ -34,6 +34,7 @@ __all__ = [
     # Group models
     "Group",
     "GroupMember",
+    "GroupInvitation",
     # Board models
     "Post",
     "Comment",

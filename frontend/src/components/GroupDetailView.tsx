@@ -131,15 +131,13 @@ const InviteMemberModal: React.FC<{
         );
     }, [searchUsersData, membersData, user]);
 
-    // 그룹 초대 Mutation (실제 API가 구현되면 사용)
+    // 그룹 초대 Mutation
     const inviteMemberMutation = useMutation({
         mutationFn: async (user_id: number) => {
-            // TODO: 실제 그룹 초대 API가 구현되면 사용
-            // await groupsApi.inviteMember(group.group_id, user_id);
-            return { user_id };
+            return await groupsApi.inviteMember(group.group_id, { invitee_id: user_id });
         },
         onSuccess: (data) => {
-            setInvitedMembers(prev => [...prev, data.user_id]);
+            setInvitedMembers(prev => [...prev, data.invitee_id]);
             toast.success('초대를 보냈습니다.');
         },
         onError: (error: any) => {

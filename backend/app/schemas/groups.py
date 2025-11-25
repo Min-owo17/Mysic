@@ -131,3 +131,79 @@ class MessageResponse(BaseModel):
             }
         }
 
+
+# ========== 그룹 초대 스키마 ==========
+
+class GroupInvitationCreate(BaseModel):
+    """그룹 초대 생성 요청 스키마"""
+    invitee_id: int = Field(..., description="초대받을 사용자 ID")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "invitee_id": 2
+            }
+        }
+
+
+class GroupInvitationInviterResponse(BaseModel):
+    """초대자 정보 응답 스키마"""
+    user_id: int
+    nickname: str
+    profile_image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class GroupInvitationInviteeResponse(BaseModel):
+    """초대받은 사용자 정보 응답 스키마"""
+    user_id: int
+    nickname: str
+    profile_image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class GroupInvitationGroupResponse(BaseModel):
+    """초대된 그룹 정보 응답 스키마"""
+    group_id: int
+    group_name: str
+    description: Optional[str] = None
+    is_public: bool
+
+    class Config:
+        from_attributes = True
+
+
+class GroupInvitationResponse(BaseModel):
+    """그룹 초대 응답 스키마"""
+    invitation_id: int
+    group_id: int
+    group: GroupInvitationGroupResponse
+    inviter_id: int
+    inviter: GroupInvitationInviterResponse
+    invitee_id: int
+    invitee: GroupInvitationInviteeResponse
+    status: str  # 'pending', 'accepted', 'declined', 'expired'
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class GroupInvitationListResponse(BaseModel):
+    """그룹 초대 목록 응답 스키마"""
+    invitations: List[GroupInvitationResponse]
+    total: int
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "invitations": [],
+                "total": 0
+            }
+        }
+

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { groupsApi, Group, GroupCreate } from '../services/api/groups';
+import { groupsApi, Group, GroupCreate, GroupInvitation } from '../services/api/groups';
 import GroupDetailView from './GroupDetailView';
 import { useAppContext } from '../context/AppContext';
 import { timeAgo } from '../utils/time';
@@ -9,9 +9,7 @@ import toast from 'react-hot-toast';
 
 const GroupsView: React.FC = () => {
   const { 
-    userProfile, 
-    groupNotifications, markGroupNotificationsAsRead, 
-    acceptInvitation, declineInvitation 
+    userProfile
   } = useAppContext();
   const queryClient = useQueryClient();
   
@@ -150,6 +148,68 @@ const GroupsView: React.FC = () => {
       toast.error(error.response?.data?.detail || '그룹 가입에 실패했습니다.');
     },
   });
+
+  // 그룹 초대 목록 조회
+  const { data: invitationsData, isLoading: isLoadingInvitations } = useQuery({
+    queryKey: ['groups', 'invitations', 'pending'],
+    queryFn: () => groupsApi.getGroupInvitations({ status: 'pending' }),
+    staleTime: 30 * 1000, // 30초
+    refetchInterval: 60 * 1000, // 1분마다 자동 갱신
+  });
+
+  // 그룹 초대 수락 Mutation
+  const acceptInvitationMutation = useMutation({
+    mutationFn: (invitation_id: number) => groupsApi.acceptInvitation(invitation_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['groups', 'invitations'] });
+      toast.success('그룹 초대를 수락했습니다.');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '초대 수락에 실패했습니다.');
+    },
+  });
+
+  // 그룹 초대 거절 Mutation
+  const declineInvitationMutation = useMutation({
+    mutationFn: (invitation_id: number) => groupsApi.declineInvitation(invitation_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['groups', 'invitations'] });
+      toast.success('그룹 초대를 거절했습니다.');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '초대 거절에 실패했습니다.');
+    },
+  });
+
+  // 그룹 알림 데이터 변환 (초대 목록을 알림 형식으로 변환)
+  const groupNotifications = useMemo(() => {
+    if (!invitationsData?.invitations) return [];
+    return invitationsData.invitations.map((invitation: GroupInvitation) => ({
+      id: `invitation-${invitation.invitation_id}`,
+      createdAt: invitation.created_at,
+      read: false,
+      recipient: userProfile?.nickname || '',
+      type: 'group_invite' as const,
+      invitationId: invitation.invitation_id.toString(),
+      groupId: invitation.group.group_id.toString(),
+      groupName: invitation.group.group_name,
+      inviter: invitation.inviter.nickname,
+    }));
+  }, [invitationsData, userProfile]);
+
+  const markGroupNotificationsAsRead = () => {
+    // 실제로는 백엔드에서 읽음 처리하지만, 현재는 프론트엔드에서만 처리
+    // 필요시 백엔드에 읽음 처리 API 추가 가능
+  };
+
+  const acceptInvitation = (invitationId: string) => {
+    acceptInvitationMutation.mutate(parseInt(invitationId));
+  };
+
+  const declineInvitation = (invitationId: string) => {
+    declineInvitationMutation.mutate(parseInt(invitationId));
+  };
 
   if (selectedGroup) {
     return <GroupDetailView group={selectedGroup} onBack={() => setSelectedGroup(null)} />;

@@ -61,6 +61,41 @@ export interface MessageResponse {
   message: string;
 }
 
+export interface GroupInvitation {
+  invitation_id: number;
+  group_id: number;
+  group: {
+    group_id: number;
+    group_name: string;
+    description?: string | null;
+    is_public: boolean;
+  };
+  inviter_id: number;
+  inviter: {
+    user_id: number;
+    nickname: string;
+    profile_image_url?: string | null;
+  };
+  invitee_id: number;
+  invitee: {
+    user_id: number;
+    nickname: string;
+    profile_image_url?: string | null;
+  };
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupInvitationListResponse {
+  invitations: GroupInvitation[];
+  total: number;
+}
+
+export interface GroupInvitationCreate {
+  invitee_id: number;
+}
+
 export const groupsApi = {
   /**
    * 그룹 목록 조회
@@ -128,6 +163,40 @@ export const groupsApi = {
    */
   deleteGroup: async (group_id: number): Promise<MessageResponse> => {
     const response = await apiClient.delete<MessageResponse>(`/groups/${group_id}`);
+    return response.data;
+  },
+
+  /**
+   * 그룹 초대 보내기
+   */
+  inviteMember: async (group_id: number, data: GroupInvitationCreate): Promise<GroupInvitation> => {
+    const response = await apiClient.post<GroupInvitation>(`/groups/${group_id}/invitations`, data);
+    return response.data;
+  },
+
+  /**
+   * 내가 받은 그룹 초대 목록 조회
+   */
+  getGroupInvitations: async (params?: {
+    status?: 'pending' | 'accepted' | 'declined' | 'expired';
+  }): Promise<GroupInvitationListResponse> => {
+    const response = await apiClient.get<GroupInvitationListResponse>('/groups/invitations', { params });
+    return response.data;
+  },
+
+  /**
+   * 그룹 초대 수락
+   */
+  acceptInvitation: async (invitation_id: number): Promise<MessageResponse> => {
+    const response = await apiClient.post<MessageResponse>(`/groups/invitations/${invitation_id}/accept`);
+    return response.data;
+  },
+
+  /**
+   * 그룹 초대 거절
+   */
+  declineInvitation: async (invitation_id: number): Promise<MessageResponse> => {
+    const response = await apiClient.post<MessageResponse>(`/groups/invitations/${invitation_id}/decline`);
     return response.data;
   },
 };

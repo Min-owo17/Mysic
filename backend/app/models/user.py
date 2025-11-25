@@ -33,6 +33,8 @@ class User(Base):
     comments = relationship("Comment", back_populates="user", cascade="all, delete-orphan")
     groups_owned = relationship("Group", back_populates="owner", foreign_keys="[Group.owner_id]", cascade="all, delete-orphan")
     group_memberships = relationship("GroupMember", back_populates="user", cascade="all, delete-orphan")
+    group_invitations_sent = relationship("GroupInvitation", foreign_keys="[GroupInvitation.inviter_id]", back_populates="inviter", cascade="all, delete-orphan")
+    group_invitations_received = relationship("GroupInvitation", foreign_keys="[GroupInvitation.invitee_id]", back_populates="invitee", cascade="all, delete-orphan")
     achievements = relationship("UserAchievement", back_populates="user", cascade="all, delete-orphan")
 
 
