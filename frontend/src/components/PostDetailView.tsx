@@ -28,6 +28,20 @@ const isPostEdited = (createdAt: string, updatedAt: string | null | undefined, m
   return timeDifferenceSeconds >= minDifferenceSeconds;
 };
 
+/**
+ * 댓글이 실제로 수정되었는지 판단하는 헬퍼 함수
+ * 5초 이상 차이가 나야 수정으로 간주 (시스템 처리 시간 고려)
+ */
+const isCommentEdited = (createdAt: string, updatedAt: string | null | undefined, minDifferenceSeconds: number = 5): boolean => {
+  if (!updatedAt) return false;
+  
+  const createdTime = new Date(createdAt).getTime();
+  const updatedTime = new Date(updatedAt).getTime();
+  const timeDifferenceSeconds = (updatedTime - createdTime) / 1000;
+  
+  return timeDifferenceSeconds >= minDifferenceSeconds;
+};
+
 const StarIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -44,6 +58,8 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState('');
   
   // --- Report Modal State ---
   const [reportingItem, setReportingItem] = useState<{ id: number; type: 'post' | 'comment' } | null>(null);
@@ -106,6 +122,22 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || '좋아요 처리에 실패했습니다.');
+    },
+  });
+
+  // 댓글 수정 Mutation
+  const updateCommentMutation = useMutation({
+    mutationFn: ({ commentId, content }: { commentId: number; content: string }) =>
+      boardApi.updateComment(commentId, { content }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', initialPost.post_id, 'comments'] });
+      queryClient.invalidateQueries({ queryKey: ['board', 'post', initialPost.post_id] });
+      setEditingCommentId(null);
+      setEditingCommentContent('');
+      toast.success('댓글이 수정되었습니다.');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '댓글 수정에 실패했습니다.');
     },
   });
 
@@ -210,6 +242,9 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
                     hour: '2-digit', 
                     minute: '2-digit' 
                   })}
+                  {isCommentEdited(comment.created_at, comment.updated_at) && (
+                    <span className="text-gray-500 text-xs ml-1">(수정됨)</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -233,17 +268,30 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
                 <span>{comment.like_count || 0}</span>
               </button>
               {isCommentAuthor && (
-                <button 
-                  onClick={() => {
-                    if (window.confirm('댓글을 삭제하시겠습니까?')) {
-                      deleteCommentMutation.mutate(comment.comment_id);
-                    }
-                  }}
-                  className="text-gray-500 hover:text-red-400"
-                  aria-label="댓글 삭제"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
+                <>
+                  <button 
+                    onClick={() => {
+                      setEditingCommentId(comment.comment_id);
+                      setEditingCommentContent(comment.content);
+                      setReplyingTo(null); // 답글 모드 취소
+                    }}
+                    className="text-gray-500 hover:text-blue-400"
+                    aria-label="댓글 수정"
+                  >
+                    <PencilIcon />
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('댓글을 삭제하시겠습니까?')) {
+                        deleteCommentMutation.mutate(comment.comment_id);
+                      }
+                    }}
+                    className="text-gray-500 hover:text-red-400"
+                    aria-label="댓글 삭제"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </>
               )}
               {!isCommentAuthor && (
                 <button 
@@ -256,7 +304,47 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
               )}
             </div>
           </div>
-          <p className={`text-gray-300 mt-2 ${depth > 0 ? 'text-sm pl-8' : 'pl-11'}`}>{comment.content}</p>
+          {editingCommentId === comment.comment_id ? (
+            // 수정 모드
+            <div className="mt-3 pl-11">
+              <textarea
+                value={editingCommentContent}
+                onChange={(e) => setEditingCommentContent(e.target.value)}
+                rows={3}
+                autoFocus
+                className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none transition-colors text-gray-200"
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    if (editingCommentContent.trim()) {
+                      updateCommentMutation.mutate({
+                        commentId: comment.comment_id,
+                        content: editingCommentContent.trim()
+                      });
+                    }
+                  }}
+                  disabled={!editingCommentContent.trim() || updateCommentMutation.isPending}
+                  className="bg-purple-600 text-white font-bold px-3 py-1 text-sm rounded-md hover:bg-purple-500 disabled:bg-purple-800 disabled:cursor-not-allowed transition-colors"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingCommentId(null);
+                    setEditingCommentContent('');
+                  }}
+                  disabled={updateCommentMutation.isPending}
+                  className="bg-gray-600 text-white font-bold px-3 py-1 text-sm rounded-md hover:bg-gray-500 disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          ) : (
+            // 일반 표시 모드
+            <p className={`text-gray-300 mt-2 ${depth > 0 ? 'text-sm pl-8' : 'pl-11'}`}>{comment.content}</p>
+          )}
         </div>
         
         {/* 답글 입력 폼 */}

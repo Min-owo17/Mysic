@@ -61,7 +61,7 @@ export interface PostComment {
   is_liked: boolean;
   replies: PostComment[];
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;  // 수정된 적이 없으면 null
 }
 
 export interface CommentListResponse {

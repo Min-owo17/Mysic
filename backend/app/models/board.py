@@ -44,7 +44,7 @@ class Comment(Base):
     content = Column(Text, nullable=False)
     like_count = Column(Integer, default=0)
     created_at = Column(TIMESTAMP, server_default=func.now())
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.now())  # 수정 시에만 값이 설정됨
 
     # 관계 설정
     post = relationship("Post", back_populates="comments")

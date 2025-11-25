@@ -500,12 +500,14 @@ async def create_comment(
             )
     
     # 댓글 생성
+    # updated_at은 None으로 설정하여 신규 댓글임을 명확히 표시
     new_comment = Comment(
         post_id=post_id,
         user_id=current_user.user_id,
         parent_comment_id=comment_data.parent_comment_id,
         content=comment_data.content,
-        like_count=0
+        like_count=0,
+        updated_at=None  # 신규 댓글은 updated_at을 NULL로 설정
     )
     
     db.add(new_comment)
