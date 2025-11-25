@@ -56,6 +56,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState<number | null>(null); // 삭제하려는 댓글 ID
   const [replyingTo, setReplyingTo] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
@@ -181,9 +182,16 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
     setReplyingTo(null);
   };
 
-  const handleDeleteConfirm = () => {
+  const handlePostDeleteConfirm = () => {
     onDeleteRequest(post.post_id);
     setShowDeleteConfirm(false);
+  };
+
+  const handleCommentDeleteConfirm = () => {
+    if (commentToDelete) {
+      deleteCommentMutation.mutate(commentToDelete);
+      setCommentToDelete(null);
+    }
   };
 
   const handleCloseReportModal = () => {
@@ -284,9 +292,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
                     </button>
                     <button 
                       onClick={() => {
-                        if (window.confirm('댓글을 삭제하시겠습니까?')) {
-                          deleteCommentMutation.mutate(comment.comment_id);
-                        }
+                        setCommentToDelete(comment.comment_id);
                       }}
                       className="text-gray-500 hover:text-red-400"
                       aria-label="댓글 삭제"
@@ -452,7 +458,31 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
                         취소
                     </button>
                     <button
-                        onClick={handleDeleteConfirm}
+                        onClick={handlePostDeleteConfirm}
+                        className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} focus:ring-offset-gray-800`}
+                    >
+                        삭제
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* 댓글 삭제 확인 모달 */}
+      {commentToDelete !== null && (
+        <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+            <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm text-center transform animate-scale-in">
+                <h3 className="text-xl font-bold text-red-400 mb-2">댓글 삭제</h3>
+                <p className="text-gray-300 mb-6">정말로 이 댓글을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+                <div className="flex gap-4">
+                    <button
+                        onClick={() => setCommentToDelete(null)}
+                        className={`${commonStyles.buttonBase} w-full bg-gray-600 text-white hover:bg-gray-500 focus:ring-gray-500 focus:ring-offset-gray-800`}
+                    >
+                        취소
+                    </button>
+                    <button
+                        onClick={handleCommentDeleteConfirm}
                         className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} focus:ring-offset-gray-800`}
                     >
                         삭제
