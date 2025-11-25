@@ -14,9 +14,7 @@ export interface Post {
   title: string;
   content: string;
   category: string;
-  auto_tags?: string[] | null;
-  manual_tags?: string[] | null;
-  all_tags?: string[] | null;
+  tags?: string[] | null;  // manual_tags (이전에 manual_tags로 저장된 태그)
   view_count: number;
   like_count: number;
   is_liked: boolean;

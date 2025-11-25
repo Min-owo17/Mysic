@@ -20,7 +20,6 @@ class Post(Base):
     title = Column(String(300), nullable=False)
     content = Column(Text, nullable=False)
     category = Column(String(50), default="general", index=True)  # 'tip', 'question', 'free'
-    auto_tags = Column(ARRAY(String), nullable=True)  # 작성자의 악기, 성향 등 자동 태그
     manual_tags = Column(ARRAY(String), nullable=True)  # 사용자가 직접 추가한 태그
     view_count = Column(Integer, default=0)
     like_count = Column(Integer, default=0)

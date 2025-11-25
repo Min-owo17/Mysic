@@ -413,15 +413,15 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
               <span className="text-gray-500 text-xs ml-2">(수정됨)</span>
             )}
           </p>
-          {((post.all_tags && post.all_tags.length > 0) || isExcellentPost) && (
+          {((post.tags && post.tags.length > 0) || isExcellentPost) && (
             <div className="flex flex-wrap gap-2 mt-3">
               {isExcellentPost && (
                 <span className="bg-yellow-500/20 text-yellow-300 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                    <StarIcon />
-                    우수 게시글
+                  <StarIcon />
+                  우수 게시글
                 </span>
               )}
-              {post.all_tags?.map(tag => (
+              {post.tags?.map(tag => (
                 <span key={tag} className="bg-purple-600/50 text-purple-200 text-xs font-medium px-2 py-1 rounded-full">
                   #{tag}
                 </span>

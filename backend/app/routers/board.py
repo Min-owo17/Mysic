@@ -10,11 +10,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.models.user import User, UserProfile
+from app.models.user import User
 from app.models.board import Post, Comment, PostLike, CommentLike
-from app.models.user_profile import UserProfileInstrument, UserProfileUserType
-from app.models.instrument import Instrument
-from app.models.user_type import UserType
 from app.schemas.board import (
     PostCreate,
     PostUpdate,
@@ -32,51 +29,6 @@ from app.schemas.board import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/board", tags=["게시판"])
-
-
-def _get_user_auto_tags(db: Session, user_id: int) -> List[str]:
-    """
-    사용자의 악기와 특징을 가져와서 자동 태그로 변환
-    
-    Args:
-        db: 데이터베이스 세션
-        user_id: 사용자 ID
-    
-    Returns:
-        List[str]: 자동 태그 목록 (악기 이름 + 특징 이름)
-    """
-    auto_tags = []
-    
-    # 사용자 프로필 조회
-    profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
-    if not profile:
-        return auto_tags
-    
-    # 악기 이름 가져오기
-    instrument_relations = db.query(UserProfileInstrument).filter(
-        UserProfileInstrument.profile_id == profile.profile_id
-    ).all()
-    
-    for rel in instrument_relations:
-        instrument = db.query(Instrument).filter(
-            Instrument.instrument_id == rel.instrument_id
-        ).first()
-        if instrument:
-            auto_tags.append(instrument.name)
-    
-    # 특징 이름 가져오기
-    user_type_relations = db.query(UserProfileUserType).filter(
-        UserProfileUserType.profile_id == profile.profile_id
-    ).all()
-    
-    for rel in user_type_relations:
-        user_type = db.query(UserType).filter(
-            UserType.user_type_id == rel.user_type_id
-        ).first()
-        if user_type:
-            auto_tags.append(user_type.name)
-    
-    return auto_tags
 
 
 def _build_post_response(post: Post, current_user_id: Optional[int] = None) -> PostResponse:
@@ -97,13 +49,6 @@ def _build_post_response(post: Post, current_user_id: Optional[int] = None) -> P
         profile_image_url=post.user.profile_image_url
     )
     
-    # 모든 태그 합치기
-    all_tags = []
-    if post.auto_tags:
-        all_tags.extend(post.auto_tags)
-    if post.manual_tags:
-        all_tags.extend(post.manual_tags)
-    
     # 좋아요 여부 확인
     is_liked = False
     if current_user_id:
@@ -117,9 +62,7 @@ def _build_post_response(post: Post, current_user_id: Optional[int] = None) -> P
         title=post.title,
         content=post.content,
         category=post.category,
-        auto_tags=post.auto_tags,
-        manual_tags=post.manual_tags,
-        all_tags=all_tags if all_tags else None,
+        tags=post.manual_tags,  # manual_tags를 tags로 반환
         view_count=post.view_count,
         like_count=post.like_count,
         is_liked=is_liked,
@@ -200,14 +143,9 @@ async def get_posts(
     if category:
         query = query.filter(Post.category == category)
     
-    # 태그 필터 (auto_tags 또는 manual_tags에 포함)
+    # 태그 필터 (manual_tags에 포함)
     if tag:
-        query = query.filter(
-            or_(
-                Post.auto_tags.contains([tag]),
-                Post.manual_tags.contains([tag])
-            )
-        )
+        query = query.filter(Post.manual_tags.contains([tag]))
     
     # 검색어 필터 (제목 또는 내용)
     if search:
@@ -248,11 +186,7 @@ async def create_post(
 ):
     """
     게시글 작성
-    - 작성자의 악기와 특징을 자동 태그로 추가
     """
-    # 자동 태그 생성
-    auto_tags = _get_user_auto_tags(db, current_user.user_id)
-    
     # 게시글 생성
     # updated_at은 None으로 설정하여 신규 게시글임을 명확히 표시
     new_post = Post(
@@ -260,7 +194,6 @@ async def create_post(
         title=post_data.title,
         content=post_data.content,
         category=post_data.category or "general",
-        auto_tags=auto_tags if auto_tags else None,
         manual_tags=post_data.manual_tags if post_data.manual_tags else None,
         view_count=0,
         like_count=0,

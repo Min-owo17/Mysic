@@ -146,8 +146,7 @@ const BoardView: React.FC = () => {
   // 모든 태그 수집 (게시글에서)
   const allAvailableTags = useMemo(() => {
     const tagsFromPosts = postsData?.posts.flatMap(post => [
-      ...(post.auto_tags || []),
-      ...(post.manual_tags || [])
+      ...(post.tags || [])
     ]) || [];
     return [...new Set(['우수 게시글', ...userProfile.features, ...tagsFromPosts, ...allFeatures, ...instruments])].sort();
   }, [postsData, userProfile.features]);
@@ -188,7 +187,7 @@ const BoardView: React.FC = () => {
 
       filteredPosts = filteredPosts.filter(post => {
         const excellentCondition = !isExcellentFilterActive || post.like_count >= 30;
-        const allPostTags = [...(post.auto_tags || []), ...(post.manual_tags || [])];
+        const allPostTags = post.tags || [];
         const normalTagsCondition = normalTags.length === 0 || normalTags.every(tag => allPostTags.includes(tag));
         return excellentCondition && normalTagsCondition;
       });
@@ -197,8 +196,8 @@ const BoardView: React.FC = () => {
     // 맞춤 게시글 우선 정렬
     const userFeaturesSet = new Set(userProfile.features);
     filteredPosts.sort((a, b) => {
-      const aTags = [...(a.auto_tags || []), ...(a.manual_tags || [])];
-      const bTags = [...(b.auto_tags || []), ...(b.manual_tags || [])];
+      const aTags = a.tags || [];
+      const bTags = b.tags || [];
       
       const aIsPrioritized = selectedTags.length === 0 && aTags.some(tag => userFeaturesSet.has(tag));
       const bIsPrioritized = selectedTags.length === 0 && bTags.some(tag => userFeaturesSet.has(tag));
@@ -477,7 +476,7 @@ const BoardView: React.FC = () => {
           </div>
         ) : filteredAndSortedPosts.length > 0 ? (
           filteredAndSortedPosts.map(post => {
-            const isRecommended = selectedTags.length === 0 && post.all_tags?.some(tag => userProfile.features.includes(tag));
+            const isRecommended = selectedTags.length === 0 && post.tags?.some(tag => userProfile.features.includes(tag));
             const authorProfile = getProfile(post.author.nickname);
             const isExcellentPost = post.like_count >= 30;
 
@@ -504,7 +503,7 @@ const BoardView: React.FC = () => {
                   <h2 className="text-lg font-bold text-purple-300 mt-1 pr-16">{post.title}</h2>
                 </div>
                 <p className="text-gray-300 mt-2 line-clamp-2">{post.content}</p>
-                {((post.all_tags && post.all_tags.length > 0) || isExcellentPost) && (
+                {((post.tags && post.tags.length > 0) || isExcellentPost) && (
                     <div className="flex flex-wrap gap-2 mt-3">
                         {isExcellentPost && (
                             <span className="bg-yellow-500/20 text-yellow-300 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
@@ -512,7 +511,7 @@ const BoardView: React.FC = () => {
                                 우수 게시글
                             </span>
                         )}
-                        {post.all_tags?.map(tag => (
+                        {post.tags?.map(tag => (
                             <span key={tag} className={commonStyles.tag}>
                                 #{tag}
                             </span>

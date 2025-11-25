@@ -63,9 +63,7 @@ class PostResponse(BaseModel):
     title: str
     content: str
     category: str
-    auto_tags: Optional[List[str]] = None
-    manual_tags: Optional[List[str]] = None
-    all_tags: Optional[List[str]] = None  # auto_tags + manual_tags 합친 것
+    tags: Optional[List[str]] = None  # manual_tags (이전에 manual_tags로 저장된 태그)
     view_count: int
     like_count: int
     is_liked: bool = False  # 현재 사용자가 좋아요를 눌렀는지 여부

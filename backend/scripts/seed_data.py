@@ -374,18 +374,6 @@ def seed_posts(db: Session, users: list):
         user = choice(users)
         category = choice(categories)
         
-        # 사용자의 프로필에서 악기와 특징 가져오기
-        profile = db.query(UserProfile).filter(UserProfile.user_id == user.user_id).first()
-        auto_tags = []
-        if profile:
-            profile_instruments = db.query(UserProfileInstrument).filter(
-                UserProfileInstrument.profile_id == profile.profile_id
-            ).all()
-            for pi in profile_instruments:
-                inst = db.query(Instrument).filter(Instrument.instrument_id == pi.instrument_id).first()
-                if inst:
-                    auto_tags.append(inst.name)
-        
         # 게시글 생성 날짜 (최근 7일 내)
         days_ago = randint(0, 7)
         created_at = datetime.utcnow() - timedelta(days=days_ago)
@@ -395,7 +383,6 @@ def seed_posts(db: Session, users: list):
             title=post_titles[i],
             content=post_contents[i],
             category=category,
-            auto_tags=auto_tags,
             manual_tags=[f"태그{i+1}", f"태그{i+2}"] if i % 2 == 0 else None,
             view_count=randint(0, 100),
             like_count=0,

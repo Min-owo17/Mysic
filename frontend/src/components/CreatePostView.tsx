@@ -18,7 +18,7 @@ const CreatePostView: React.FC<CreatePostViewProps> = ({ postToEdit, onSave, onC
     const [title, setTitle] = useState(postToEdit?.title || '');
     const [content, setContent] = useState(postToEdit?.content || '');
     const [category, setCategory] = useState(postToEdit?.category || 'general');
-    const [tags, setTags] = useState<string[]>(postToEdit?.manual_tags || []);
+    const [tags, setTags] = useState<string[]>(postToEdit?.tags || []);
 
     // 사용자 프로필 정보 조회 (자동 태그 생성을 위해)
     const { data: profileData } = useQuery<UserDetailResponse>({
