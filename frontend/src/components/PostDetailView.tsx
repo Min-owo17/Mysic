@@ -244,12 +244,14 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
                   {commentAuthorProfile?.title && <p className="text-xs text-yellow-300 font-normal">{commentAuthorProfile.title}</p>}
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
+                  {/* UTC 시간을 로컬 시간대로 변환하여 한국 형식으로 표시 */}
                   {new Date(comment.created_at).toLocaleString('ko-KR', { 
                     year: 'numeric', 
                     month: 'numeric', 
                     day: 'numeric', 
                     hour: '2-digit', 
-                    minute: '2-digit' 
+                    minute: '2-digit',
+                    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
                   })}
                   {isCommentEdited(comment.created_at, comment.updated_at) && (
                     <span className="text-gray-500 text-xs ml-1">(수정됨)</span>
@@ -536,7 +538,10 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
               </div>
             </div>
           <p className="text-xs text-gray-400 mt-2">
-            {new Date(post.created_at).toLocaleDateString('ko-KR')}
+            {/* UTC 시간을 로컬 시간대로 변환하여 한국 형식으로 표시 */}
+            {new Date(post.created_at).toLocaleDateString('ko-KR', {
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+            })}
             {isPostEdited(post.created_at, post.updated_at) && (
               <span className="text-gray-500 text-xs ml-2">(수정됨)</span>
             )}

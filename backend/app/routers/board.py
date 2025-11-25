@@ -8,6 +8,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
+from sqlalchemy.dialects.postgresql import array as pg_array
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -144,9 +145,20 @@ async def get_posts(
     if category:
         query = query.filter(Post.category == category)
     
-    # 태그 필터 (manual_tags에 포함)
+    # 태그 필터 (manual_tags 배열에 포함된 태그 검색)
     if tag:
-        query = query.filter(Post.manual_tags.contains([tag]))
+        # 공백 제거 후 PostgreSQL의 배열 포함 연산자(@>)를 사용하여 정확한 태그 매칭
+        tag_trimmed = tag.strip()
+        if tag_trimmed:
+            # PostgreSQL의 배열 포함 연산자(@>)를 사용하여 배열에 값이 포함되어 있는지 확인
+            # NULL 체크 추가하여 NULL 배열에 대한 오류 방지
+            # @> 연산자는 왼쪽 배열이 오른쪽 배열을 포함하는지 확인
+            query = query.filter(
+                and_(
+                    Post.manual_tags.isnot(None),
+                    Post.manual_tags.op('@>')(pg_array([tag_trimmed]))
+                )
+            )
     
     # 검색어 필터 (제목 또는 내용)
     if search:
@@ -198,6 +210,7 @@ async def create_post(
         manual_tags=post_data.manual_tags if post_data.manual_tags else None,
         view_count=0,
         like_count=0,
+        created_at=datetime.utcnow(),  # UTC로 명시적으로 설정
         updated_at=None  # 신규 게시글은 updated_at을 NULL로 설정
     )
     
@@ -509,13 +522,14 @@ async def create_comment(
             )
     
     # 댓글 생성
-    # updated_at은 None으로 설정하여 신규 댓글임을 명확히 표시
+    # created_at은 UTC로 명시적으로 설정, updated_at은 None으로 설정하여 신규 댓글임을 명확히 표시
     new_comment = Comment(
         post_id=post_id,
         user_id=current_user.user_id,
         parent_comment_id=comment_data.parent_comment_id,
         content=comment_data.content,
         like_count=0,
+        created_at=datetime.utcnow(),  # UTC로 명시적으로 설정
         updated_at=None  # 신규 댓글은 updated_at을 NULL로 설정
     )
     
