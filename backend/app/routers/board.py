@@ -7,8 +7,7 @@ from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, func
-from sqlalchemy.dialects.postgresql import array as pg_array
+from sqlalchemy import and_, or_, desc, func, text
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -147,16 +146,16 @@ async def get_posts(
     
     # 태그 필터 (manual_tags 배열에 포함된 태그 검색)
     if tag:
-        # 공백 제거 후 PostgreSQL의 배열 포함 연산자(@>)를 사용하여 정확한 태그 매칭
+        # 공백 제거 후 PostgreSQL의 ANY() 연산자를 사용하여 정확한 태그 매칭
         tag_trimmed = tag.strip()
         if tag_trimmed:
-            # PostgreSQL의 배열 포함 연산자(@>)를 사용하여 배열에 값이 포함되어 있는지 확인
+            # PostgreSQL의 ANY() 연산자를 사용하여 배열에 값이 포함되어 있는지 확인
             # NULL 체크 추가하여 NULL 배열에 대한 오류 방지
-            # @> 연산자는 왼쪽 배열이 오른쪽 배열을 포함하는지 확인
+            # text()를 사용하여 직접 SQL 작성 (파라미터 바인딩으로 SQL injection 방지)
             query = query.filter(
                 and_(
                     Post.manual_tags.isnot(None),
-                    Post.manual_tags.op('@>')(pg_array([tag_trimmed]))
+                    text(":tag = ANY(posts.manual_tags)").bindparams(tag=tag_trimmed)
                 )
             )
     

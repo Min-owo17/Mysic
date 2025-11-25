@@ -4,7 +4,8 @@ import { useAppContext } from '../context/AppContext';
 import CreatePostView from './CreatePostView';
 import PostDetailView from './PostDetailView';
 import { boardApi, Post } from '../services/api/board';
-import { allFeatures, instruments } from '../utils/constants';
+import { instrumentsApi } from '../services/api/instruments';
+import { userTypesApi } from '../services/api/userTypes';
 import { timeAgo } from '../utils/time';
 import { defaultAvatar } from '../utils/avatar';
 import { commonStyles } from '../styles/commonStyles';
@@ -143,13 +144,43 @@ const BoardView: React.FC = () => {
     deletePostMutation.mutate(postId);
   };
 
-  // 모든 태그 수집 (게시글에서)
+  // instruments 목록 조회
+  const { data: instrumentsData } = useQuery({
+    queryKey: ['instruments'],
+    queryFn: () => instrumentsApi.getInstruments(),
+    staleTime: 30 * 60 * 1000, // 30분
+  });
+
+  // user_types 목록 조회
+  const { data: userTypesData } = useQuery({
+    queryKey: ['userTypes'],
+    queryFn: () => userTypesApi.getUserTypes(),
+    staleTime: 30 * 60 * 1000, // 30분
+  });
+
+  // 한글 가나다 순 정렬 함수
+  const sortKorean = (a: string, b: string): number => {
+    return a.localeCompare(b, 'ko-KR');
+  };
+
+  // 모든 태그 수집 및 정렬 (우선순위: 우수 게시글 > instruments > user_types, 각 그룹 내 가나다 순)
   const allAvailableTags = useMemo(() => {
-    const tagsFromPosts = postsData?.posts.flatMap(post => [
-      ...(post.tags || [])
-    ]) || [];
-    return [...new Set(['우수 게시글', ...userProfile.features, ...tagsFromPosts, ...allFeatures, ...instruments])].sort();
-  }, [postsData, userProfile.features]);
+    // '우수 게시글'
+    const excellentTag = ['우수 게시글'];
+    
+    // instruments (가나다 순)
+    const instrumentTags = instrumentsData 
+      ? instrumentsData.map(inst => inst.name).sort(sortKorean)
+      : [];
+    
+    // user_types (가나다 순)
+    const userTypeTags = userTypesData
+      ? userTypesData.map(ut => ut.name).sort(sortKorean)
+      : [];
+    
+    // 우선순위 순서로 합치기
+    return [...excellentTag, ...instrumentTags, ...userTypeTags];
+  }, [instrumentsData, userTypesData]);
 
   const handleAddTag = (tag: string) => {
     if (!selectedTags.includes(tag)) {
