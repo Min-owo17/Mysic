@@ -25,16 +25,29 @@ const GroupsView: React.FC = () => {
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(1);
+  const [searchPage, setSearchPage] = useState(1);
 
-  // 그룹 목록 조회
+  // 그룹 목록 조회 (내가 가입한 그룹)
   const { data: groupsData, isLoading, error } = useQuery({
-    queryKey: ['groups', page, searchQuery],
+    queryKey: ['groups', 'my', page],
     queryFn: () => groupsApi.getGroups({
       page,
       page_size: 20,
-      search: searchQuery || undefined,
     }),
     staleTime: 2 * 60 * 1000, // 2분
+  });
+
+  // 검색용 그룹 목록 조회 (자신이 포함되지 않은 공개 그룹)
+  const { data: searchGroupsData, isLoading: isLoadingSearch } = useQuery({
+    queryKey: ['groups', 'search', searchQuery, searchPage],
+    queryFn: () => groupsApi.getGroups({
+      page: searchPage,
+      page_size: 20,
+      is_public: true, // 공개 그룹만 검색
+      search: searchQuery || undefined,
+    }),
+    enabled: modalMode === 'search' && searchQuery.trim().length > 0,
+    staleTime: 1 * 60 * 1000, // 1분
   });
 
   // 그룹 생성 Mutation
@@ -79,12 +92,19 @@ const GroupsView: React.FC = () => {
     return groupsData.groups.filter(g => g.is_member);
   }, [groupsData]);
 
+  // 검색 결과에서 내가 가입하지 않은 그룹만 필터링
+  const searchResults = useMemo(() => {
+    if (!searchGroupsData?.groups) return [];
+    return searchGroupsData.groups.filter(g => !g.is_member);
+  }, [searchGroupsData]);
+
   const handleOpenModal = () => {
     setModalMode('search');
     setSearchQuery('');
     setNewGroupName('');
     setNewGroupDescription('');
     setIsPublic(true);
+    setSearchPage(1);
     setIsModalOpen(true);
   };
 
@@ -110,14 +130,26 @@ const GroupsView: React.FC = () => {
   };
   
   const handleSearchGroup = () => {
-    // 검색은 queryKey에 searchQuery가 포함되어 있어서 자동으로 재조회됨
     if (!searchQuery.trim()) {
       toast.error('검색어를 입력해주세요.');
       return;
     }
-    setPage(1);
+    setSearchPage(1);
     // 검색 쿼리는 useQuery의 queryKey에 포함되어 있어서 자동으로 재조회됨
   };
+
+  // 그룹 가입 Mutation
+  const joinGroupMutation = useMutation({
+    mutationFn: (group_id: number) => groupsApi.joinGroup(group_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      queryClient.invalidateQueries({ queryKey: ['groups', 'search'] });
+      toast.success('그룹에 가입했습니다.');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '그룹 가입에 실패했습니다.');
+    },
+  });
 
   if (selectedGroup) {
     return <GroupDetailView group={selectedGroup} onBack={() => setSelectedGroup(null)} />;
@@ -147,7 +179,7 @@ const GroupsView: React.FC = () => {
     <>
       {isModalOpen && (
         <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
-          <div className={commonStyles.modalContainer}>
+          <div className={`${commonStyles.modalContainer} ${modalMode === 'search' ? 'max-h-[90vh] flex flex-col' : ''}`}>
             <div className={`flex border-b ${commonStyles.divider}`}>
               <button 
                 onClick={() => setModalMode('search')}
@@ -163,31 +195,101 @@ const GroupsView: React.FC = () => {
               </button>
             </div>
             
-            <div className="p-6">
+            <div className={`p-6 ${modalMode === 'search' ? 'flex flex-col flex-1 min-h-0' : ''}`}>
               {modalMode === 'search' ? (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-300">그룹 검색</h3>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                    }}
-                    className={commonStyles.textInputDarkerP3}
-                    placeholder="그룹 이름으로 검색..."
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSearchGroup();
-                      }
-                    }}
-                  />
-                  <button 
-                    onClick={handleSearchGroup} 
-                    className={`${commonStyles.buttonBase} ${commonStyles.indigoButton}`}
-                    disabled={!searchQuery.trim()}
-                  >
-                    검색
-                  </button>
+                <div className="space-y-4 flex flex-col flex-1 min-h-0">
+                  <div className="flex-shrink-0">
+                    <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-300">그룹 검색</h3>
+                    <div className="flex gap-2 mt-3">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setSearchPage(1);
+                        }}
+                        className={commonStyles.textInputDarkerP3}
+                        placeholder="그룹 이름으로 검색..."
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            handleSearchGroup();
+                          }
+                        }}
+                      />
+                      <button 
+                        onClick={handleSearchGroup} 
+                        className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} !w-auto px-4`}
+                        disabled={!searchQuery.trim() || isLoadingSearch}
+                      >
+                        {isLoadingSearch ? '검색 중...' : '검색'}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* 검색 결과 표시 */}
+                  {searchQuery.trim() && (
+                    <div className="mt-4 flex-1 overflow-y-auto min-h-0">
+                      {isLoadingSearch ? (
+                        <div className="flex justify-center items-center py-10">
+                          <div className={`${commonStyles.spinner} w-8 h-8`}></div>
+                        </div>
+                      ) : searchResults.length > 0 ? (
+                        <div className="space-y-3">
+                          {searchResults.map(group => (
+                            <div key={group.group_id} className={`${commonStyles.card} p-3`}>
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-purple-600 dark:text-purple-300">{group.group_name}</h4>
+                                  {group.description && (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">{group.description}</p>
+                                  )}
+                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                    멤버 {group.member_count}명 / 최대 {group.max_members}명
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    joinGroupMutation.mutate(group.group_id);
+                                  }}
+                                  className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} !w-auto px-4 ml-3`}
+                                  disabled={joinGroupMutation.isPending}
+                                >
+                                  {joinGroupMutation.isPending ? '가입 중...' : '가입'}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* 페이지네이션 */}
+                          {searchGroupsData && searchGroupsData.total_pages > 1 && (
+                            <div className="flex justify-center items-center gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                              <button
+                                onClick={() => setSearchPage(p => Math.max(1, p - 1))}
+                                disabled={searchPage === 1}
+                                className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-3 py-1 text-sm`}
+                              >
+                                이전
+                              </button>
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                {searchPage} / {searchGroupsData.total_pages}
+                              </span>
+                              <button
+                                onClick={() => setSearchPage(p => Math.min(searchGroupsData.total_pages, p + 1))}
+                                disabled={searchPage === searchGroupsData.total_pages}
+                                className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-3 py-1 text-sm`}
+                              >
+                                다음
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">
+                          검색 결과가 없습니다.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">

@@ -185,6 +185,10 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
     const [memberToKick, setMemberToKick] = useState<GroupMember | null>(null);
     const [memberToPromote, setMemberToPromote] = useState<GroupMember | null>(null);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editGroupName, setEditGroupName] = useState('');
+    const [editDescription, setEditDescription] = useState('');
+    const [editIsPublic, setEditIsPublic] = useState(false);
 
     // 그룹 상세 정보 조회 (최신 정보를 위해)
     const { data: groupData, isLoading: isLoadingGroup } = useQuery({
@@ -231,12 +235,28 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
         },
     });
 
+    // 그룹 정보 수정 Mutation
+    const updateGroupMutation = useMutation({
+        mutationFn: (data: { group_name?: string; description?: string; is_public?: boolean; max_members?: number }) => 
+            groupsApi.updateGroup(group.group_id, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['groups', group.group_id] });
+            queryClient.invalidateQueries({ queryKey: ['groups'] });
+            toast.success('그룹 정보가 수정되었습니다.');
+            setIsEditModalOpen(false);
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || '그룹 정보 수정에 실패했습니다.');
+        },
+    });
+
     const getMemberData = (member: GroupMember) => {
         const normalizedMemberName = member.nickname;
 
         if (normalizedMemberName === userProfile.nickname) {
             return {
                 name: userProfile.nickname,
+                user_id: member.user_id,
                 profilePicture: userProfile.profilePicture || defaultAvatar(userProfile.nickname),
                 title: userProfile.title,
                 records: myRecords
@@ -248,10 +268,30 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
         
         return {
             name: normalizedMemberName,
+            user_id: member.user_id,
             profilePicture: profile.profilePicture || defaultAvatar(normalizedMemberName),
             title: profile.title,
             records: mockData.records.map((r, i) => ({ ...r, id: `mock-${normalizedMemberName}-${i}` })),
         };
+    };
+
+    const handleOpenEditModal = () => {
+        setEditGroupName(group.group_name);
+        setEditDescription(group.description || '');
+        setEditIsPublic(group.is_public);
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateGroup = () => {
+        if (!editGroupName.trim()) {
+            toast.error('그룹 이름을 입력해주세요.');
+            return;
+        }
+        updateGroupMutation.mutate({
+            group_name: editGroupName.trim(),
+            description: editDescription.trim() || undefined,
+            is_public: editIsPublic,
+        });
     };
 
     const handleLeaveGroup = () => {
@@ -367,23 +407,93 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                 </div>
             )}
 
-            <div className="p-4 md:p-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto animate-fade-in">
-                <div className="flex items-center mb-6">
-                    <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-700 mr-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                        </svg>
-                    </button>
-                    <div>
-                        <h1 className={commonStyles.mainTitle}>{group.group_name}</h1>
-                        {group.description && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{group.description}</p>
-                        )}
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                            멤버 {group.member_count}명 / 최대 {group.max_members}명
-                            {!group.is_public && ' • 비공개 그룹'}
-                        </p>
+            {isEditModalOpen && (
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={`${commonStyles.modalContainerLarge} p-6`}>
+                        <h3 className="text-xl font-bold text-purple-600 dark:text-purple-300 mb-4">그룹 정보 수정</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className={commonStyles.label}>그룹 이름 *</label>
+                                <input
+                                    type="text"
+                                    value={editGroupName}
+                                    onChange={(e) => setEditGroupName(e.target.value)}
+                                    className={commonStyles.textInputDarkerP3}
+                                    placeholder="그룹 이름"
+                                />
+                            </div>
+                            <div>
+                                <label className={commonStyles.label}>그룹 설명</label>
+                                <textarea
+                                    value={editDescription}
+                                    onChange={(e) => setEditDescription(e.target.value)}
+                                    className={`${commonStyles.textInputDarkerP3} min-h-[100px] resize-none`}
+                                    placeholder="그룹에 대한 설명을 입력하세요..."
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="editIsPublic"
+                                    checked={editIsPublic}
+                                    onChange={(e) => setEditIsPublic(e.target.checked)}
+                                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                                />
+                                <label htmlFor="editIsPublic" className="text-sm text-gray-700 dark:text-gray-300">
+                                    공개 그룹 (다른 사용자도 검색 가능)
+                                </label>
+                            </div>
+                            <div className="flex gap-4 mt-6">
+                                <button 
+                                    onClick={() => setIsEditModalOpen(false)} 
+                                    className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}
+                                    disabled={updateGroupMutation.isPending}
+                                >
+                                    취소
+                                </button>
+                                <button 
+                                    onClick={handleUpdateGroup} 
+                                    className={`${commonStyles.buttonBase} ${commonStyles.primaryButton}`}
+                                    disabled={updateGroupMutation.isPending || !editGroupName.trim()}
+                                >
+                                    {updateGroupMutation.isPending ? '수정 중...' : '수정'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
+                </div>
+            )}
+
+            <div className="p-4 md:p-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto animate-fade-in">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center">
+                        <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-700 mr-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <div>
+                            <h1 className={commonStyles.mainTitle}>{group.group_name}</h1>
+                            {group.description && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{group.description}</p>
+                            )}
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                멤버 {group.member_count}명 / 최대 {group.max_members}명
+                                {!group.is_public && ' • 비공개 그룹'}
+                            </p>
+                        </div>
+                    </div>
+                    {isOwner && (
+                        <button
+                            onClick={handleOpenEditModal}
+                            className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-4 py-2`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            수정
+                        </button>
+                    )}
                 </div>
 
                 <h2 className={`${commonStyles.subTitle} mb-4`}>멤버 목록</h2>

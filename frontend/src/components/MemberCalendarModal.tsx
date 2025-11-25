@@ -1,21 +1,69 @@
-
 import React, { useState, useMemo } from 'react';
-import { PerformanceRecord } from '../types';
+import { useQuery } from '@tanstack/react-query';
+import { practiceApi } from '../services/api/practice';
+import { PracticeSession } from '../types';
 import { formatTime, getLocalDateString } from '../utils/time';
 import { commonStyles } from '../styles/commonStyles';
 
 interface MemberCalendarModalProps {
     memberData: {
         name: string;
-        records: PerformanceRecord[];
+        user_id: number;
+        records?: any[]; // 기존 호환성을 위해 유지
         profilePicture: string | null;
     };
     onClose: () => void;
 }
 
+// PracticeSession을 PerformanceRecord 형식으로 변환
+const convertSessionToRecord = (session: PracticeSession, index: number) => {
+    return {
+        id: `session-${session.session_id}-${index}`,
+        date: session.practice_date,
+        title: session.notes || `${session.instrument || '연습'} 연습`,
+        instrument: session.instrument || '알 수 없음',
+        duration: session.actual_play_time,
+        notes: session.notes || '',
+        summary: session.notes || '',
+    };
+};
+
 const MemberCalendarModal: React.FC<MemberCalendarModalProps> = ({ memberData, onClose }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+
+    // 연습 기록 조회 (최근 3개월)
+    const startDate = useMemo(() => {
+        const date = new Date(currentDate);
+        date.setMonth(date.getMonth() - 3);
+        return date.toISOString().split('T')[0];
+    }, [currentDate]);
+
+    const endDate = useMemo(() => {
+        const date = new Date(currentDate);
+        date.setMonth(date.getMonth() + 1);
+        return date.toISOString().split('T')[0];
+    }, [currentDate]);
+
+    const { data: sessionsData, isLoading } = useQuery({
+        queryKey: ['practice', 'sessions', memberData.user_id, startDate, endDate],
+        queryFn: () => practiceApi.getSessions({
+            start_date: startDate,
+            end_date: endDate,
+            page_size: 1000, // 충분히 큰 값
+        }),
+        enabled: !!memberData.user_id,
+        staleTime: 1 * 60 * 1000, // 1분
+    });
+
+    // PracticeSession을 PerformanceRecord 형식으로 변환
+    const records = useMemo(() => {
+        if (!sessionsData?.sessions) {
+            // 기존 records가 있으면 사용 (호환성)
+            return memberData.records || [];
+        }
+        return sessionsData.sessions.map((session, index) => convertSessionToRecord(session, index));
+    }, [sessionsData, memberData.records]);
 
     const daysInMonth = useMemo(() => {
         const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -30,8 +78,8 @@ const MemberCalendarModal: React.FC<MemberCalendarModalProps> = ({ memberData, o
     const startDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
 
     const recordsByDate = useMemo(() => {
-        const map = new Map<string, PerformanceRecord[]>();
-        memberData.records.forEach(record => {
+        const map = new Map<string, typeof records>();
+        records.forEach(record => {
             const localDate = new Date(record.date);
             const dateStr = getLocalDateString(localDate);
             if (!map.has(dateStr)) {
@@ -40,7 +88,7 @@ const MemberCalendarModal: React.FC<MemberCalendarModalProps> = ({ memberData, o
             map.get(dateStr)?.push(record);
         });
         return map;
-    }, [memberData.records]);
+    }, [records]);
 
     const selectedDayRecords = useMemo(() => {
         if (!selectedDate) return [];
@@ -104,7 +152,11 @@ const MemberCalendarModal: React.FC<MemberCalendarModalProps> = ({ memberData, o
                     <h3 className={`text-md font-semibold border-b ${commonStyles.divider} pb-2 mb-3`}>
                         {selectedDate ? `${selectedDate.toLocaleDateString('ko-KR')}` : '날짜를 선택하세요'}
                     </h3>
-                    {selectedDayRecords.length > 0 ? (
+                    {isLoading ? (
+                        <div className="flex justify-center items-center py-10">
+                            <div className={`${commonStyles.spinner} w-8 h-8`}></div>
+                        </div>
+                    ) : selectedDayRecords.length > 0 ? (
                         <div className="space-y-3">
                             {selectedDayRecords.map(record => (
                                 <div key={record.id} className="w-full text-left bg-gray-900/50 p-3 rounded-lg">
