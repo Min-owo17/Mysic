@@ -3,11 +3,12 @@
 프로필 조회, 수정, 회원 탈퇴 기능 제공
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_, and_, desc
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.security import get_password_hash, verify_password
@@ -24,7 +25,9 @@ from app.schemas.users import (
     ChangePasswordRequest,
     MessageResponse,
     UserProfileInstrumentResponse,
-    UserProfileUserTypeResponse
+    UserProfileUserTypeResponse,
+    UserSearchResponse,
+    UserSearchListResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -416,5 +419,70 @@ async def delete_my_account(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="회원 탈퇴 중 오류가 발생했습니다."
+        )
+
+
+@router.get("/search", response_model=UserSearchListResponse)
+async def search_users(
+    nickname: str = Query(..., min_length=1, description="검색할 닉네임"),
+    page: int = Query(1, ge=1, description="페이지 번호"),
+    page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    사용자 검색 (닉네임으로 검색)
+    
+    - 닉네임으로 사용자 검색
+    - Soft Delete된 사용자 제외
+    - 비활성화된 사용자 제외
+    - 페이지네이션 지원
+    """
+    try:
+        # 검색 쿼리: 닉네임에 검색어가 포함된 사용자
+        query = db.query(User).filter(
+            and_(
+                User.nickname.ilike(f"%{nickname}%"),
+                User.deleted_at.is_(None),  # Soft Delete 필터링
+                User.is_active == True,
+                User.user_id != current_user.user_id  # 자기 자신 제외
+            )
+        )
+        
+        # 총 개수 계산
+        total = query.count()
+        
+        # 페이지네이션
+        offset = (page - 1) * page_size
+        users = query.order_by(desc(User.last_login_at), desc(User.created_at))\
+            .offset(offset)\
+            .limit(page_size)\
+            .all()
+        
+        # 응답 생성
+        user_responses = [
+            UserSearchResponse(
+                user_id=user.user_id,
+                nickname=user.nickname,
+                profile_image_url=user.profile_image_url
+            )
+            for user in users
+        ]
+        
+        total_pages = (total + page_size - 1) // page_size
+        
+        return UserSearchListResponse(
+            users=user_responses,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages
+        )
+    
+    except Exception as e:
+        logger.error(f"사용자 검색 오류: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="사용자 검색 중 오류가 발생했습니다."
         )
 

@@ -56,5 +56,27 @@ export const usersApi = {
     const response = await apiClient.delete<MessageResponse>('/users/me');
     return response.data;
   },
+
+  /**
+   * 사용자 검색 (닉네임으로 검색)
+   */
+  searchUsers: async (params: {
+    nickname: string;
+    page?: number;
+    page_size?: number;
+  }): Promise<{
+    users: Array<{
+      user_id: number;
+      nickname: string;
+      profile_image_url?: string | null;
+    }>;
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  }> => {
+    const response = await apiClient.get('/users/search', { params });
+    return response.data;
+  },
 };
 

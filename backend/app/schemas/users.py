@@ -162,3 +162,32 @@ class MessageResponse(BaseModel):
             }
         }
 
+
+class UserSearchResponse(BaseModel):
+    """사용자 검색 응답 스키마"""
+    user_id: int
+    nickname: str
+    profile_image_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UserSearchListResponse(BaseModel):
+    """사용자 검색 목록 응답 스키마"""
+    users: List[UserSearchResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "users": [],
+                "total": 0,
+                "page": 1,
+                "page_size": 20,
+                "total_pages": 0
+            }
+        }

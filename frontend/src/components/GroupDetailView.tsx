@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { groupsApi, Group, GroupMember } from '../services/api/groups';
+import { usersApi } from '../services/api/users';
 import { useAppContext } from '../context/AppContext';
 import { useAuthStore } from '../store/slices/authSlice';
 import { formatTime } from '../utils/time';
@@ -79,10 +80,32 @@ const InviteMemberModal: React.FC<{
     group: Group;
     onClose: () => void;
 }> = ({ group, onClose }) => {
-    const { allUsers, sendGroupInvitation, userProfile } = useAppContext();
+    const { userProfile } = useAppContext();
+    const { user } = useAuthStore();
+    const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
-    const [invitedMembers, setInvitedMembers] = useState<string[]>([]);
+    const [invitedMembers, setInvitedMembers] = useState<number[]>([]); // user_id로 변경
+    const [searchPage, setSearchPage] = useState(1);
     const modalRef = useRef<HTMLDivElement>(null);
+
+    // 그룹 멤버 목록 조회 (이미 가입한 멤버 제외용)
+    const { data: membersData } = useQuery({
+        queryKey: ['groups', group.group_id, 'members'],
+        queryFn: () => groupsApi.getGroupMembers(group.group_id),
+        staleTime: 1 * 60 * 1000, // 1분
+    });
+
+    // 사용자 검색 API 호출
+    const { data: searchUsersData, isLoading: isLoadingSearch } = useQuery({
+        queryKey: ['users', 'search', searchQuery, searchPage],
+        queryFn: () => usersApi.searchUsers({
+            nickname: searchQuery,
+            page: searchPage,
+            page_size: 20,
+        }),
+        enabled: searchQuery.trim().length > 0,
+        staleTime: 30 * 1000, // 30초
+    });
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -94,28 +117,43 @@ const InviteMemberModal: React.FC<{
         return () => document.removeEventListener('mousedown', handleClickOutside, true);
     }, [onClose]);
 
+    // 검색 결과에서 이미 그룹 멤버인 사용자 제외
     const searchableUsers = React.useMemo(() => {
-        // TODO: 실제 API에서 사용자 목록을 가져와야 함
-        const currentMemberNames = new Set([userProfile.nickname]);
+        if (!searchUsersData?.users) return [];
         
-        let users = allUsers.filter(u => !currentMemberNames.has(u.nickname));
+        const currentMemberIds = new Set(
+            membersData?.members.map(m => m.user_id) || []
+        );
         
-        if (searchQuery.trim() !== '') {
-            const lowercasedQuery = searchQuery.toLowerCase();
-            users = users.filter(u => 
-                u.nickname.toLowerCase().includes(lowercasedQuery) ||
-                u.userCode.toLowerCase().includes(lowercasedQuery)
-            );
-        }
-        return users;
-    }, [allUsers, searchQuery, userProfile.nickname]);
-    
+        const currentUserId = user?.user_id;
+        return searchUsersData.users.filter(
+            u => !currentMemberIds.has(u.user_id) && (currentUserId ? u.user_id !== currentUserId : true)
+        );
+    }, [searchUsersData, membersData, user]);
 
-    const handleInvite = (memberName: string) => {
+    // 그룹 초대 Mutation (실제 API가 구현되면 사용)
+    const inviteMemberMutation = useMutation({
+        mutationFn: async (user_id: number) => {
+            // TODO: 실제 그룹 초대 API가 구현되면 사용
+            // await groupsApi.inviteMember(group.group_id, user_id);
+            return { user_id };
+        },
+        onSuccess: (data) => {
+            setInvitedMembers(prev => [...prev, data.user_id]);
+            toast.success('초대를 보냈습니다.');
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || '초대 전송에 실패했습니다.');
+        },
+    });
+
+    const handleInvite = (user_id: number, nickname: string) => {
+        if (invitedMembers.includes(user_id)) {
+            return;
+        }
         // TODO: 실제 API 연동 필요
-        sendGroupInvitation(group.group_id.toString(), memberName);
-        setInvitedMembers(prev => [...prev, memberName]);
-        toast.success(`${memberName}님에게 초대를 보냈습니다.`);
+        inviteMemberMutation.mutate(user_id);
+        toast.success(`${nickname}님에게 초대를 보냈습니다.`);
     };
 
     return (
@@ -126,10 +164,18 @@ const InviteMemberModal: React.FC<{
                     <div className="relative mt-3">
                         <input
                             type="text"
-                            placeholder="닉네임 또는 고유 코드로 검색..."
+                            placeholder="닉네임으로 검색..."
                             value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
+                            onChange={e => {
+                                setSearchQuery(e.target.value);
+                                setSearchPage(1); // 검색어 변경 시 페이지 리셋
+                            }}
                             className={`${commonStyles.textInputDarkerP3} pl-10`}
+                            onKeyPress={(e) => {
+                                if (e.key === 'Enter' && searchQuery.trim()) {
+                                    setSearchPage(1);
+                                }
+                            }}
                         />
                         <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -138,29 +184,73 @@ const InviteMemberModal: React.FC<{
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                    {searchableUsers.length > 0 ? searchableUsers.map(user => {
-                        const isInvited = invitedMembers.includes(user.nickname);
-                        return (
-                            <div key={user.userCode} className="flex items-center justify-between bg-gray-900/50 p-3 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                    <img src={user.profilePicture || defaultAvatar(user.nickname)} alt={user.nickname} className="w-10 h-10 rounded-full bg-gray-700" />
-                                    <div>
-                                        <p className="font-semibold text-gray-200">{user.nickname}</p>
-                                        {user.title && <p className="text-xs text-yellow-300">{user.title}</p>}
+                    {isLoadingSearch ? (
+                        <div className="flex justify-center items-center py-10">
+                            <div className={`${commonStyles.spinner} w-8 h-8`}></div>
+                        </div>
+                    ) : searchQuery.trim() ? (
+                        searchableUsers.length > 0 ? (
+                            <>
+                                {searchableUsers.map(user => {
+                                    const isInvited = invitedMembers.includes(user.user_id);
+                                    return (
+                                        <div key={user.user_id} className="flex items-center justify-between bg-gray-900/50 p-3 rounded-lg">
+                                            <div className="flex items-center gap-3">
+                                                <img 
+                                                    src={user.profile_image_url || defaultAvatar(user.nickname)} 
+                                                    alt={user.nickname} 
+                                                    className="w-10 h-10 rounded-full bg-gray-700 object-cover" 
+                                                />
+                                                <div>
+                                                    <p className="font-semibold text-gray-200">{user.nickname}</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleInvite(user.user_id, user.nickname)}
+                                                disabled={isInvited || inviteMemberMutation.isPending}
+                                                className={`text-sm font-semibold py-1.5 px-4 rounded-md transition-colors ${
+                                                    isInvited 
+                                                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                                                        : 'bg-indigo-600 text-white hover:bg-indigo-500'
+                                                }`}
+                                            >
+                                                {isInvited ? '초대 보냄' : '초대 보내기'}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                                
+                                {/* 페이지네이션 */}
+                                {searchUsersData && searchUsersData.total_pages > 1 && (
+                                    <div className="flex justify-center items-center gap-2 mt-4 pt-4 border-t border-gray-700">
+                                        <button
+                                            onClick={() => setSearchPage(p => Math.max(1, p - 1))}
+                                            disabled={searchPage === 1}
+                                            className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-3 py-1 text-sm`}
+                                        >
+                                            이전
+                                        </button>
+                                        <span className="text-sm text-gray-400">
+                                            {searchPage} / {searchUsersData.total_pages}
+                                        </span>
+                                        <button
+                                            onClick={() => setSearchPage(p => Math.min(searchUsersData.total_pages, p + 1))}
+                                            disabled={searchPage === searchUsersData.total_pages}
+                                            className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-3 py-1 text-sm`}
+                                        >
+                                            다음
+                                        </button>
                                     </div>
-                                </div>
-                                <button
-                                    onClick={() => handleInvite(user.nickname)}
-                                    disabled={isInvited}
-                                    className={`text-sm font-semibold py-1.5 px-4 rounded-md transition-colors ${isInvited ? 'bg-gray-600 text-gray-400' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}
-                                >
-                                    {isInvited ? '초대 보냄' : '초대 보내기'}
-                                </button>
-                            </div>
-                        );
-                    }) : (
+                                )}
+                            </>
+                        ) : (
+                            <p className="text-gray-500 text-center py-8">
+                                검색 결과가 없습니다.
+                            </p>
+                        )
+                    ) : (
                         <p className="text-gray-500 text-center py-8">
-                            {searchQuery ? '검색 결과가 없습니다.' : '초대할 사용자를 검색하세요.'}
+                            닉네임을 입력하여 사용자를 검색하세요.
                         </p>
                     )}
                 </div>
@@ -253,11 +343,14 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
     const getMemberData = (member: GroupMember) => {
         const normalizedMemberName = member.nickname;
 
+        // API에서 받은 프로필 이미지 URL 사용
+        const profileImageUrl = member.profile_image_url || defaultAvatar(normalizedMemberName);
+
         if (normalizedMemberName === userProfile.nickname) {
             return {
                 name: userProfile.nickname,
                 user_id: member.user_id,
-                profilePicture: userProfile.profilePicture || defaultAvatar(userProfile.nickname),
+                profilePicture: profileImageUrl,
                 title: userProfile.title,
                 records: myRecords
             };
@@ -269,7 +362,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
         return {
             name: normalizedMemberName,
             user_id: member.user_id,
-            profilePicture: profile.profilePicture || defaultAvatar(normalizedMemberName),
+            profilePicture: profileImageUrl,
             title: profile.title,
             records: mockData.records.map((r, i) => ({ ...r, id: `mock-${normalizedMemberName}-${i}` })),
         };
