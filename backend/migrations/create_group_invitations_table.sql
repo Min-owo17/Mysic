@@ -8,11 +8,11 @@ CREATE TABLE group_invitations (
     invitee_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'accepted', 'declined', 'expired'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     
     -- 같은 그룹에 대한 중복 초대 방지 (pending 상태인 경우만)
-    -- 주의: 이 제약조건은 pending 상태인 경우만 적용되므로, 부분 유니크 인덱스를 사용하는 것이 더 적절할 수 있습니다.
-    -- 하지만 PostgreSQL에서는 부분 유니크 제약조건을 직접 지원하지 않으므로, 애플리케이션 레벨에서 중복 체크를 수행합니다.
+    -- 주의: 부분 유니크 인덱스를 사용하여 pending 상태인 경우만 중복을 방지합니다.
+    -- 아래 인덱스 섹션에서 CREATE UNIQUE INDEX로 구현됩니다.
 );
 
 -- 인덱스 생성
