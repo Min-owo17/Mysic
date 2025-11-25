@@ -133,6 +133,7 @@ class CommentResponse(BaseModel):
     like_count: int
     is_liked: bool = False  # 현재 사용자가 좋아요를 눌렀는지 여부
     replies: List['CommentResponse'] = []  # 답글 목록
+    deleted_at: Optional[datetime] = None  # 삭제된 댓글인 경우 삭제 시간
     created_at: datetime
     updated_at: Optional[datetime] = None  # 수정된 적이 없으면 None
 

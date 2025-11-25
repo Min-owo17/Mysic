@@ -60,6 +60,7 @@ export interface PostComment {
   like_count: number;
   is_liked: boolean;
   replies: PostComment[];
+  deleted_at?: string | null;  // 삭제된 댓글인 경우 삭제 시간
   created_at: string;
   updated_at?: string | null;  // 수정된 적이 없으면 null
 }

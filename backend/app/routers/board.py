@@ -113,6 +113,7 @@ def _build_comment_response(comment: Comment, current_user_id: Optional[int] = N
         like_count=comment.like_count,
         is_liked=is_liked,
         replies=replies,
+        deleted_at=comment.deleted_at,
         created_at=comment.created_at,
         updated_at=comment.updated_at
     )
@@ -429,6 +430,7 @@ async def get_comments(
         )
     
     # 부모 댓글만 조회 (parent_comment_id가 NULL인 댓글)
+    # 삭제된 댓글도 포함하여 "삭제된 댓글입니다" 메시지를 표시하기 위해 필터링하지 않음
     comments = db.query(Comment).filter(
         and_(
             Comment.post_id == post_id,
@@ -440,7 +442,7 @@ async def get_comments(
     for comment in comments:
         _ = comment.user
         _ = comment.likes
-        # 답글도 로드
+        # 답글도 로드 (삭제된 답글 포함)
         if hasattr(comment, 'replies'):
             for reply in comment.replies:
                 _ = reply.user
@@ -498,6 +500,13 @@ async def create_comment(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="부모 댓글이 해당 게시글에 속하지 않습니다."
             )
+        
+        # 삭제된 댓글에는 답글 작성 불가
+        if parent_comment.deleted_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="삭제된 댓글에는 답글을 작성할 수 없습니다."
+            )
     
     # 댓글 생성
     # updated_at은 None으로 설정하여 신규 댓글임을 명확히 표시
@@ -533,8 +542,14 @@ async def update_comment(
     """
     댓글 수정
     - 작성자만 수정 가능
+    - 삭제된 댓글은 수정 불가
     """
-    comment = db.query(Comment).filter(Comment.comment_id == comment_id).first()
+    comment = db.query(Comment).filter(
+        and_(
+            Comment.comment_id == comment_id,
+            Comment.deleted_at.is_(None)  # 삭제된 댓글은 수정 불가
+        )
+    ).first()
     
     if not comment:
         raise HTTPException(
@@ -572,11 +587,17 @@ async def delete_comment(
     db: Session = Depends(get_db)
 ):
     """
-    댓글 삭제
+    댓글 삭제 (Soft Delete)
     - 작성자만 삭제 가능
-    - CASCADE로 답글도 함께 삭제됨
+    - deleted_at 필드에 현재 시간 설정
+    - 하위 댓글(답글)은 삭제하지 않고 유지 (이력 보존)
     """
-    comment = db.query(Comment).filter(Comment.comment_id == comment_id).first()
+    comment = db.query(Comment).filter(
+        and_(
+            Comment.comment_id == comment_id,
+            Comment.deleted_at.is_(None)  # 이미 삭제된 댓글은 조회 불가
+        )
+    ).first()
     
     if not comment:
         raise HTTPException(
@@ -591,7 +612,9 @@ async def delete_comment(
             detail="댓글을 삭제할 권한이 없습니다."
         )
     
-    db.delete(comment)
+    # Soft Delete
+    # 하위 댓글(답글)은 삭제하지 않고 유지하여 이력을 보존
+    comment.deleted_at = datetime.utcnow()
     db.commit()
     
     logger.info(f"댓글 삭제 완료: comment_id={comment_id}, user_id={current_user.user_id}")
@@ -608,8 +631,14 @@ async def toggle_comment_like(
     """
     댓글 좋아요 토글
     - 이미 좋아요를 누른 경우 취소, 안 누른 경우 추가
+    - 삭제된 댓글은 좋아요 불가
     """
-    comment = db.query(Comment).filter(Comment.comment_id == comment_id).first()
+    comment = db.query(Comment).filter(
+        and_(
+            Comment.comment_id == comment_id,
+            Comment.deleted_at.is_(None)  # 삭제된 댓글은 좋아요 불가
+        )
+    ).first()
     
     if not comment:
         raise HTTPException(

@@ -218,6 +218,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
     const isCommentLiked = comment.is_liked;
     const commentAuthorProfile = getProfile(comment.author.nickname);
     const isCommentAuthor = user ? comment.user_id === user.user_id : false;
+    const isDeleted = !!comment.deleted_at;
 
     return (
       <div key={comment.comment_id} className={depth > 0 ? 'ml-8 mt-3' : ''}>
@@ -248,63 +249,70 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {depth === 0 && (
-                <button 
-                  onClick={() => {
-                    setReplyingTo(replyingTo === comment.comment_id ? null : comment.comment_id);
-                    setReplyContent('');
-                  }} 
-                  className="text-xs text-gray-400 hover:text-white font-semibold"
-                >
-                  답글
-                </button>
-              )}
-              <button 
-                onClick={() => toggleCommentLikeMutation.mutate(comment.comment_id)} 
-                className={`flex items-center gap-1.5 text-sm transition-colors duration-200 ${isCommentLiked ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
-              >
-                <HeartIcon filled={isCommentLiked} className="h-4 w-4" />
-                <span>{comment.like_count || 0}</span>
-              </button>
-              {isCommentAuthor && (
-                <>
+            {!isDeleted && (
+              <div className="flex items-center gap-3">
+                {depth === 0 && (
                   <button 
                     onClick={() => {
-                      setEditingCommentId(comment.comment_id);
-                      setEditingCommentContent(comment.content);
-                      setReplyingTo(null); // 답글 모드 취소
-                    }}
-                    className="text-gray-500 hover:text-blue-400"
-                    aria-label="댓글 수정"
+                      setReplyingTo(replyingTo === comment.comment_id ? null : comment.comment_id);
+                      setReplyContent('');
+                    }} 
+                    className="text-xs text-gray-400 hover:text-white font-semibold"
                   >
-                    <PencilIcon />
+                    답글
                   </button>
-                  <button 
-                    onClick={() => {
-                      if (window.confirm('댓글을 삭제하시겠습니까?')) {
-                        deleteCommentMutation.mutate(comment.comment_id);
-                      }
-                    }}
-                    className="text-gray-500 hover:text-red-400"
-                    aria-label="댓글 삭제"
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </button>
-                </>
-              )}
-              {!isCommentAuthor && (
+                )}
                 <button 
-                  onClick={() => setReportingItem({ id: comment.comment_id, type: 'comment' })} 
-                  className="text-gray-500 hover:text-red-400" 
-                  aria-label="댓글 신고"
+                  onClick={() => toggleCommentLikeMutation.mutate(comment.comment_id)} 
+                  className={`flex items-center gap-1.5 text-sm transition-colors duration-200 ${isCommentLiked ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
                 >
-                  <SirenIcon className="h-4 w-4" />
+                  <HeartIcon filled={isCommentLiked} className="h-4 w-4" />
+                  <span>{comment.like_count || 0}</span>
                 </button>
-              )}
-            </div>
+                {isCommentAuthor && (
+                  <>
+                    <button 
+                      onClick={() => {
+                        setEditingCommentId(comment.comment_id);
+                        setEditingCommentContent(comment.content);
+                        setReplyingTo(null); // 답글 모드 취소
+                      }}
+                      className="text-gray-500 hover:text-blue-400"
+                      aria-label="댓글 수정"
+                    >
+                      <PencilIcon />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('댓글을 삭제하시겠습니까?')) {
+                          deleteCommentMutation.mutate(comment.comment_id);
+                        }
+                      }}
+                      className="text-gray-500 hover:text-red-400"
+                      aria-label="댓글 삭제"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+                {!isCommentAuthor && (
+                  <button 
+                    onClick={() => setReportingItem({ id: comment.comment_id, type: 'comment' })} 
+                    className="text-gray-500 hover:text-red-400" 
+                    aria-label="댓글 신고"
+                  >
+                    <SirenIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-          {editingCommentId === comment.comment_id ? (
+          {isDeleted ? (
+            // 삭제된 댓글 표시 모드
+            <p className={`text-gray-500 italic mt-2 ${depth > 0 ? 'text-sm pl-8' : 'pl-11'}`}>
+              삭제된 댓글입니다
+            </p>
+          ) : editingCommentId === comment.comment_id ? (
             // 수정 모드
             <div className="mt-3 pl-11">
               <textarea
@@ -348,7 +356,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
         </div>
         
         {/* 답글 입력 폼 */}
-        {replyingTo === comment.comment_id && (
+        {replyingTo === comment.comment_id && !isDeleted && (
           <div className="ml-8 mt-3 pl-4 border-l-2 border-gray-700/50">
             <div className="flex gap-2">
               <textarea

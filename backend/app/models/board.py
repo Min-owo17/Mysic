@@ -40,9 +40,11 @@ class Comment(Base):
     comment_id = Column(Integer, primary_key=True, index=True)
     post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
-    parent_comment_id = Column(Integer, ForeignKey("comments.comment_id", ondelete="CASCADE"), nullable=True, index=True)
+    # parent_comment_id: 부모 댓글 참조 (soft delete 사용으로 하위 댓글은 항상 유지됨)
+    parent_comment_id = Column(Integer, ForeignKey("comments.comment_id"), nullable=True, index=True)
     content = Column(Text, nullable=False)
     like_count = Column(Integer, default=0)
+    deleted_at = Column(TIMESTAMP, nullable=True, index=True)  # Soft delete
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.now())  # 수정 시에만 값이 설정됨
 
