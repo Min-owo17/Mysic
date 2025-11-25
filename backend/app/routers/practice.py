@@ -155,6 +155,7 @@ async def get_practice_sessions(
     start_date: Optional[date] = Query(None, description="시작 날짜"),
     end_date: Optional[date] = Query(None, description="종료 날짜"),
     instrument: Optional[str] = Query(None, description="악기 필터"),
+    user_id: Optional[int] = Query(None, description="사용자 ID (그룹 멤버 조회용, 그룹 멤버인 경우만 가능)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -164,18 +165,38 @@ async def get_practice_sessions(
     - 날짜 범위 필터링
     - 악기별 필터링
     - 메모리 최적화: page_size 최대값 100으로 강제 제한
+    - user_id 파라미터: 다른 사용자의 기록 조회 (같은 그룹 멤버인 경우만 가능)
     """
     # 메모리 최적화: page_size 최대값 강제 적용
     if page_size > 100:
         page_size = 100
-    """
-    연습 기록 목록 조회
-    - 페이지네이션 지원
-    - 날짜 범위 필터링
-    - 악기별 필터링
-    """
+    
+    # 조회할 사용자 ID 결정
+    target_user_id = user_id if user_id else current_user.user_id
+    
+    # 다른 사용자의 기록을 조회하는 경우, 같은 그룹 멤버인지 확인
+    if target_user_id != current_user.user_id:
+        from app.models.group import GroupMember
+        # 같은 그룹에 속해있는지 확인
+        common_groups = db.query(GroupMember.group_id).filter(
+            and_(
+                GroupMember.user_id == current_user.user_id,
+                GroupMember.group_id.in_(
+                    db.query(GroupMember.group_id).filter(
+                        GroupMember.user_id == target_user_id
+                    )
+                )
+            )
+        ).first()
+        
+        if not common_groups:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="같은 그룹의 멤버만 연습 기록을 조회할 수 있습니다."
+            )
+    
     query = db.query(PracticeSession).filter(
-        PracticeSession.user_id == current_user.user_id
+        PracticeSession.user_id == target_user_id
     )
     
     # 날짜 필터

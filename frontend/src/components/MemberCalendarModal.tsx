@@ -47,11 +47,38 @@ const MemberCalendarModal: React.FC<MemberCalendarModalProps> = ({ memberData, o
 
     const { data: sessionsData, isLoading } = useQuery({
         queryKey: ['practice', 'sessions', memberData.user_id, startDate, endDate],
-        queryFn: () => practiceApi.getSessions({
-            start_date: startDate,
-            end_date: endDate,
-            page_size: 1000, // 충분히 큰 값
-        }),
+        queryFn: async () => {
+            // 여러 페이지를 조회하여 모든 데이터 가져오기
+            const allSessions: any[] = [];
+            let page = 1;
+            let hasMore = true;
+            
+            while (hasMore) {
+                const response = await practiceApi.getSessions({
+                    start_date: startDate,
+                    end_date: endDate,
+                    page_size: 100, // 백엔드 최대값
+                    page: page,
+                    user_id: memberData.user_id, // 다른 사용자의 기록 조회
+                });
+                
+                allSessions.push(...response.sessions);
+                
+                // 더 이상 데이터가 없으면 종료
+                if (response.sessions.length < response.page_size || page * response.page_size >= response.total) {
+                    hasMore = false;
+                } else {
+                    page++;
+                }
+            }
+            
+            return {
+                sessions: allSessions,
+                total: allSessions.length,
+                page: 1,
+                page_size: allSessions.length,
+            };
+        },
         enabled: !!memberData.user_id,
         staleTime: 1 * 60 * 1000, // 1분
     });

@@ -33,6 +33,7 @@ export const practiceApi = {
     start_date?: string;
     end_date?: string;
     instrument?: string;
+    user_id?: number; // 그룹 멤버의 기록 조회용
   }): Promise<PracticeSessionListResponse> => {
     const response = await apiClient.get<PracticeSessionListResponse>('/practice/sessions', { params });
     return response.data;
