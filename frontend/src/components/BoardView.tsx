@@ -494,7 +494,7 @@ const BoardView: React.FC = () => {
                     </div>
                   )}
                   <div className="flex items-center gap-3 mb-2">
-                      <img src={authorProfile?.profilePicture || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-9 h-9 rounded-full bg-gray-700" />
+                      <img src={post.author.profile_image_url || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-9 h-9 rounded-full bg-gray-700" />
                       <div>
                           <p className="font-semibold text-gray-200 leading-tight">{post.author.nickname}</p>
                           {authorProfile?.title && <p className="text-xs text-yellow-300 leading-tight">{authorProfile.title}</p>}

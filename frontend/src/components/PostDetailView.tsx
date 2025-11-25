@@ -234,7 +234,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <img 
-                src={commentAuthorProfile?.profilePicture || defaultAvatar(comment.author.nickname)} 
+                src={comment.author.profile_image_url || defaultAvatar(comment.author.nickname)} 
                 alt={comment.author.nickname} 
                 className={`${depth > 0 ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-gray-700`} 
               />
@@ -529,7 +529,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
               </div>
             </div>
             <div className="flex items-center gap-3 mt-3">
-              <img src={authorProfile?.profilePicture || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-10 h-10 rounded-full bg-gray-700" />
+              <img src={post.author.profile_image_url || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-10 h-10 rounded-full bg-gray-700" />
               <div>
                   <p className="font-semibold text-gray-200">{post.author.nickname}</p>
                   {authorProfile?.title && <p className="text-xs text-yellow-300">{authorProfile.title}</p>}
