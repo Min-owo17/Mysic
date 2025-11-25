@@ -255,6 +255,211 @@ async def create_group(
         )
 
 
+# ========== 그룹 초대 API (경로 매칭 순서를 위해 먼저 정의) ==========
+
+@router.get("/invitations", response_model=GroupInvitationListResponse)
+async def get_group_invitations(
+    status: Optional[str] = Query(None, description="초대 상태 필터 (pending, accepted, declined, expired)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    내가 받은 그룹 초대 목록 조회
+    - 현재 사용자가 받은 초대만 조회합니다.
+    - status 파라미터는 선택사항이며, 제공되지 않으면 모든 상태의 초대를 조회합니다.
+    """
+    try:
+        query = db.query(GroupInvitation).options(
+            joinedload(GroupInvitation.group),
+            joinedload(GroupInvitation.inviter),
+            joinedload(GroupInvitation.invitee)
+        ).filter(
+            GroupInvitation.invitee_id == current_user.user_id
+        )
+        
+        # 상태 필터
+        if status:
+            if status not in ['pending', 'accepted', 'declined', 'expired']:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="유효하지 않은 상태 값입니다."
+                )
+            query = query.filter(GroupInvitation.status == status)
+        
+        # 최신순 정렬
+        invitations = query.order_by(desc(GroupInvitation.created_at)).all()
+        
+        invitation_responses = [
+            _build_group_invitation_response(invitation)
+            for invitation in invitations
+        ]
+        
+        return GroupInvitationListResponse(
+            invitations=invitation_responses,
+            total=len(invitation_responses)
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"그룹 초대 목록 조회 중 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="그룹 초대 목록을 조회하는 중 오류가 발생했습니다."
+        )
+
+
+@router.post("/invitations/{invitation_id}/accept", response_model=MessageResponse)
+async def accept_group_invitation(
+    invitation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    그룹 초대 수락
+    - 초대를 받은 사용자만 수락할 수 있습니다.
+    - 수락 시 자동으로 그룹 멤버로 추가됩니다.
+    """
+    try:
+        # 초대 조회
+        invitation = db.query(GroupInvitation).options(
+            joinedload(GroupInvitation.group)
+        ).filter(GroupInvitation.invitation_id == invitation_id).first()
+        
+        if not invitation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="초대를 찾을 수 없습니다."
+            )
+        
+        # 권한 확인: 초대받은 사용자만 수락 가능
+        if invitation.invitee_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="초대를 받은 사용자만 수락할 수 있습니다."
+            )
+        
+        # 상태 확인
+        if invitation.status != 'pending':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"이미 처리된 초대입니다. (현재 상태: {invitation.status})"
+            )
+        
+        # 그룹 조회
+        group = invitation.group
+        
+        # 이미 멤버인지 확인
+        existing_member = db.query(GroupMember).filter(
+            and_(
+                GroupMember.group_id == group.group_id,
+                GroupMember.user_id == current_user.user_id
+            )
+        ).first()
+        
+        if existing_member:
+            # 이미 멤버인 경우 초대 상태만 업데이트
+            invitation.status = 'accepted'
+            db.commit()
+            logger.info(f"그룹 초대 수락 완료 (이미 멤버): invitation_id={invitation_id}")
+            return MessageResponse(message="이미 그룹 멤버입니다.")
+        
+        # 멤버 수 확인
+        current_member_count = db.query(GroupMember).filter(
+            GroupMember.group_id == group.group_id
+        ).count()
+        
+        if current_member_count >= group.max_members:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="그룹이 가득 찼습니다."
+            )
+        
+        # 그룹 멤버로 추가
+        new_member = GroupMember(
+            group_id=group.group_id,
+            user_id=current_user.user_id,
+            role='member'
+        )
+        db.add(new_member)
+        
+        # 초대 상태 업데이트
+        invitation.status = 'accepted'
+        
+        db.commit()
+        
+        logger.info(f"그룹 초대 수락 완료: invitation_id={invitation_id}, group_id={group.group_id}, user_id={current_user.user_id}")
+        
+        return MessageResponse(message="그룹 초대를 수락했습니다.")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"그룹 초대 수락 중 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="그룹 초대 수락 중 오류가 발생했습니다."
+        )
+
+
+@router.post("/invitations/{invitation_id}/decline", response_model=MessageResponse)
+async def decline_group_invitation(
+    invitation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    그룹 초대 거절
+    - 초대를 받은 사용자만 거절할 수 있습니다.
+    """
+    try:
+        # 초대 조회
+        invitation = db.query(GroupInvitation).filter(
+            GroupInvitation.invitation_id == invitation_id
+        ).first()
+        
+        if not invitation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="초대를 찾을 수 없습니다."
+            )
+        
+        # 권한 확인: 초대받은 사용자만 거절 가능
+        if invitation.invitee_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="초대를 받은 사용자만 거절할 수 있습니다."
+            )
+        
+        # 상태 확인
+        if invitation.status != 'pending':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"이미 처리된 초대입니다. (현재 상태: {invitation.status})"
+            )
+        
+        # 초대 상태 업데이트
+        invitation.status = 'declined'
+        db.commit()
+        
+        logger.info(f"그룹 초대 거절 완료: invitation_id={invitation_id}")
+        
+        return MessageResponse(message="그룹 초대를 거절했습니다.")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"그룹 초대 거절 중 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="그룹 초대 거절 중 오류가 발생했습니다."
+        )
+
+
+# ========== 그룹 상세 조회 (경로 매칭 순서상 {group_id} 패턴은 나중에 정의) ==========
+
 @router.get("/{group_id}", response_model=GroupResponse)
 async def get_group(
     group_id: int,
@@ -839,206 +1044,5 @@ async def create_group_invitation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="그룹 초대 생성 중 오류가 발생했습니다."
-        )
-
-
-@router.get("/invitations", response_model=GroupInvitationListResponse)
-async def get_group_invitations(
-    status: Optional[str] = Query(None, description="초대 상태 필터 (pending, accepted, declined, expired)"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    내가 받은 그룹 초대 목록 조회
-    - 현재 사용자가 받은 초대만 조회합니다.
-    - status 파라미터는 선택사항이며, 제공되지 않으면 모든 상태의 초대를 조회합니다.
-    """
-    try:
-        query = db.query(GroupInvitation).options(
-            joinedload(GroupInvitation.group),
-            joinedload(GroupInvitation.inviter),
-            joinedload(GroupInvitation.invitee)
-        ).filter(
-            GroupInvitation.invitee_id == current_user.user_id
-        )
-        
-        # 상태 필터
-        if status:
-            if status not in ['pending', 'accepted', 'declined', 'expired']:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="유효하지 않은 상태 값입니다."
-                )
-            query = query.filter(GroupInvitation.status == status)
-        
-        # 최신순 정렬
-        invitations = query.order_by(desc(GroupInvitation.created_at)).all()
-        
-        invitation_responses = [
-            _build_group_invitation_response(invitation)
-            for invitation in invitations
-        ]
-        
-        return GroupInvitationListResponse(
-            invitations=invitation_responses,
-            total=len(invitation_responses)
-        )
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"그룹 초대 목록 조회 중 오류 발생: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="그룹 초대 목록을 조회하는 중 오류가 발생했습니다."
-        )
-
-
-@router.post("/invitations/{invitation_id}/accept", response_model=MessageResponse)
-async def accept_group_invitation(
-    invitation_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    그룹 초대 수락
-    - 초대를 받은 사용자만 수락할 수 있습니다.
-    - 수락 시 자동으로 그룹 멤버로 추가됩니다.
-    """
-    try:
-        # 초대 조회
-        invitation = db.query(GroupInvitation).options(
-            joinedload(GroupInvitation.group)
-        ).filter(GroupInvitation.invitation_id == invitation_id).first()
-        
-        if not invitation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="초대를 찾을 수 없습니다."
-            )
-        
-        # 권한 확인: 초대받은 사용자만 수락 가능
-        if invitation.invitee_id != current_user.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="초대를 받은 사용자만 수락할 수 있습니다."
-            )
-        
-        # 상태 확인
-        if invitation.status != 'pending':
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"이미 처리된 초대입니다. (현재 상태: {invitation.status})"
-            )
-        
-        # 그룹 조회
-        group = invitation.group
-        
-        # 이미 멤버인지 확인
-        existing_member = db.query(GroupMember).filter(
-            and_(
-                GroupMember.group_id == group.group_id,
-                GroupMember.user_id == current_user.user_id
-            )
-        ).first()
-        
-        if existing_member:
-            # 이미 멤버인 경우 초대 상태만 업데이트
-            invitation.status = 'accepted'
-            db.commit()
-            logger.info(f"그룹 초대 수락 완료 (이미 멤버): invitation_id={invitation_id}")
-            return MessageResponse(message="이미 그룹 멤버입니다.")
-        
-        # 멤버 수 확인
-        current_member_count = db.query(GroupMember).filter(
-            GroupMember.group_id == group.group_id
-        ).count()
-        
-        if current_member_count >= group.max_members:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="그룹이 가득 찼습니다."
-            )
-        
-        # 그룹 멤버로 추가
-        new_member = GroupMember(
-            group_id=group.group_id,
-            user_id=current_user.user_id,
-            role='member'
-        )
-        db.add(new_member)
-        
-        # 초대 상태 업데이트
-        invitation.status = 'accepted'
-        
-        db.commit()
-        
-        logger.info(f"그룹 초대 수락 완료: invitation_id={invitation_id}, group_id={group.group_id}, user_id={current_user.user_id}")
-        
-        return MessageResponse(message="그룹 초대를 수락했습니다.")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"그룹 초대 수락 중 오류 발생: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="그룹 초대 수락 중 오류가 발생했습니다."
-        )
-
-
-@router.post("/invitations/{invitation_id}/decline", response_model=MessageResponse)
-async def decline_group_invitation(
-    invitation_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    그룹 초대 거절
-    - 초대를 받은 사용자만 거절할 수 있습니다.
-    """
-    try:
-        # 초대 조회
-        invitation = db.query(GroupInvitation).filter(
-            GroupInvitation.invitation_id == invitation_id
-        ).first()
-        
-        if not invitation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="초대를 찾을 수 없습니다."
-            )
-        
-        # 권한 확인: 초대받은 사용자만 거절 가능
-        if invitation.invitee_id != current_user.user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="초대를 받은 사용자만 거절할 수 있습니다."
-            )
-        
-        # 상태 확인
-        if invitation.status != 'pending':
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"이미 처리된 초대입니다. (현재 상태: {invitation.status})"
-            )
-        
-        # 초대 상태 업데이트
-        invitation.status = 'declined'
-        db.commit()
-        
-        logger.info(f"그룹 초대 거절 완료: invitation_id={invitation_id}")
-        
-        return MessageResponse(message="그룹 초대를 거절했습니다.")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"그룹 초대 거절 중 오류 발생: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="그룹 초대 거절 중 오류가 발생했습니다."
         )
 
