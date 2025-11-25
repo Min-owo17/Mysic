@@ -15,6 +15,7 @@ import { useMemo, useState, useContext, ReactNode, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { View } from './types'
 import { authApi } from './services/api/auth'
+import { useAuthStore } from './store/slices/authSlice'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -62,6 +63,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const queryClient = useQueryClient()
+  const { setUser } = useAuthStore()
 
   // 컴포넌트 마운트 시 토큰 확인
   useEffect(() => {
@@ -69,23 +71,26 @@ function App() {
       const token = localStorage.getItem('access_token')
       if (token) {
         try {
-          // 토큰이 있으면 사용자 정보 확인
-          await authApi.getMe()
+          // 토큰이 있으면 사용자 정보 확인 및 저장
+          const user = await authApi.getMe()
+          setUser(user)
           setIsAuthenticated(true)
         } catch (error) {
           // 토큰이 유효하지 않으면 삭제
           localStorage.removeItem('access_token')
+          setUser(null)
           setIsAuthenticated(false)
           // 캐시도 클리어
           queryClient.clear()
         }
       } else {
+        setUser(null)
         setIsAuthenticated(false)
       }
       setIsCheckingAuth(false)
     }
     checkAuth()
-  }, [queryClient])
+  }, [queryClient, setUser])
 
   const contextValue = useMemo(() => ({
     records: [],

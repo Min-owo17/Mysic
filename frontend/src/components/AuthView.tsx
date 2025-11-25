@@ -6,9 +6,11 @@ import { useAppContext } from '../context/AppContext';
 import { commonStyles } from '../styles/commonStyles';
 import { authApi } from '../services/api/auth';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '../store/slices/authSlice';
 
 const AuthView: React.FC = () => {
     const { login } = useAppContext();
+    const { setUser } = useAuthStore();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [mode, setMode] = useState<'login' | 'signup' | 'forgotPassword'>('login');
@@ -34,6 +36,9 @@ const AuthView: React.FC = () => {
                 
                 // 토큰 저장
                 localStorage.setItem('access_token', response.access_token);
+                
+                // useAuthStore에 사용자 정보 저장
+                setUser(response.user);
                 
                 // 인증 상태 업데이트
                 login();
@@ -78,6 +83,9 @@ const AuthView: React.FC = () => {
                 
                 // 토큰 저장
                 localStorage.setItem('access_token', response.access_token);
+                
+                // useAuthStore에 사용자 정보 저장
+                setUser(response.user);
                 
                 // 인증 상태 업데이트
                 login();
