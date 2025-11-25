@@ -1,26 +1,54 @@
-
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Group } from '../types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { groupsApi, Group, GroupCreate } from '../services/api/groups';
 import GroupDetailView from './GroupDetailView';
 import { useAppContext } from '../context/AppContext';
 import { timeAgo } from '../utils/time';
 import { commonStyles } from '../styles/commonStyles';
+import toast from 'react-hot-toast';
 
 const GroupsView: React.FC = () => {
   const { 
-    groups, addGroup, userProfile, 
+    userProfile, 
     groupNotifications, markGroupNotificationsAsRead, 
     acceptInvitation, declineInvitation 
   } = useAppContext();
+  const queryClient = useQueryClient();
+  
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'search' | 'create'>('search');
-  const [searchId, setSearchId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
-  const [searchResult, setSearchResult] = useState<string | null>(null);
+  const [newGroupDescription, setNewGroupDescription] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+  const [page, setPage] = useState(1);
+
+  // 그룹 목록 조회
+  const { data: groupsData, isLoading, error } = useQuery({
+    queryKey: ['groups', page, searchQuery],
+    queryFn: () => groupsApi.getGroups({
+      page,
+      page_size: 20,
+      search: searchQuery || undefined,
+    }),
+    staleTime: 2 * 60 * 1000, // 2분
+  });
+
+  // 그룹 생성 Mutation
+  const createGroupMutation = useMutation({
+    mutationFn: (data: GroupCreate) => groupsApi.createGroup(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      toast.success('그룹이 생성되었습니다.');
+      handleCloseModal();
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '그룹 생성에 실패했습니다.');
+    },
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -45,39 +73,74 @@ const GroupsView: React.FC = () => {
       });
   };
 
-  const myGroups = groups.filter(g => g.members.includes('You') || g.members.includes(userProfile.nickname));
+  // 내가 가입한 그룹 필터링
+  const myGroups = useMemo(() => {
+    if (!groupsData?.groups) return [];
+    return groupsData.groups.filter(g => g.is_member);
+  }, [groupsData]);
 
   const handleOpenModal = () => {
     setModalMode('search');
-    setSearchId('');
+    setSearchQuery('');
     setNewGroupName('');
-    setSearchResult(null);
+    setNewGroupDescription('');
+    setIsPublic(true);
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setNewGroupName('');
+    setNewGroupDescription('');
+    setIsPublic(true);
   };
 
   const handleCreateGroup = () => {
-    if (newGroupName.trim()) {
-      addGroup(newGroupName);
-      handleCloseModal();
+    if (!newGroupName.trim()) {
+      toast.error('그룹 이름을 입력해주세요.');
+      return;
     }
+    
+    createGroupMutation.mutate({
+      group_name: newGroupName.trim(),
+      description: newGroupDescription.trim() || undefined,
+      is_public: isPublic,
+      max_members: 50,
+    });
   };
   
   const handleSearchGroup = () => {
-      const found = groups.find(g => g.uniqueId === searchId);
-      if (found) {
-          setSearchResult(`'${found.name}' 그룹을 찾았습니다.`);
-      } else {
-          setSearchResult('해당 ID의 그룹을 찾을 수 없습니다.');
-      }
+    // 검색은 queryKey에 searchQuery가 포함되어 있어서 자동으로 재조회됨
+    if (!searchQuery.trim()) {
+      toast.error('검색어를 입력해주세요.');
+      return;
+    }
+    setPage(1);
+    // 검색 쿼리는 useQuery의 queryKey에 포함되어 있어서 자동으로 재조회됨
   };
 
   if (selectedGroup) {
-    const currentGroupData = groups.find(g => g.id === selectedGroup.id) ?? selectedGroup;
-    return <GroupDetailView group={currentGroupData} onBack={() => setSelectedGroup(null)} />;
+    return <GroupDetailView group={selectedGroup} onBack={() => setSelectedGroup(null)} />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className={commonStyles.pageContainer}>
+        <div className="flex justify-center items-center py-20">
+          <div className={`${commonStyles.spinner} w-12 h-12`}></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={commonStyles.pageContainer}>
+        <div className="text-center py-10 text-red-500">
+          <p>그룹 목록을 불러오는 중 오류가 발생했습니다.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -103,31 +166,70 @@ const GroupsView: React.FC = () => {
             <div className="p-6">
               {modalMode === 'search' ? (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-300">고유 번호로 그룹 검색</h3>
+                  <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-300">그룹 검색</h3>
                   <input
                     type="text"
-                    value={searchId}
+                    value={searchQuery}
                     onChange={(e) => {
-                      setSearchId(e.target.value);
-                      setSearchResult(null);
+                      setSearchQuery(e.target.value);
                     }}
                     className={commonStyles.textInputDarkerP3}
-                    placeholder="#JAZZ-001"
+                    placeholder="그룹 이름으로 검색..."
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearchGroup();
+                      }
+                    }}
                   />
-                  {searchResult && <p className="text-sm text-gray-500 dark:text-gray-400 text-center">{searchResult}</p>}
-                  <button onClick={handleSearchGroup} className={`${commonStyles.buttonBase} ${commonStyles.indigoButton}`}>검색</button>
+                  <button 
+                    onClick={handleSearchGroup} 
+                    className={`${commonStyles.buttonBase} ${commonStyles.indigoButton}`}
+                    disabled={!searchQuery.trim()}
+                  >
+                    검색
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-300">새 그룹 만들기</h3>
-                  <input
-                    type="text"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    className={commonStyles.textInputDarkerP3}
-                    placeholder="그룹 이름"
-                  />
-                  <button onClick={handleCreateGroup} className={`${commonStyles.buttonBase} ${commonStyles.primaryButton}`}>만들기</button>
+                  <div>
+                    <label className={commonStyles.label}>그룹 이름 *</label>
+                    <input
+                      type="text"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      className={commonStyles.textInputDarkerP3}
+                      placeholder="그룹 이름"
+                    />
+                  </div>
+                  <div>
+                    <label className={commonStyles.label}>그룹 설명</label>
+                    <textarea
+                      value={newGroupDescription}
+                      onChange={(e) => setNewGroupDescription(e.target.value)}
+                      className={`${commonStyles.textInputDarkerP3} min-h-[100px] resize-none`}
+                      placeholder="그룹에 대한 설명을 입력하세요..."
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="isPublic"
+                      checked={isPublic}
+                      onChange={(e) => setIsPublic(e.target.checked)}
+                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                    />
+                    <label htmlFor="isPublic" className="text-sm text-gray-700 dark:text-gray-300">
+                      공개 그룹 (다른 사용자도 검색 가능)
+                    </label>
+                  </div>
+                  <button 
+                    onClick={handleCreateGroup} 
+                    className={`${commonStyles.buttonBase} ${commonStyles.primaryButton}`}
+                    disabled={createGroupMutation.isPending || !newGroupName.trim()}
+                  >
+                    {createGroupMutation.isPending ? '생성 중...' : '만들기'}
+                  </button>
                 </div>
               )}
 
@@ -213,10 +315,23 @@ const GroupsView: React.FC = () => {
         {myGroups.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {myGroups.map(group => (
-                <div key={group.id} className={`${commonStyles.card} flex flex-col`}>
+                <div key={group.group_id} className={`${commonStyles.card} flex flex-col`}>
                   <div className="flex-grow">
-                    <h2 className="text-xl font-bold text-purple-600 dark:text-purple-300">{group.name}</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">멤버: {group.members.join(', ')}</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-xl font-bold text-purple-600 dark:text-purple-300">{group.group_name}</h2>
+                      {group.current_user_role === 'owner' && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-600/20 dark:text-yellow-300 px-2 py-1 rounded-full">그룹장</span>
+                      )}
+                    </div>
+                    {group.description && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">{group.description}</p>
+                    )}
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      멤버: {group.member_count}명 / 최대 {group.max_members}명
+                    </p>
+                    {!group.is_public && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">비공개 그룹</p>
+                    )}
                   </div>
                   <button 
                     onClick={() => setSelectedGroup(group)}
@@ -231,6 +346,29 @@ const GroupsView: React.FC = () => {
                 <p>소속된 그룹이 없습니다.</p>
                 <p className="mt-2 text-sm">새로운 그룹을 만들거나 찾아보세요!</p>
             </div>
+        )}
+
+        {/* 페이지네이션 */}
+        {groupsData && groupsData.total_pages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-6">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-4`}
+            >
+              이전
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {page} / {groupsData.total_pages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(groupsData.total_pages, p + 1))}
+              disabled={page === groupsData.total_pages}
+              className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-4`}
+            >
+              다음
+            </button>
+          </div>
         )}
 
         <button
@@ -256,6 +394,5 @@ const PlusIcon = () => (
         <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
     </svg>
 );
-
 
 export default GroupsView;

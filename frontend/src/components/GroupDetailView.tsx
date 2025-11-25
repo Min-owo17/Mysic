@@ -1,13 +1,15 @@
-
-
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Group, PerformanceRecord, UserProfile } from '../types';
-import { formatTime } from '../utils/time';
+import React, { useState, useRef, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { groupsApi, Group, GroupMember } from '../services/api/groups';
 import { useAppContext } from '../context/AppContext';
+import { useAuthStore } from '../store/slices/authSlice';
+import { formatTime } from '../utils/time';
 import { getLocalDateString } from '../utils/time';
 import { defaultAvatar } from '../utils/avatar';
 import MemberCalendarModal from './MemberCalendarModal';
 import { commonStyles } from '../styles/commonStyles';
+import toast from 'react-hot-toast';
+import { PerformanceRecord } from '../types';
 
 interface GroupDetailViewProps {
   group: Group;
@@ -88,13 +90,13 @@ const InviteMemberModal: React.FC<{
                 onClose();
             }
         };
-        // Use `capture` phase to prevent clicks on buttons inside the modal from closing it immediately
         document.addEventListener('mousedown', handleClickOutside, true);
         return () => document.removeEventListener('mousedown', handleClickOutside, true);
     }, [onClose]);
 
-    const searchableUsers = useMemo(() => {
-        const currentMemberNames = new Set(group.members.map(m => m === 'You' ? userProfile.nickname : m));
+    const searchableUsers = React.useMemo(() => {
+        // TODO: 실제 API에서 사용자 목록을 가져와야 함
+        const currentMemberNames = new Set([userProfile.nickname]);
         
         let users = allUsers.filter(u => !currentMemberNames.has(u.nickname));
         
@@ -106,12 +108,14 @@ const InviteMemberModal: React.FC<{
             );
         }
         return users;
-    }, [allUsers, group.members, searchQuery, userProfile.nickname]);
+    }, [allUsers, searchQuery, userProfile.nickname]);
     
 
     const handleInvite = (memberName: string) => {
-        sendGroupInvitation(group.id, memberName);
+        // TODO: 실제 API 연동 필요
+        sendGroupInvitation(group.group_id.toString(), memberName);
         setInvitedMembers(prev => [...prev, memberName]);
+        toast.success(`${memberName}님에게 초대를 보냈습니다.`);
     };
 
     return (
@@ -170,21 +174,65 @@ const InviteMemberModal: React.FC<{
 };
 
 
-const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
-    const { userProfile, userProfiles, records: myRecords, leaveGroup, kickMember, deleteGroup, transferOwnership } = useAppContext();
+const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, onBack }) => {
+    const { userProfile, userProfiles, records: myRecords } = useAppContext();
+    const { user } = useAuthStore();
+    const queryClient = useQueryClient();
+    
     const [viewingMemberData, setViewingMemberData] = useState<{ name: string; records: PerformanceRecord[]; profilePicture: string | null; } | null>(null);
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
     const [showDeleteGroupConfirm, setShowDeleteGroupConfirm] = useState(false);
-    const [memberToKick, setMemberToKick] = useState<string | null>(null);
-    const [memberToPromote, setMemberToPromote] = useState<string | null>(null);
+    const [memberToKick, setMemberToKick] = useState<GroupMember | null>(null);
+    const [memberToPromote, setMemberToPromote] = useState<GroupMember | null>(null);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-    
-    const ownerName = group.owner === 'You' ? userProfile.nickname : group.owner;
-    const isOwner = userProfile.nickname === ownerName;
 
-    const getMemberData = (memberName: string) => {
-        
-        const normalizedMemberName = memberName === 'You' ? userProfile.nickname : memberName;
+    // 그룹 상세 정보 조회 (최신 정보를 위해)
+    const { data: groupData, isLoading: isLoadingGroup } = useQuery({
+        queryKey: ['groups', initialGroup.group_id],
+        queryFn: () => groupsApi.getGroup(initialGroup.group_id),
+        initialData: initialGroup,
+        staleTime: 1 * 60 * 1000, // 1분
+    });
+
+    // 그룹 멤버 목록 조회
+    const { data: membersData, isLoading: isLoadingMembers } = useQuery({
+        queryKey: ['groups', initialGroup.group_id, 'members'],
+        queryFn: () => groupsApi.getGroupMembers(initialGroup.group_id),
+        staleTime: 1 * 60 * 1000, // 1분
+    });
+
+    const group = groupData || initialGroup;
+    const isOwner = group.current_user_role === 'owner';
+    const isMember = group.is_member;
+
+    // 그룹 탈퇴 Mutation
+    const leaveGroupMutation = useMutation({
+        mutationFn: () => groupsApi.leaveGroup(group.group_id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['groups'] });
+            toast.success('그룹에서 탈퇴했습니다.');
+            onBack();
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || '그룹 탈퇴에 실패했습니다.');
+        },
+    });
+
+    // 그룹 삭제 Mutation
+    const deleteGroupMutation = useMutation({
+        mutationFn: () => groupsApi.deleteGroup(group.group_id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['groups'] });
+            toast.success('그룹이 삭제되었습니다.');
+            onBack();
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || '그룹 삭제에 실패했습니다.');
+        },
+    });
+
+    const getMemberData = (member: GroupMember) => {
+        const normalizedMemberName = member.nickname;
 
         if (normalizedMemberName === userProfile.nickname) {
             return {
@@ -207,30 +255,40 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
     };
 
     const handleLeaveGroup = () => {
-        leaveGroup(group.id);
+        leaveGroupMutation.mutate();
         setShowLeaveConfirm(false);
-        onBack();
     };
 
     const handleDeleteGroup = () => {
-        deleteGroup(group.id);
+        deleteGroupMutation.mutate();
         setShowDeleteGroupConfirm(false);
-        onBack();
     };
 
     const handleKickMember = () => {
         if (memberToKick) {
-            kickMember(group.id, memberToKick);
+            // TODO: 실제 API 연동 필요 (현재는 백엔드에 해당 기능이 없음)
+            toast.error('멤버 제외 기능은 아직 구현되지 않았습니다.');
             setMemberToKick(null);
         }
     };
     
     const handleTransferOwnership = () => {
         if (memberToPromote) {
-            transferOwnership(group.id, memberToPromote);
+            // TODO: 실제 API 연동 필요 (현재는 백엔드에 해당 기능이 없음)
+            toast.error('그룹장 위임 기능은 아직 구현되지 않았습니다.');
             setMemberToPromote(null);
         }
     };
+
+    if (isLoadingGroup) {
+        return (
+            <div className="p-4 md:p-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto">
+                <div className="flex justify-center items-center py-20">
+                    <div className={`${commonStyles.spinner} w-12 h-12`}></div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -249,10 +307,16 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
                 <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
                     <div className={`${commonStyles.modalContainer} p-6 text-center`}>
                         <h3 className="text-xl font-bold text-red-400 mb-2">그룹 탈퇴</h3>
-                        <p className="text-gray-300 mb-6">정말로 '{group.name}' 그룹을 탈퇴하시겠습니까?</p>
+                        <p className="text-gray-300 mb-6">정말로 '{group.group_name}' 그룹을 탈퇴하시겠습니까?</p>
                         <div className="flex gap-4">
                             <button onClick={() => setShowLeaveConfirm(false)} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
-                            <button onClick={handleLeaveGroup} className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}>탈퇴</button>
+                            <button 
+                                onClick={handleLeaveGroup} 
+                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}
+                                disabled={leaveGroupMutation.isPending}
+                            >
+                                {leaveGroupMutation.isPending ? '처리 중...' : '탈퇴'}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -262,10 +326,16 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
                 <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
                     <div className={`${commonStyles.modalContainer} p-6 text-center`}>
                         <h3 className="text-xl font-bold text-red-400 mb-2">그룹 삭제</h3>
-                        <p className="text-gray-300 mb-6">'{group.name}' 그룹을 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다.</p>
+                        <p className="text-gray-300 mb-6">'{group.group_name}' 그룹을 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다.</p>
                         <div className="flex gap-4">
                             <button onClick={() => setShowDeleteGroupConfirm(false)} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
-                            <button onClick={handleDeleteGroup} className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}>삭제</button>
+                            <button 
+                                onClick={handleDeleteGroup} 
+                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}
+                                disabled={deleteGroupMutation.isPending}
+                            >
+                                {deleteGroupMutation.isPending ? '처리 중...' : '삭제'}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -275,7 +345,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
                  <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
                     <div className={`${commonStyles.modalContainer} p-6 text-center`}>
                         <h3 className="text-xl font-bold text-red-400 mb-2">멤버 제외</h3>
-                        <p className="text-gray-300 mb-6">'{memberToKick}'님을 그룹에서 제외하시겠습니까?</p>
+                        <p className="text-gray-300 mb-6">'{memberToKick.nickname}'님을 그룹에서 제외하시겠습니까?</p>
                         <div className="flex gap-4">
                             <button onClick={() => setMemberToKick(null)} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
                             <button onClick={handleKickMember} className={`${commonStyles.buttonBase} ${commonStyles.dangerButton}`}>제외</button>
@@ -288,7 +358,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
                  <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
                     <div className={`${commonStyles.modalContainer} p-6 text-center`}>
                         <h3 className="text-xl font-bold text-yellow-400 mb-2">그룹장 위임</h3>
-                        <p className="text-gray-300 mb-6">'{memberToPromote}'님에게 그룹장 권한을 위임하시겠습니까? 그룹장 권한을 잃게 됩니다.</p>
+                        <p className="text-gray-300 mb-6">'{memberToPromote.nickname}'님에게 그룹장 권한을 위임하시겠습니까? 그룹장 권한을 잃게 됩니다.</p>
                         <div className="flex gap-4">
                             <button onClick={() => setMemberToPromote(null)} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
                             <button onClick={handleTransferOwnership} className={`${commonStyles.buttonBase} w-full bg-yellow-600 text-white hover:bg-yellow-500`}>위임</button>
@@ -305,71 +375,88 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
                         </svg>
                     </button>
                     <div>
-                        <h1 className={commonStyles.mainTitle}>{group.name}</h1>
-                        <p className="text-sm text-gray-500 font-mono">{group.uniqueId}</p>
+                        <h1 className={commonStyles.mainTitle}>{group.group_name}</h1>
+                        {group.description && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{group.description}</p>
+                        )}
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            멤버 {group.member_count}명 / 최대 {group.max_members}명
+                            {!group.is_public && ' • 비공개 그룹'}
+                        </p>
                     </div>
                 </div>
 
-                <h2 className={`${commonStyles.subTitle} mb-4`}>오늘의 연습 기록</h2>
+                <h2 className={`${commonStyles.subTitle} mb-4`}>멤버 목록</h2>
 
-                <div className="space-y-6">
-                    {group.members.map(member => {
-                        const memberData = getMemberData(member);
-                        const todayStr = getLocalDateString(new Date());
-                        const todayRecords = memberData.records.filter(record => getLocalDateString(new Date(record.date)) === todayStr);
-                        
-                        return (
-                            <div key={memberData.name} className={commonStyles.card}>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <button onClick={() => setViewingMemberData(memberData)} className="flex-shrink-0">
-                                            <img src={memberData.profilePicture!} alt={`${memberData.name} profile`} className="w-10 h-10 rounded-full object-cover bg-gray-700" />
-                                        </button>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                              <h3 className="text-lg font-bold text-purple-300 leading-tight">{memberData.name}</h3>
-                                              {memberData.name === ownerName && <CrownIcon />}
+                {isLoadingMembers ? (
+                    <div className="flex justify-center items-center py-10">
+                        <div className={`${commonStyles.spinner} w-8 h-8`}></div>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        {membersData?.members.map(member => {
+                            const memberData = getMemberData(member);
+                            const todayStr = getLocalDateString(new Date());
+                            const todayRecords = memberData.records.filter(record => getLocalDateString(new Date(record.date)) === todayStr);
+                            
+                            return (
+                                <div key={member.member_id} className={commonStyles.card}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <button onClick={() => setViewingMemberData(memberData)} className="flex-shrink-0">
+                                                <img src={memberData.profilePicture!} alt={`${memberData.name} profile`} className="w-10 h-10 rounded-full object-cover bg-gray-700" />
+                                            </button>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                  <h3 className="text-lg font-bold text-purple-300 leading-tight">{memberData.name}</h3>
+                                                  {member.role === 'owner' && <CrownIcon />}
+                                                  {member.role === 'admin' && (
+                                                      <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-600/20 dark:text-blue-300 px-2 py-0.5 rounded-full">관리자</span>
+                                                  )}
+                                                </div>
+                                                {memberData.title && <p className="text-xs text-yellow-300 leading-tight">{memberData.title}</p>}
                                             </div>
-                                            {memberData.title && <p className="text-xs text-yellow-300 leading-tight">{memberData.title}</p>}
                                         </div>
+                                        {isOwner && user && member.user_id !== user.user_id && member.role !== 'owner' && (
+                                            <GroupMemberMenu
+                                                onKick={() => setMemberToKick(member)}
+                                                onMakeOwner={() => setMemberToPromote(member)}
+                                            />
+                                        )}
                                     </div>
-                                    {isOwner && memberData.name !== userProfile.nickname && (
-                                        <GroupMemberMenu
-                                            onKick={() => setMemberToKick(memberData.name)}
-                                            onMakeOwner={() => setMemberToPromote(memberData.name)}
-                                        />
+                                    {todayRecords.length > 0 ? (
+                                        <div className="mt-3 space-y-3 pl-1">
+                                            {todayRecords.map(record => (
+                                                <div key={record.id} className="bg-gray-900/50 p-3 rounded-md">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <p className="font-semibold">{record.title}</p>
+                                                            <p className="text-sm text-gray-400">{record.instrument}</p>
+                                                        </div>
+                                                        <span className="text-sm font-mono bg-gray-700 px-2 py-1 rounded">{formatTime(record.duration)}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500 mt-2 text-sm pl-1">오늘 연습 기록이 없습니다.</p>
                                     )}
                                 </div>
-                                {todayRecords.length > 0 ? (
-                                    <div className="mt-3 space-y-3 pl-1">
-                                        {todayRecords.map(record => (
-                                            <div key={record.id} className="bg-gray-900/50 p-3 rounded-md">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <p className="font-semibold">{record.title}</p>
-                                                        <p className="text-sm text-gray-400">{record.instrument}</p>
-                                                    </div>
-                                                    <span className="text-sm font-mono bg-gray-700 px-2 py-1 rounded">{formatTime(record.duration)}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-gray-500 mt-2 text-sm pl-1">오늘 연습 기록이 없습니다.</p>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+                            );
+                        })}
+                    </div>
+                )}
                 
                 <div className={`mt-8 pt-6 ${commonStyles.divider} space-y-4`}>
-                    <button
-                        onClick={() => setIsInviteModalOpen(true)}
-                        className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} md:max-w-sm md:mx-auto flex items-center justify-center gap-2 py-3`}
-                    >
-                        <InviteIcon />
-                        멤버 초대
-                    </button>
+                    {isOwner && (
+                        <button
+                            onClick={() => setIsInviteModalOpen(true)}
+                            className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} md:max-w-sm md:mx-auto flex items-center justify-center gap-2 py-3`}
+                        >
+                            <InviteIcon />
+                            멤버 초대
+                        </button>
+                    )}
                 
                     {isOwner ? (
                          <div className="text-center">
@@ -382,13 +469,29 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group, onBack }) => {
                             </button>
                             <p className="text-xs text-gray-500 mt-2">그룹을 나가려면 먼저 다른 멤버에게 그룹장 권한을 위임해야 합니다.</p>
                          </div>
-                    ) : (
+                    ) : isMember ? (
                         <button
                             onClick={() => setShowLeaveConfirm(true)}
                             className={`${commonStyles.buttonBase} ${commonStyles.dangerButtonOutline} md:max-w-sm md:mx-auto flex items-center justify-center gap-2 py-3`}
                         >
                             <LeaveIcon />
                             그룹 탈퇴
+                        </button>
+                    ) : (
+                        <button
+                            onClick={async () => {
+                                try {
+                                    await groupsApi.joinGroup(group.group_id);
+                                    queryClient.invalidateQueries({ queryKey: ['groups'] });
+                                    toast.success('그룹에 가입했습니다.');
+                                } catch (error: any) {
+                                    toast.error(error.response?.data?.detail || '그룹 가입에 실패했습니다.');
+                                }
+                            }}
+                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} md:max-w-sm md:mx-auto flex items-center justify-center gap-2 py-3`}
+                        >
+                            <InviteIcon />
+                            그룹 가입
                         </button>
                     )}
                 </div>
