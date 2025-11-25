@@ -3,7 +3,7 @@
 게시글, 댓글, 좋아요 기능 제공
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -55,6 +55,15 @@ def _build_post_response(post: Post, current_user_id: Optional[int] = None) -> P
         like = next((l for l in post.likes if l.user_id == current_user_id), None)
         is_liked = like is not None
     
+    # UTC timezone 정보 추가 (naive datetime이면 UTC로 명시)
+    created_at_aware = post.created_at
+    if created_at_aware and created_at_aware.tzinfo is None:
+        created_at_aware = created_at_aware.replace(tzinfo=timezone.utc)
+    
+    updated_at_aware = post.updated_at
+    if updated_at_aware and updated_at_aware.tzinfo is None:
+        updated_at_aware = updated_at_aware.replace(tzinfo=timezone.utc)
+    
     return PostResponse(
         post_id=post.post_id,
         user_id=post.user_id,
@@ -66,8 +75,8 @@ def _build_post_response(post: Post, current_user_id: Optional[int] = None) -> P
         view_count=post.view_count,
         like_count=post.like_count,
         is_liked=is_liked,
-        created_at=post.created_at,
-        updated_at=post.updated_at
+        created_at=created_at_aware,
+        updated_at=updated_at_aware
     )
 
 
@@ -103,6 +112,19 @@ def _build_comment_response(comment: Comment, current_user_id: Optional[int] = N
             for reply in sorted(comment.replies, key=lambda x: x.created_at)
         ]
     
+    # UTC timezone 정보 추가 (naive datetime이면 UTC로 명시)
+    created_at_aware = comment.created_at
+    if created_at_aware and created_at_aware.tzinfo is None:
+        created_at_aware = created_at_aware.replace(tzinfo=timezone.utc)
+    
+    updated_at_aware = comment.updated_at
+    if updated_at_aware and updated_at_aware.tzinfo is None:
+        updated_at_aware = updated_at_aware.replace(tzinfo=timezone.utc)
+    
+    deleted_at_aware = comment.deleted_at
+    if deleted_at_aware and deleted_at_aware.tzinfo is None:
+        deleted_at_aware = deleted_at_aware.replace(tzinfo=timezone.utc)
+    
     return CommentResponse(
         comment_id=comment.comment_id,
         post_id=comment.post_id,
@@ -113,9 +135,9 @@ def _build_comment_response(comment: Comment, current_user_id: Optional[int] = N
         like_count=comment.like_count,
         is_liked=is_liked,
         replies=replies,
-        deleted_at=comment.deleted_at,
-        created_at=comment.created_at,
-        updated_at=comment.updated_at
+        deleted_at=deleted_at_aware,
+        created_at=created_at_aware,
+        updated_at=updated_at_aware
     )
 
 
@@ -209,7 +231,7 @@ async def create_post(
         manual_tags=post_data.manual_tags if post_data.manual_tags else None,
         view_count=0,
         like_count=0,
-        created_at=datetime.utcnow(),  # UTC로 명시적으로 설정
+        created_at=datetime.now(timezone.utc),  # UTC timezone을 명시한 aware datetime
         updated_at=None  # 신규 게시글은 updated_at을 NULL로 설정
     )
     
@@ -305,7 +327,7 @@ async def update_post(
     if post_data.manual_tags is not None:
         post.manual_tags = post_data.manual_tags if post_data.manual_tags else None
     
-    post.updated_at = datetime.utcnow()
+    post.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(post)
@@ -351,7 +373,7 @@ async def delete_post(
         )
     
     # Soft Delete
-    post.deleted_at = datetime.utcnow()
+    post.deleted_at = datetime.now(timezone.utc)
     db.commit()
     
     logger.info(f"게시글 삭제 완료: post_id={post_id}, user_id={current_user.user_id}")
@@ -528,7 +550,7 @@ async def create_comment(
         parent_comment_id=comment_data.parent_comment_id,
         content=comment_data.content,
         like_count=0,
-        created_at=datetime.utcnow(),  # UTC로 명시적으로 설정
+        created_at=datetime.now(timezone.utc),  # UTC timezone을 명시한 aware datetime
         updated_at=None  # 신규 댓글은 updated_at을 NULL로 설정
     )
     
@@ -579,7 +601,7 @@ async def update_comment(
     
     # 댓글 수정
     comment.content = comment_data.content
-    comment.updated_at = datetime.utcnow()
+    comment.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(comment)
@@ -627,7 +649,7 @@ async def delete_comment(
     
     # Soft Delete
     # 하위 댓글(답글)은 삭제하지 않고 유지하여 이력을 보존
-    comment.deleted_at = datetime.utcnow()
+    comment.deleted_at = datetime.now(timezone.utc)
     db.commit()
     
     logger.info(f"댓글 삭제 완료: comment_id={comment_id}, user_id={current_user.user_id}")
