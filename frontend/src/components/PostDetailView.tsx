@@ -5,6 +5,7 @@ import { commonStyles } from '../styles/commonStyles';
 import { boardApi, Post, PostComment } from '../services/api/board';
 import { defaultAvatar } from '../utils/avatar';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '../store/slices/authSlice';
 
 interface PostDetailViewProps {
   post: Post;
@@ -35,6 +36,7 @@ const StarIcon = () => (
 
 const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBack, onEditRequest, onDeleteRequest }) => {
   const { userProfile, userProfiles } = useAppContext();
+  const { user } = useAuthStore(); // 현재 로그인한 사용자 정보
   const queryClient = useQueryClient();
   
   const [newComment, setNewComment] = useState('');
@@ -120,7 +122,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
     },
   });
 
-  const isAuthor = post.author.nickname === userProfile.nickname;
+  const isAuthor = user ? post.user_id === user.user_id : false;
   const isPostLiked = post.is_liked;
   const isBookmarked = false; // 북마크 기능은 나중에 구현
   
@@ -183,7 +185,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
   const renderComment = (comment: PostComment, depth: number = 0) => {
     const isCommentLiked = comment.is_liked;
     const commentAuthorProfile = getProfile(comment.author.nickname);
-    const isCommentAuthor = comment.author.nickname === userProfile.nickname;
+    const isCommentAuthor = user ? comment.user_id === user.user_id : false;
 
     return (
       <div key={comment.comment_id} className={depth > 0 ? 'ml-8 mt-3' : ''}>
