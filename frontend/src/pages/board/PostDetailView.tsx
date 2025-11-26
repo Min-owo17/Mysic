@@ -241,8 +241,19 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
               <div>
                 <div className="flex items-center gap-2">
                   {comment.author.selected_achievement && (
-                    <span className="text-xs text-purple-300 font-medium">
-                      [{comment.author.selected_achievement.title}]
+                    <span className="text-xs text-purple-300 font-medium flex items-center gap-1">
+                      [
+                      {comment.author.selected_achievement.icon_url ? (
+                        <img 
+                          src={comment.author.selected_achievement.icon_url} 
+                          alt={comment.author.selected_achievement.title}
+                          className="w-3 h-3 object-contain inline"
+                        />
+                      ) : (
+                        <span>🏆</span>
+                      )}
+                      {' '}
+                      {comment.author.selected_achievement.title}]
                     </span>
                   )}
                   <p className="font-bold text-purple-300 text-sm">{comment.author.nickname}</p>
@@ -540,8 +551,19 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
               <div>
                   <div className="flex items-center gap-2">
                     {post.author.selected_achievement && (
-                      <span className="text-xs text-purple-300 font-medium">
-                        [{post.author.selected_achievement.title}]
+                      <span className="text-xs text-purple-300 font-medium flex items-center gap-1">
+                        [
+                        {post.author.selected_achievement.icon_url ? (
+                          <img 
+                            src={post.author.selected_achievement.icon_url} 
+                            alt={post.author.selected_achievement.title}
+                            className="w-3 h-3 object-contain inline"
+                          />
+                        ) : (
+                          <span>🏆</span>
+                        )}
+                        {' '}
+                        {post.author.selected_achievement.title}]
                       </span>
                     )}
                     <p className="font-semibold text-gray-200">{post.author.nickname}</p>

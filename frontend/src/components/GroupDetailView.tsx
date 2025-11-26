@@ -202,8 +202,19 @@ const InviteMemberModal: React.FC<{
                                                 <div>
                                                     <div className="flex items-center gap-2">
                                                       {user.selected_achievement && (
-                                                        <span className="text-xs text-purple-300 font-medium">
-                                                          [{user.selected_achievement.title}]
+                                                        <span className="text-xs text-purple-300 font-medium flex items-center gap-1">
+                                                          [
+                                                          {user.selected_achievement.icon_url ? (
+                                                            <img 
+                                                              src={user.selected_achievement.icon_url} 
+                                                              alt={user.selected_achievement.title}
+                                                              className="w-3 h-3 object-contain inline"
+                                                            />
+                                                          ) : (
+                                                            <span>🏆</span>
+                                                          )}
+                                                          {' '}
+                                                          {user.selected_achievement.title}]
                                                         </span>
                                                       )}
                                                       <p className="font-semibold text-gray-200">{user.nickname}</p>
@@ -617,8 +628,19 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                   {member.selected_achievement && (
-                                                    <span className="text-xs text-purple-300 font-medium">
-                                                      [{member.selected_achievement.title}]
+                                                    <span className="text-xs text-purple-300 font-medium flex items-center gap-1">
+                                                      [
+                                                      {member.selected_achievement.icon_url ? (
+                                                        <img 
+                                                          src={member.selected_achievement.icon_url} 
+                                                          alt={member.selected_achievement.title}
+                                                          className="w-3 h-3 object-contain inline"
+                                                        />
+                                                      ) : (
+                                                        <span>🏆</span>
+                                                      )}
+                                                      {' '}
+                                                      {member.selected_achievement.title}]
                                                     </span>
                                                   )}
                                                   <h3 className="text-lg font-bold text-purple-300 leading-tight">{memberData.name}</h3>

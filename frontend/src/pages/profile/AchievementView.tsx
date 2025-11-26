@@ -176,7 +176,7 @@ const AchievementView: React.FC = () => {
                           className="w-8 h-8 object-contain"
                         />
                       ) : (
-                        <div className="text-purple-400 text-2xl">⭐</div>
+                        <div className="text-purple-400 text-2xl">🏆</div>
                       )}
                       <div className="flex-1">
                         <h3 className="font-bold text-purple-300 mb-1">

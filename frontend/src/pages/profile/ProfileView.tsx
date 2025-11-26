@@ -581,7 +581,7 @@ const ProfileView: React.FC = () => {
                       className="w-5 h-5 object-contain"
                     />
                   ) : (
-                    <span className="text-purple-400">⭐</span>
+                    <span className="text-purple-400">🏆</span>
                   )}
                   <span className="text-sm font-medium text-purple-300">
                     {profileData.selected_achievement.title}
