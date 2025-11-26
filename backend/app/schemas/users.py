@@ -2,12 +2,10 @@
 사용자 관리 관련 Pydantic 스키마
 프로필 조회, 수정, 악기/특징 관리 등의 스키마 정의
 """
+from __future__ import annotations
 from pydantic import BaseModel, Field, EmailStr, model_validator
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List
 from datetime import datetime
-
-if TYPE_CHECKING:
-    from app.schemas.achievements import AchievementResponse
 
 
 class InstrumentResponse(BaseModel):
@@ -78,7 +76,7 @@ class UserDetailResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     profile: Optional[UserProfileResponse] = None
-    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
+    selected_achievement: Optional[AchievementResponse] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True
@@ -173,7 +171,7 @@ class UserSearchResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
-    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
+    selected_achievement: Optional[AchievementResponse] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True
@@ -197,3 +195,9 @@ class UserSearchListResponse(BaseModel):
                 "total_pages": 0
             }
         }
+
+
+# Forward reference 해결을 위한 import 및 model_rebuild
+from app.schemas.achievements import AchievementResponse
+UserDetailResponse.model_rebuild()
+UserSearchResponse.model_rebuild()

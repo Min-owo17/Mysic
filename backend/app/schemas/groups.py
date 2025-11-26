@@ -2,12 +2,10 @@
 그룹 관련 Pydantic 스키마
 그룹 생성, 조회, 멤버 관리 등의 스키마 정의
 """
+from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List
 from datetime import datetime
-
-if TYPE_CHECKING:
-    from app.schemas.achievements import AchievementResponse
 
 
 # ========== 그룹 스키마 ==========
@@ -53,7 +51,7 @@ class GroupOwnerResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
-    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
+    selected_achievement: Optional[AchievementResponse] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True
@@ -65,7 +63,7 @@ class GroupMemberResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
-    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
+    selected_achievement: Optional[AchievementResponse] = None  # 선택한 칭호 정보
     role: str  # 'owner', 'admin', 'member'
     joined_at: datetime
 
@@ -156,7 +154,7 @@ class GroupInvitationInviterResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
-    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
+    selected_achievement: Optional[AchievementResponse] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True
@@ -167,7 +165,7 @@ class GroupInvitationInviteeResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
-    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
+    selected_achievement: Optional[AchievementResponse] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True
@@ -213,4 +211,12 @@ class GroupInvitationListResponse(BaseModel):
                 "total": 0
             }
         }
+
+
+# Forward reference 해결을 위한 import 및 model_rebuild
+from app.schemas.achievements import AchievementResponse
+GroupOwnerResponse.model_rebuild()
+GroupMemberResponse.model_rebuild()
+GroupInvitationInviterResponse.model_rebuild()
+GroupInvitationInviteeResponse.model_rebuild()
 
