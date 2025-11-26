@@ -256,6 +256,35 @@ export interface Notification {
   inviter?: string;
 }
 
+// Achievement types
+export interface AchievementResponse {
+  achievement_id: number;
+  title: string;
+  description?: string | null;
+  condition_type?: string | null; // 'practice_time', 'consecutive_days', 'instrument_count'
+  condition_value?: number | null;
+  icon_url?: string | null;
+  created_at: string;
+}
+
+export interface UserAchievementResponse {
+  user_achievement_id: number;
+  user_id: number;
+  achievement_id: number;
+  earned_at: string;
+  achievement: AchievementResponse;
+}
+
+export interface AchievementListResponse {
+  achievements: AchievementResponse[];
+  total: number;
+}
+
+export interface UserAchievementListResponse {
+  user_achievements: UserAchievementResponse[];
+  total: number;
+}
+
 export interface AppContextType {
   records: PerformanceRecord[];
   addRecord: (record: Omit<PerformanceRecord, 'id'>) => void;

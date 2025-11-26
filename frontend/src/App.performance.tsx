@@ -4,13 +4,13 @@ import { View, PerformanceRecord, Group, BoardPost, UserProfile, Comment, Notifi
 import { AppContext } from './context/AppContext';
 import BottomNavBar from './components/BottomNavBar';
 import SideNavBar from './components/SideNavBar';
-import RecordView from './components/RecordView';
-import CalendarView from './components/CalendarView';
+import RecordView from './pages/practice/RecordView';
+import CalendarView from './pages/practice/CalendarView';
 import GroupsView from './components/GroupsView';
-import BoardView from './components/BoardView';
-import ProfileView from './components/ProfileView';
+import BoardView from './pages/board/BoardView';
+import ProfileView from './pages/profile/ProfileView';
 import SettingsView from './components/SettingsView';
-import AuthView from './components/AuthView';
+import AuthView from './pages/auth/AuthView';
 import { commonStyles } from './styles/commonStyles';
 
 // Helper to create simple SVG avatars

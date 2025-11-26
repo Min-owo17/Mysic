@@ -152,6 +152,6 @@ ImportError: cannot import name 'User' from 'app.models'
 
 데이터베이스 초기화가 완료되면:
 
-1. **시드 데이터 생성**: `backend/scripts/seed_data.py` 실행 (3단계에서 생성 예정)
+1. **시드 데이터 생성**: `database/seeds/seed_data.py` 실행 (3단계에서 생성 예정)
 2. **API 개발 시작**: 백엔드 라우터 개발 (2단계)
 

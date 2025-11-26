@@ -138,6 +138,13 @@ async def update_practice_session(
         db.commit()
         db.refresh(session)
         logger.info(f"연습 세션 종료: user_id={current_user.user_id}, session_id={session_id}, time={actual_play_time}초")
+        
+        # 칭호 체크 및 자동 획득
+        from app.routers.achievements import check_and_award_achievements
+        newly_earned = check_and_award_achievements(current_user.user_id, db)
+        if newly_earned:
+            logger.info(f"새 칭호 획득: user_id={current_user.user_id}, count={len(newly_earned)}")
+        
         return session
     except Exception as e:
         db.rollback()

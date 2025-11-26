@@ -1,13 +1,14 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AppContext } from './context/AppContext'
 import { ThemeProvider } from './context/ThemeProvider'
-import AuthView from './components/AuthView'
-import RecordView from './components/RecordView'
-import CalendarView from './components/CalendarView'
+import AuthView from './pages/auth/AuthView'
+import RecordView from './pages/practice/RecordView'
+import CalendarView from './pages/practice/CalendarView'
 import GroupsView from './components/GroupsView'
-import BoardView from './components/BoardView'
-import ProfileView from './components/ProfileView'
+import BoardView from './pages/board/BoardView'
+import ProfileView from './pages/profile/ProfileView'
 import SettingsView from './components/SettingsView'
+import AchievementView from './pages/profile/AchievementView'
 import BottomNavBar from './components/BottomNavBar'
 import SideNavBar from './components/SideNavBar'
 import { Header } from './components/layout/Header'
@@ -216,6 +217,16 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <SettingsView />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/achievements"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <AchievementView />
                 </MainLayout>
               </ProtectedRoute>
             }

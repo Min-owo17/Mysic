@@ -799,7 +799,7 @@ INSERT INTO achievements (title, description, condition_type, condition_value, i
 
 ### 11.3 3단계: 시드 데이터 생성 (테스트용)
 
-#### 11.3.1 시드 스크립트 작성 (`backend/scripts/seed_data.py`)
+#### 11.3.1 시드 스크립트 작성 (`database/seeds/seed_data.py`)
 1. `instruments` 테이블 시드 데이터 (12개 악기)
 2. `user_types` 테이블 시드 데이터 (8개 특징)
 3. `achievements` 테이블 시드 데이터 (10개 칭호)
@@ -813,7 +813,7 @@ INSERT INTO achievements (title, description, condition_type, condition_value, i
 
 **시드 데이터 실행:**
 ```bash
-python backend/scripts/seed_data.py
+python database/seeds/seed_data.py
 ```
 
 ---
