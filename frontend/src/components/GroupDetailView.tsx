@@ -200,7 +200,14 @@ const InviteMemberModal: React.FC<{
                                                     className="w-10 h-10 rounded-full bg-gray-700 object-cover" 
                                                 />
                                                 <div>
-                                                    <p className="font-semibold text-gray-200">{user.nickname}</p>
+                                                    <div className="flex items-center gap-2">
+                                                      {user.selected_achievement && (
+                                                        <span className="text-xs text-purple-300 font-medium">
+                                                          [{user.selected_achievement.title}]
+                                                        </span>
+                                                      )}
+                                                      <p className="font-semibold text-gray-200">{user.nickname}</p>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <button
@@ -609,6 +616,11 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                             </button>
                                             <div>
                                                 <div className="flex items-center gap-2">
+                                                  {member.selected_achievement && (
+                                                    <span className="text-xs text-purple-300 font-medium">
+                                                      [{member.selected_achievement.title}]
+                                                    </span>
+                                                  )}
                                                   <h3 className="text-lg font-bold text-purple-300 leading-tight">{memberData.name}</h3>
                                                   {member.role === 'owner' && <CrownIcon />}
                                                   {member.role === 'admin' && (

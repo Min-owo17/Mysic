@@ -3,8 +3,11 @@
 그룹 생성, 조회, 멤버 관리 등의 스키마 정의
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from app.schemas.achievements import AchievementResponse
 
 
 # ========== 그룹 스키마 ==========
@@ -50,6 +53,7 @@ class GroupOwnerResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
+    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True
@@ -61,6 +65,7 @@ class GroupMemberResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
+    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
     role: str  # 'owner', 'admin', 'member'
     joined_at: datetime
 
@@ -151,6 +156,7 @@ class GroupInvitationInviterResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
+    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True
@@ -161,6 +167,7 @@ class GroupInvitationInviteeResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
+    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True

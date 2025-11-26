@@ -22,6 +22,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     deleted_at = Column(TIMESTAMP, nullable=True, index=True)  # Soft delete
     last_login_at = Column(TIMESTAMP, nullable=True, index=True)  # 최종 접속일
+    selected_achievement_id = Column(Integer, ForeignKey("achievements.achievement_id", ondelete="SET NULL"), nullable=True, index=True)  # 선택한 대표 칭호
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
@@ -36,6 +37,7 @@ class User(Base):
     group_invitations_sent = relationship("GroupInvitation", foreign_keys="[GroupInvitation.inviter_id]", back_populates="inviter", cascade="all, delete-orphan")
     group_invitations_received = relationship("GroupInvitation", foreign_keys="[GroupInvitation.invitee_id]", back_populates="invitee", cascade="all, delete-orphan")
     achievements = relationship("UserAchievement", back_populates="user", cascade="all, delete-orphan")
+    selected_achievement = relationship("Achievement", foreign_keys=[selected_achievement_id])
 
 
 class UserProfile(Base):

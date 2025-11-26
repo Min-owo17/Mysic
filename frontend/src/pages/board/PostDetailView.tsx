@@ -240,6 +240,11 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
               />
               <div>
                 <div className="flex items-center gap-2">
+                  {comment.author.selected_achievement && (
+                    <span className="text-xs text-purple-300 font-medium">
+                      [{comment.author.selected_achievement.title}]
+                    </span>
+                  )}
                   <p className="font-bold text-purple-300 text-sm">{comment.author.nickname}</p>
                   {commentAuthorProfile?.title && <p className="text-xs text-yellow-300 font-normal">{commentAuthorProfile.title}</p>}
                 </div>
@@ -533,7 +538,14 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
             <div className="flex items-center gap-3 mt-3">
               <img src={post.author.profile_image_url || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-10 h-10 rounded-full bg-gray-700" />
               <div>
-                  <p className="font-semibold text-gray-200">{post.author.nickname}</p>
+                  <div className="flex items-center gap-2">
+                    {post.author.selected_achievement && (
+                      <span className="text-xs text-purple-300 font-medium">
+                        [{post.author.selected_achievement.title}]
+                      </span>
+                    )}
+                    <p className="font-semibold text-gray-200">{post.author.nickname}</p>
+                  </div>
                   {authorProfile?.title && <p className="text-xs text-yellow-300">{authorProfile.title}</p>}
               </div>
             </div>

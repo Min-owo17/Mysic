@@ -1,6 +1,8 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { achievementsApi } from '../../services/api/achievements';
+import { usersApi } from '../../services/api/users';
 import { AchievementResponse, UserAchievementResponse } from '../../types';
 import { commonStyles } from '../../styles/commonStyles';
 import toast from 'react-hot-toast';
@@ -12,6 +14,17 @@ const TrophyIcon = () => (
 );
 
 const AchievementView: React.FC = () => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  
+  // 프로필 조회 (선택한 칭호 확인용)
+  const { data: profileData } = useQuery({
+    queryKey: ['userProfile'],
+    queryFn: () => usersApi.getMyProfile(),
+  });
+  
+  const selectedAchievementId = profileData?.selected_achievement_id;
+  
   // 전체 칭호 목록 조회
   const { data: allAchievements, isLoading: isLoadingAll } = useQuery({
     queryKey: ['allAchievements'],
@@ -32,6 +45,23 @@ const AchievementView: React.FC = () => {
     },
   });
 
+  // 칭호 선택 Mutation
+  const selectAchievementMutation = useMutation({
+    mutationFn: (achievementId: number | null) => achievementsApi.selectAchievement(achievementId),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['myAchievements'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '칭호 선택에 실패했습니다.');
+    },
+  });
+  
+  const handleSelectAchievement = (achievementId: number | null) => {
+    selectAchievementMutation.mutate(achievementId);
+  };
+  
   // 획득한 칭호 ID 집합
   const earnedAchievementIds = new Set(
     myAchievements?.user_achievements.map(ua => ua.achievement_id) || []
@@ -103,41 +133,126 @@ const AchievementView: React.FC = () => {
       <div className="max-w-4xl mx-auto">
         {/* 헤더 */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-            <TrophyIcon />
-            칭호 시스템
-          </h1>
+          <div className="flex items-center gap-2 mb-2">
+            <button 
+              onClick={() => navigate('/profile')} 
+              className="p-2 rounded-full hover:bg-gray-700 mr-2"
+              aria-label="뒤로가기"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <TrophyIcon />
+              칭호 시스템
+            </h1>
+          </div>
           <p className="text-gray-400">
             총 {allAchievements?.total || 0}개의 칭호 중 {myAchievements?.total || 0}개를 획득했습니다.
           </p>
         </div>
 
-        {/* 획득 현황 */}
+        {/* 선택한 칭호 */}
+        {selectedAchievementId && myAchievements && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">선택한 칭호</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myAchievements.user_achievements
+                .filter(ua => ua.achievement_id === selectedAchievementId)
+                .map((userAchievement) => (
+                  <div
+                    key={userAchievement.user_achievement_id}
+                    className="bg-gradient-to-br from-purple-600/30 to-purple-800/30 border-2 border-purple-500 rounded-lg p-4 relative"
+                  >
+                    <div className="absolute top-2 right-2">
+                      <span className="bg-purple-500 text-white text-xs px-2 py-1 rounded-full">대표</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      {userAchievement.achievement.icon_url ? (
+                        <img 
+                          src={userAchievement.achievement.icon_url} 
+                          alt={userAchievement.achievement.title}
+                          className="w-8 h-8 object-contain"
+                        />
+                      ) : (
+                        <div className="text-purple-400 text-2xl">⭐</div>
+                      )}
+                      <div className="flex-1">
+                        <h3 className="font-bold text-purple-300 mb-1">
+                          {userAchievement.achievement.title}
+                        </h3>
+                        <p className="text-sm text-gray-300 mb-2">
+                          {userAchievement.achievement.description || getConditionText(userAchievement.achievement)}
+                        </p>
+                        <button
+                          onClick={() => handleSelectAchievement(null)}
+                          className="text-xs text-gray-400 hover:text-white underline"
+                          disabled={selectAchievementMutation.isPending}
+                        >
+                          선택 해제
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* 획득한 칭호 */}
         {myAchievements && myAchievements.total > 0 && (
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">획득한 칭호</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myAchievements.user_achievements.map((userAchievement) => (
-                <div
-                  key={userAchievement.user_achievement_id}
-                  className="bg-gradient-to-br from-yellow-600/20 to-yellow-800/20 border-2 border-yellow-500 rounded-lg p-4 hover:scale-105 transition-transform"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="text-yellow-400 text-2xl">🏆</div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-yellow-300 mb-1">
-                        {userAchievement.achievement.title}
-                      </h3>
-                      <p className="text-sm text-gray-300 mb-2">
-                        {userAchievement.achievement.description || getConditionText(userAchievement.achievement)}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {new Date(userAchievement.earned_at).toLocaleDateString('ko-KR')} 획득
-                      </p>
+              {myAchievements.user_achievements.map((userAchievement) => {
+                const isSelected = userAchievement.achievement_id === selectedAchievementId;
+                return (
+                  <div
+                    key={userAchievement.user_achievement_id}
+                    className={`bg-gradient-to-br from-yellow-600/20 to-yellow-800/20 border-2 ${
+                      isSelected ? 'border-purple-500' : 'border-yellow-500'
+                    } rounded-lg p-4 hover:scale-105 transition-transform relative`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-2 right-2">
+                        <span className="bg-purple-500 text-white text-xs px-2 py-1 rounded-full">대표</span>
+                      </div>
+                    )}
+                    <div className="flex items-start gap-3">
+                      {userAchievement.achievement.icon_url ? (
+                        <img 
+                          src={userAchievement.achievement.icon_url} 
+                          alt={userAchievement.achievement.title}
+                          className="w-8 h-8 object-contain"
+                        />
+                      ) : (
+                        <div className="text-yellow-400 text-2xl">🏆</div>
+                      )}
+                      <div className="flex-1">
+                        <h3 className="font-bold text-yellow-300 mb-1">
+                          {userAchievement.achievement.title}
+                        </h3>
+                        <p className="text-sm text-gray-300 mb-2">
+                          {userAchievement.achievement.description || getConditionText(userAchievement.achievement)}
+                        </p>
+                        <p className="text-xs text-gray-400 mb-2">
+                          {new Date(userAchievement.earned_at).toLocaleDateString('ko-KR')} 획득
+                        </p>
+                        {!isSelected && (
+                          <button
+                            onClick={() => handleSelectAchievement(userAchievement.achievement_id)}
+                            className="text-xs text-purple-400 hover:text-purple-300 underline"
+                            disabled={selectAchievementMutation.isPending}
+                          >
+                            대표로 선택
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -202,9 +317,17 @@ const AchievementView: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`text-2xl ${isEarned ? '' : 'grayscale'}`}>
-                          {isEarned ? '🏆' : '🔒'}
-                        </div>
+                        {achievement.icon_url ? (
+                          <img 
+                            src={achievement.icon_url} 
+                            alt={achievement.title}
+                            className={`w-8 h-8 object-contain ${isEarned ? '' : 'grayscale opacity-50'}`}
+                          />
+                        ) : (
+                          <div className={`text-2xl ${isEarned ? '' : 'grayscale'}`}>
+                            {isEarned ? '🏆' : '🔒'}
+                          </div>
+                        )}
                         <div className="flex-1">
                           <h3 className={`font-bold mb-1 ${isEarned ? 'text-yellow-300' : 'text-gray-400'}`}>
                             {achievement.title}
@@ -243,9 +366,17 @@ const AchievementView: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`text-2xl ${isEarned ? '' : 'grayscale'}`}>
-                          {isEarned ? '🏆' : '🔒'}
-                        </div>
+                        {achievement.icon_url ? (
+                          <img 
+                            src={achievement.icon_url} 
+                            alt={achievement.title}
+                            className={`w-8 h-8 object-contain ${isEarned ? '' : 'grayscale opacity-50'}`}
+                          />
+                        ) : (
+                          <div className={`text-2xl ${isEarned ? '' : 'grayscale'}`}>
+                            {isEarned ? '🏆' : '🔒'}
+                          </div>
+                        )}
                         <div className="flex-1">
                           <h3 className={`font-bold mb-1 ${isEarned ? 'text-yellow-300' : 'text-gray-400'}`}>
                             {achievement.title}

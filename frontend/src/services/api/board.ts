@@ -5,6 +5,12 @@ export interface PostAuthor {
   user_id: number;
   nickname: string;
   profile_image_url?: string | null;
+  selected_achievement?: {
+    achievement_id: number;
+    title: string;
+    description?: string | null;
+    icon_url?: string | null;
+  } | null;
 }
 
 export interface Post {
@@ -48,6 +54,12 @@ export interface CommentAuthor {
   user_id: number;
   nickname: string;
   profile_image_url?: string | null;
+  selected_achievement?: {
+    achievement_id: number;
+    title: string;
+    description?: string | null;
+    icon_url?: string | null;
+  } | null;
 }
 
 export interface PostComment {

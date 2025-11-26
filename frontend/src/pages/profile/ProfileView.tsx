@@ -563,7 +563,7 @@ const ProfileView: React.FC = () => {
           {/* 칭호 섹션 */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <label className={commonStyles.label}>획득한 칭호</label>
+              <label className={commonStyles.label}>선택한 칭호</label>
               <button
                 onClick={() => navigate('/achievements')}
                 className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
@@ -571,31 +571,35 @@ const ProfileView: React.FC = () => {
                 전체 보기 →
               </button>
             </div>
-            {myAchievements && myAchievements.total > 0 ? (
+            {profileData?.selected_achievement ? (
               <div className="flex flex-wrap gap-2">
-                {myAchievements.user_achievements.slice(0, 5).map((userAchievement) => (
-                  <div
-                    key={userAchievement.user_achievement_id}
-                    className="bg-gradient-to-br from-yellow-600/20 to-yellow-800/20 border border-yellow-500/50 rounded-lg px-3 py-2 flex items-center gap-2"
-                  >
-                    <span className="text-yellow-400">🏆</span>
-                    <span className="text-sm font-medium text-yellow-300">
-                      {userAchievement.achievement.title}
-                    </span>
-                  </div>
-                ))}
-                {myAchievements.total > 5 && (
-                  <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 flex items-center gap-2">
-                    <span className="text-sm text-gray-400">
-                      +{myAchievements.total - 5}개 더
-                    </span>
-                  </div>
-                )}
+                <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 border border-purple-500/50 rounded-lg px-3 py-2 flex items-center gap-2">
+                  {profileData.selected_achievement.icon_url ? (
+                    <img 
+                      src={profileData.selected_achievement.icon_url} 
+                      alt={profileData.selected_achievement.title}
+                      className="w-5 h-5 object-contain"
+                    />
+                  ) : (
+                    <span className="text-purple-400">⭐</span>
+                  )}
+                  <span className="text-sm font-medium text-purple-300">
+                    {profileData.selected_achievement.title}
+                  </span>
+                </div>
               </div>
             ) : (
               <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center">
-                <p className="text-sm text-gray-400">아직 획득한 칭호가 없습니다.</p>
-                <p className="text-xs text-gray-500 mt-1">연습을 시작하여 칭호를 획득해보세요!</p>
+                <p className="text-sm text-gray-400">선택한 칭호가 없습니다.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  <button
+                    onClick={() => navigate('/achievements')}
+                    className="text-purple-400 hover:text-purple-300 underline"
+                  >
+                    칭호 페이지
+                  </button>
+                  에서 획득한 칭호를 선택해보세요!
+                </p>
               </div>
             )}
           </div>

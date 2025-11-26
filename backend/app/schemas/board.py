@@ -3,8 +3,11 @@
 게시글, 댓글, 좋아요 등의 스키마 정의
 """
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from app.schemas.achievements import AchievementResponse
 
 
 # ========== 게시글 스키마 ==========
@@ -50,6 +53,7 @@ class PostAuthorResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
+    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True

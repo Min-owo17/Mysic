@@ -41,6 +41,7 @@ function MainLayout({ children }: { children: ReactNode }) {
     '/groups': View.GROUPS,
     '/board': View.BOARD,
     '/profile': View.PROFILE,
+    '/achievements': View.PROFILE, // 칭호 페이지는 프로필 탭으로 인식
     '/settings': View.SETTINGS,
   }
   

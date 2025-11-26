@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.board import Post, Comment, PostLike, CommentLike
+from app.models.achievement import Achievement
 from app.schemas.board import (
     PostCreate,
     PostUpdate,
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/board", tags=["게시판"])
 
 
-def _build_post_response(post: Post, current_user_id: Optional[int] = None) -> PostResponse:
+def _build_post_response(post: Post, db: Session, current_user_id: Optional[int] = None) -> PostResponse:
     """
     Post 모델을 PostResponse로 변환
     
@@ -42,11 +43,22 @@ def _build_post_response(post: Post, current_user_id: Optional[int] = None) -> P
     Returns:
         PostResponse: 게시글 응답 객체
     """
-    # 작성자 정보
+    # 작성자 정보 (선택한 칭호 포함)
+    selected_achievement_data = None
+    if post.user.selected_achievement_id:
+        # 관계가 로드되지 않은 경우 직접 조회
+        selected_achievement = db.query(Achievement).filter(
+            Achievement.achievement_id == post.user.selected_achievement_id
+        ).first()
+        if selected_achievement:
+            from app.schemas.achievements import AchievementResponse
+            selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+    
     author = PostAuthorResponse(
         user_id=post.user.user_id,
         nickname=post.user.nickname,
-        profile_image_url=post.user.profile_image_url
+        profile_image_url=post.user.profile_image_url,
+        selected_achievement=selected_achievement_data
     )
     
     # 좋아요 여부 확인
@@ -80,22 +92,33 @@ def _build_post_response(post: Post, current_user_id: Optional[int] = None) -> P
     )
 
 
-def _build_comment_response(comment: Comment, current_user_id: Optional[int] = None) -> CommentResponse:
+def _build_comment_response(comment: Comment, db: Session, current_user_id: Optional[int] = None) -> CommentResponse:
     """
     Comment 모델을 CommentResponse로 변환 (답글 포함)
     
     Args:
         comment: Comment 모델 객체
+        db: 데이터베이스 세션
         current_user_id: 현재 사용자 ID (좋아요 여부 확인용)
     
     Returns:
         CommentResponse: 댓글 응답 객체
     """
-    # 작성자 정보
+    # 작성자 정보 (선택한 칭호 포함)
+    selected_achievement_data = None
+    if comment.user.selected_achievement_id:
+        selected_achievement = db.query(Achievement).filter(
+            Achievement.achievement_id == comment.user.selected_achievement_id
+        ).first()
+        if selected_achievement:
+            from app.schemas.achievements import AchievementResponse
+            selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+    
     author = PostAuthorResponse(
         user_id=comment.user.user_id,
         nickname=comment.user.nickname,
-        profile_image_url=comment.user.profile_image_url
+        profile_image_url=comment.user.profile_image_url,
+        selected_achievement=selected_achievement_data
     )
     
     # 좋아요 여부 확인
@@ -108,7 +131,7 @@ def _build_comment_response(comment: Comment, current_user_id: Optional[int] = N
     replies = []
     if hasattr(comment, 'replies') and comment.replies:
         replies = [
-            _build_comment_response(reply, current_user_id)
+            _build_comment_response(reply, db, current_user_id)
             for reply in sorted(comment.replies, key=lambda x: x.created_at)
         ]
     
@@ -199,7 +222,7 @@ async def get_posts(
     
     # 응답 변환
     current_user_id = current_user.user_id if current_user else None
-    post_responses = [_build_post_response(post, current_user_id) for post in posts]
+    post_responses = [_build_post_response(post, db, current_user_id) for post in posts]
     
     total_pages = (total + page_size - 1) // page_size
     
@@ -245,7 +268,7 @@ async def create_post(
     
     logger.info(f"게시글 작성 완료: post_id={new_post.post_id}, user_id={current_user.user_id}")
     
-    return _build_post_response(new_post, current_user.user_id)
+    return _build_post_response(new_post, db, current_user.user_id)
 
 
 @router.get("/posts/{post_id}", response_model=PostResponse)
@@ -282,7 +305,7 @@ async def get_post(
     _ = post.likes
     
     current_user_id = current_user.user_id if current_user else None
-    return _build_post_response(post, current_user_id)
+    return _build_post_response(post, db, current_user_id)
 
 
 @router.put("/posts/{post_id}", response_model=PostResponse)
@@ -338,7 +361,7 @@ async def update_post(
     
     logger.info(f"게시글 수정 완료: post_id={post_id}, user_id={current_user.user_id}")
     
-    return _build_post_response(post, current_user.user_id)
+    return _build_post_response(post, db, current_user.user_id)
 
 
 @router.delete("/posts/{post_id}", response_model=MessageResponse)
@@ -483,7 +506,7 @@ async def get_comments(
                 _ = reply.likes
     
     current_user_id = current_user.user_id if current_user else None
-    comment_responses = [_build_comment_response(comment, current_user_id) for comment in comments]
+    comment_responses = [_build_comment_response(comment, db, current_user_id) for comment in comments]
     
     return CommentListResponse(
         comments=comment_responses,
@@ -564,7 +587,7 @@ async def create_comment(
     
     logger.info(f"댓글 작성 완료: comment_id={new_comment.comment_id}, post_id={post_id}, user_id={current_user.user_id}")
     
-    return _build_comment_response(new_comment, current_user.user_id)
+    return _build_comment_response(new_comment, db, current_user.user_id)
 
 
 @router.put("/comments/{comment_id}", response_model=CommentResponse)
@@ -612,7 +635,7 @@ async def update_comment(
     
     logger.info(f"댓글 수정 완료: comment_id={comment_id}, user_id={current_user.user_id}")
     
-    return _build_comment_response(comment, current_user.user_id)
+    return _build_comment_response(comment, db, current_user.user_id)
 
 
 @router.delete("/comments/{comment_id}", response_model=MessageResponse)

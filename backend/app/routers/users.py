@@ -16,6 +16,7 @@ from app.models.user import User, UserProfile
 from app.models.user_profile import UserProfileInstrument, UserProfileUserType
 from app.models.instrument import Instrument
 from app.models.user_type import UserType
+from app.models.achievement import Achievement, UserAchievement
 from app.schemas.users import (
     UserDetailResponse,
     UserProfileResponse,
@@ -95,6 +96,16 @@ async def get_my_profile(
         if profile:
             profile_data = _build_profile_response(profile)
         
+        # 선택한 칭호 정보 조회
+        selected_achievement_data = None
+        if current_user.selected_achievement_id:
+            selected_achievement = db.query(Achievement).filter(
+                Achievement.achievement_id == current_user.selected_achievement_id
+            ).first()
+            if selected_achievement:
+                from app.schemas.achievements import AchievementResponse
+                selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+        
         return UserDetailResponse(
             user_id=current_user.user_id,
             email=current_user.email,
@@ -102,9 +113,11 @@ async def get_my_profile(
             profile_image_url=current_user.profile_image_url,
             is_active=current_user.is_active,
             last_login_at=current_user.last_login_at,
+            selected_achievement_id=current_user.selected_achievement_id,
             created_at=current_user.created_at,
             updated_at=current_user.updated_at,
-            profile=profile_data
+            profile=profile_data,
+            selected_achievement=selected_achievement_data
         )
     except Exception as e:
         logger.error(f"프로필 조회 오류: {str(e)}", exc_info=True)
@@ -459,15 +472,27 @@ async def search_users(
             .limit(page_size)\
             .all()
         
-        # 응답 생성
-        user_responses = [
-            UserSearchResponse(
-                user_id=user.user_id,
-                nickname=user.nickname,
-                profile_image_url=user.profile_image_url
+        # 응답 생성 (선택한 칭호 포함)
+        user_responses = []
+        for user in users:
+            selected_achievement_data = None
+            if user.selected_achievement_id:
+                from app.models.achievement import Achievement
+                selected_achievement = db.query(Achievement).filter(
+                    Achievement.achievement_id == user.selected_achievement_id
+                ).first()
+                if selected_achievement:
+                    from app.schemas.achievements import AchievementResponse
+                    selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+            
+            user_responses.append(
+                UserSearchResponse(
+                    user_id=user.user_id,
+                    nickname=user.nickname,
+                    profile_image_url=user.profile_image_url,
+                    selected_achievement=selected_achievement_data
+                )
             )
-            for user in users
-        ]
         
         total_pages = (total + page_size - 1) // page_size
         

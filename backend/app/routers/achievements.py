@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
-from typing import List
+from typing import List, Optional
 from datetime import date, timedelta
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -19,6 +19,7 @@ from app.schemas.achievements import (
     AchievementListResponse,
     UserAchievementListResponse
 )
+from app.schemas.users import MessageResponse
 
 logger = logging.getLogger(__name__)
 
@@ -221,4 +222,67 @@ def calculate_consecutive_days(user_id: int, db: Session) -> int:
     except Exception as e:
         logger.error(f"연속 일수 계산 실패: user_id={user_id}, error={e}")
         return 0
+
+
+@router.put("/my/select", response_model=MessageResponse)
+async def select_achievement(
+    achievement_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    대표 칭호 선택
+    - 획득한 칭호 중에서만 선택 가능
+    - achievement_id가 None이면 선택 해제
+    """
+    try:
+        # achievement_id가 None이면 선택 해제
+        if achievement_id is None:
+            current_user.selected_achievement_id = None
+            db.commit()
+            logger.info(f"칭호 선택 해제: user_id={current_user.user_id}")
+            return MessageResponse(message="칭호 선택이 해제되었습니다.")
+        
+        # 칭호가 존재하는지 확인
+        achievement = db.query(Achievement).filter(
+            Achievement.achievement_id == achievement_id
+        ).first()
+        
+        if not achievement:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="칭호를 찾을 수 없습니다."
+            )
+        
+        # 사용자가 해당 칭호를 획득했는지 확인
+        user_achievement = db.query(UserAchievement).filter(
+            and_(
+                UserAchievement.user_id == current_user.user_id,
+                UserAchievement.achievement_id == achievement_id
+            )
+        ).first()
+        
+        if not user_achievement:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="획득하지 않은 칭호는 선택할 수 없습니다."
+            )
+        
+        # 선택한 칭호 설정
+        current_user.selected_achievement_id = achievement_id
+        db.commit()
+        db.refresh(current_user)
+        
+        logger.info(f"칭호 선택: user_id={current_user.user_id}, achievement_id={achievement_id}")
+        return MessageResponse(message=f"'{achievement.title}' 칭호가 대표 칭호로 선택되었습니다.")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"칭호 선택 실패: user_id={current_user.user_id}, error={e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="칭호 선택에 실패했습니다."
+        )
 

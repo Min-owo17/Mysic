@@ -527,7 +527,14 @@ const BoardView: React.FC = () => {
                   <div className="flex items-center gap-3 mb-2">
                       <img src={post.author.profile_image_url || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-9 h-9 rounded-full bg-gray-700" />
                       <div>
-                          <p className="font-semibold text-gray-200 leading-tight">{post.author.nickname}</p>
+                          <div className="flex items-center gap-2">
+                            {post.author.selected_achievement && (
+                              <span className="text-xs text-purple-300 font-medium">
+                                [{post.author.selected_achievement.title}]
+                              </span>
+                            )}
+                            <p className="font-semibold text-gray-200 leading-tight">{post.author.nickname}</p>
+                          </div>
                           {authorProfile?.title && <p className="text-xs text-yellow-300 leading-tight">{authorProfile.title}</p>}
                       </div>
                   </div>

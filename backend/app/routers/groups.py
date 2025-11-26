@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.group import Group, GroupMember, GroupInvitation
+from app.models.achievement import Achievement
 from app.schemas.groups import (
     GroupCreate,
     GroupUpdate,
@@ -50,11 +51,21 @@ def _build_group_response(
     Returns:
         GroupResponse: 그룹 응답 객체
     """
-    # 소유자 정보
+    # 소유자 정보 (선택한 칭호 포함)
+    selected_achievement_data = None
+    if group.owner.selected_achievement_id:
+        selected_achievement = db.query(Achievement).filter(
+            Achievement.achievement_id == group.owner.selected_achievement_id
+        ).first() if db else None
+        if selected_achievement:
+            from app.schemas.achievements import AchievementResponse
+            selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+    
     owner = GroupOwnerResponse(
         user_id=group.owner.user_id,
         nickname=group.owner.nickname,
-        profile_image_url=group.owner.profile_image_url
+        profile_image_url=group.owner.profile_image_url,
+        selected_achievement=selected_achievement_data
     )
     
     # 멤버 수 계산
@@ -97,16 +108,27 @@ def _build_group_response(
     )
 
 
-def _build_group_member_response(member: GroupMember) -> GroupMemberResponse:
+def _build_group_member_response(member: GroupMember, db: Session) -> GroupMemberResponse:
     """
     GroupMember 모델을 GroupMemberResponse로 변환
     
     Args:
         member: GroupMember 모델 객체
+        db: 데이터베이스 세션
     
     Returns:
         GroupMemberResponse: 그룹 멤버 응답 객체
     """
+    # 선택한 칭호 정보 조회
+    selected_achievement_data = None
+    if member.user.selected_achievement_id:
+        selected_achievement = db.query(Achievement).filter(
+            Achievement.achievement_id == member.user.selected_achievement_id
+        ).first()
+        if selected_achievement:
+            from app.schemas.achievements import AchievementResponse
+            selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+    
     # UTC timezone 정보 추가
     joined_at_aware = member.joined_at
     if joined_at_aware and joined_at_aware.tzinfo is None:
@@ -117,6 +139,7 @@ def _build_group_member_response(member: GroupMember) -> GroupMemberResponse:
         user_id=member.user_id,
         nickname=member.user.nickname,
         profile_image_url=member.user.profile_image_url,
+        selected_achievement=selected_achievement_data,
         role=member.role,
         joined_at=joined_at_aware
     )
@@ -708,7 +731,7 @@ async def get_group_members(
         ).all()
         
         member_responses = [
-            _build_group_member_response(member)
+            _build_group_member_response(member, db)
             for member in members
         ]
         
@@ -891,18 +914,40 @@ def _build_group_invitation_response(invitation: GroupInvitation) -> GroupInvita
         is_public=invitation.group.is_public
     )
     
+    # 초대자 선택한 칭호 조회
+    inviter_selected_achievement = None
+    if invitation.inviter.selected_achievement_id:
+        inviter_achievement = db.query(Achievement).filter(
+            Achievement.achievement_id == invitation.inviter.selected_achievement_id
+        ).first()
+        if inviter_achievement:
+            from app.schemas.achievements import AchievementResponse
+            inviter_selected_achievement = AchievementResponse.model_validate(inviter_achievement)
+    
+    # 초대받은 사용자 선택한 칭호 조회
+    invitee_selected_achievement = None
+    if invitation.invitee.selected_achievement_id:
+        invitee_achievement = db.query(Achievement).filter(
+            Achievement.achievement_id == invitation.invitee.selected_achievement_id
+        ).first()
+        if invitee_achievement:
+            from app.schemas.achievements import AchievementResponse
+            invitee_selected_achievement = AchievementResponse.model_validate(invitee_achievement)
+    
     # 초대자 정보
     inviter = GroupInvitationInviterResponse(
         user_id=invitation.inviter.user_id,
         nickname=invitation.inviter.nickname,
-        profile_image_url=invitation.inviter.profile_image_url
+        profile_image_url=invitation.inviter.profile_image_url,
+        selected_achievement=inviter_selected_achievement
     )
     
     # 초대받은 사용자 정보
     invitee = GroupInvitationInviteeResponse(
         user_id=invitation.invitee.user_id,
         nickname=invitation.invitee.nickname,
-        profile_image_url=invitation.invitee.profile_image_url
+        profile_image_url=invitation.invitee.profile_image_url,
+        selected_achievement=invitee_selected_achievement
     )
     
     return GroupInvitationResponse(

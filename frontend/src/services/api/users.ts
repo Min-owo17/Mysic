@@ -69,6 +69,12 @@ export const usersApi = {
       user_id: number;
       nickname: string;
       profile_image_url?: string | null;
+      selected_achievement?: {
+        achievement_id: number;
+        title: string;
+        description?: string | null;
+        icon_url?: string | null;
+      } | null;
     }>;
     total: number;
     page: number;

@@ -5,6 +5,12 @@ export interface GroupOwner {
   user_id: number;
   nickname: string;
   profile_image_url?: string | null;
+  selected_achievement?: {
+    achievement_id: number;
+    title: string;
+    description?: string | null;
+    icon_url?: string | null;
+  } | null;
 }
 
 export interface GroupMember {
@@ -12,6 +18,12 @@ export interface GroupMember {
   user_id: number;
   nickname: string;
   profile_image_url?: string | null;
+  selected_achievement?: {
+    achievement_id: number;
+    title: string;
+    description?: string | null;
+    icon_url?: string | null;
+  } | null;
   role: 'owner' | 'admin' | 'member';
   joined_at: string;
 }
@@ -75,12 +87,24 @@ export interface GroupInvitation {
     user_id: number;
     nickname: string;
     profile_image_url?: string | null;
+    selected_achievement?: {
+      achievement_id: number;
+      title: string;
+      description?: string | null;
+      icon_url?: string | null;
+    } | null;
   };
   invitee_id: number;
   invitee: {
     user_id: number;
     nickname: string;
     profile_image_url?: string | null;
+    selected_achievement?: {
+      achievement_id: number;
+      title: string;
+      description?: string | null;
+      icon_url?: string | null;
+    } | null;
   };
   status: 'pending' | 'accepted' | 'declined' | 'expired';
   created_at: string;

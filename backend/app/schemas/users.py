@@ -3,8 +3,11 @@
 프로필 조회, 수정, 악기/특징 관리 등의 스키마 정의
 """
 from pydantic import BaseModel, Field, EmailStr, model_validator
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from app.schemas.achievements import AchievementResponse
 
 
 class InstrumentResponse(BaseModel):
@@ -71,9 +74,11 @@ class UserDetailResponse(BaseModel):
     profile_image_url: Optional[str] = None
     is_active: bool
     last_login_at: Optional[datetime] = None
+    selected_achievement_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     profile: Optional[UserProfileResponse] = None
+    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True
@@ -168,6 +173,7 @@ class UserSearchResponse(BaseModel):
     user_id: int
     nickname: str
     profile_image_url: Optional[str] = None
+    selected_achievement: Optional["AchievementResponse"] = None  # 선택한 칭호 정보
 
     class Config:
         from_attributes = True

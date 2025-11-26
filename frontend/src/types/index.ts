@@ -71,9 +71,11 @@ export interface UserDetailResponse {
   profile_image_url?: string | null;
   is_active: boolean;
   last_login_at?: string | null;
+  selected_achievement_id?: number | null;
   created_at: string;
   updated_at: string;
   profile?: UserProfileResponse | null;
+  selected_achievement?: AchievementResponse | null;
 }
 
 // User API Request types
