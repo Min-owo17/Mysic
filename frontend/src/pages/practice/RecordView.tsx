@@ -30,6 +30,8 @@ const RecordView: React.FC = () => {
     const [error, setError] = useState('');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+    const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
+    const [sessionToCancel, setSessionToCancel] = useState<number | null>(null);
     
     const [isInstrumentDropdownOpen, setIsInstrumentDropdownOpen] = useState(false);
     const instrumentDropdownRef = useRef<HTMLDivElement>(null);
@@ -78,6 +80,23 @@ const RecordView: React.FC = () => {
         },
         onError: (error: any) => {
             const errorMessage = error.response?.data?.detail || '연습 세션 저장에 실패했습니다.';
+            setError(errorMessage);
+            toast.error(errorMessage);
+        },
+    });
+
+    // 연습 세션 삭제 mutation
+    const deleteSessionMutation = useMutation({
+        mutationFn: practiceApi.deleteSession,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['practice'] });
+            setCurrentSessionId(null);
+            setSessionToCancel(null);
+            setShowCancelConfirmModal(false);
+            toast.success('연습 세션이 삭제되었습니다.');
+        },
+        onError: (error: any) => {
+            const errorMessage = error.response?.data?.detail || '연습 세션 삭제에 실패했습니다.';
             setError(errorMessage);
             toast.error(errorMessage);
         },
@@ -155,21 +174,27 @@ const RecordView: React.FC = () => {
         }
     };
 
-    const handleDiscard = async () => {
-        // 진행 중인 세션이 있으면 종료
+    const handleDiscard = () => {
+        // 진행 중인 세션이 있으면 확인 모달 표시
         if (currentSessionId) {
-            try {
-                await updateSessionMutation.mutateAsync({
-                    sessionId: currentSessionId,
-                    data: {
-                        actual_play_time: 0,
-                        notes: '취소됨',
-                    },
-                });
-            } catch (err) {
-                console.error('세션 취소 실패:', err);
-            }
-            setCurrentSessionId(null);
+            setSessionToCancel(currentSessionId);
+            setShowCancelConfirmModal(true);
+        } else {
+            // 세션이 없으면 바로 초기화
+            resetAudio();
+            setInstrument(userProfile.instrument || '');
+            setNotes('');
+            setTitle('');
+            setSummary('');
+            setAnalyzedDuration(null);
+            setError('');
+            setUiState('idle');
+        }
+    };
+
+    const handleConfirmCancel = async () => {
+        if (sessionToCancel) {
+            await deleteSessionMutation.mutateAsync(sessionToCancel);
         }
         
         resetAudio();
@@ -180,6 +205,11 @@ const RecordView: React.FC = () => {
         setAnalyzedDuration(null);
         setError('');
         setUiState('idle');
+    };
+
+    const handleCancelModal = () => {
+        setShowCancelConfirmModal(false);
+        setSessionToCancel(null);
     };
 
     const handleAnalyzeNotes = async () => {
@@ -291,23 +321,18 @@ const RecordView: React.FC = () => {
     };
 
     // 진행 중인 세션 취소하기
-    const handleCancelActiveSession = async () => {
+    const handleCancelActiveSession = () => {
         if (activeSession) {
-            try {
-                await updateSessionMutation.mutateAsync({
-                    sessionId: activeSession.session_id,
-                    data: {
-                        actual_play_time: 0,
-                        notes: '사용자에 의해 취소됨',
-                    },
-                });
-                toast.success('진행 중인 세션이 취소되었습니다.');
-                // 쿼리 캐시 무효화하여 activeSession을 null로 업데이트
-                queryClient.invalidateQueries({ queryKey: ['practice', 'active-session'] });
-            } catch (err) {
-                console.error('세션 취소 실패:', err);
-                toast.error('세션 취소에 실패했습니다.');
-            }
+            setSessionToCancel(activeSession.session_id);
+            setShowCancelConfirmModal(true);
+        }
+    };
+
+    const handleConfirmCancelActiveSession = async () => {
+        if (sessionToCancel) {
+            await deleteSessionMutation.mutateAsync(sessionToCancel);
+            // 쿼리 캐시 무효화하여 activeSession을 null로 업데이트
+            queryClient.invalidateQueries({ queryKey: ['practice', 'active-session'] });
         }
     };
 
@@ -342,10 +367,10 @@ const RecordView: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={handleCancelActiveSession}
-                                    disabled={updateSessionMutation.isPending}
+                                    disabled={deleteSessionMutation.isPending}
                                     className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} flex-1 py-2 text-sm disabled:opacity-50`}
                                 >
-                                    {updateSessionMutation.isPending ? (
+                                    {deleteSessionMutation.isPending ? (
                                         <Spinner size="sm" />
                                     ) : (
                                         '아니오, 취소'
@@ -439,7 +464,7 @@ const RecordView: React.FC = () => {
                      <div className="flex gap-4 pt-4">
                         <button 
                             onClick={handleDiscard} 
-                            disabled={updateSessionMutation.isPending}
+                            disabled={deleteSessionMutation.isPending}
                             className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} py-3 disabled:opacity-50`}
                         >
                             취소
@@ -498,6 +523,41 @@ const RecordView: React.FC = () => {
                                 className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} py-3`}
                             >
                                 닫기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showCancelConfirmModal && (
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.confirmModalContainer}>
+                        <h3 className={`${commonStyles.subTitle} mb-4`}>연습 세션 취소</h3>
+                        <p className="text-gray-600 dark:text-gray-400 mb-6">
+                            연습 세션을 취소하면 기록이 삭제됩니다.<br />
+                            정말 취소하시겠습니까?
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleCancelModal}
+                                disabled={deleteSessionMutation.isPending}
+                                className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} flex-1 disabled:opacity-50`}
+                            >
+                                아니오
+                            </button>
+                            <button
+                                onClick={sessionToCancel === activeSession?.session_id ? handleConfirmCancelActiveSession : handleConfirmCancel}
+                                disabled={deleteSessionMutation.isPending}
+                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} flex-1 disabled:opacity-50 flex items-center justify-center gap-2`}
+                            >
+                                {deleteSessionMutation.isPending ? (
+                                    <>
+                                        <Spinner size="sm" />
+                                        삭제 중...
+                                    </>
+                                ) : (
+                                    '예, 삭제'
+                                )}
                             </button>
                         </div>
                     </div>
