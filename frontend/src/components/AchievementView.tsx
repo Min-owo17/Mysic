@@ -1,8 +1,8 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { achievementsApi } from '../../services/api/achievements';
-import { AchievementResponse, UserAchievementResponse } from '../../types';
-import { commonStyles } from '../../styles/commonStyles';
+import { achievementsApi } from '../services/api/achievements';
+import { AchievementResponse, UserAchievementResponse } from '../types';
+import { commonStyles } from '../styles/commonStyles';
 import toast from 'react-hot-toast';
 
 const TrophyIcon = () => (

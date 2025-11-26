@@ -2,11 +2,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAppContext } from '../context/AppContext';
-import { commonStyles } from '../styles/commonStyles';
-import { authApi } from '../services/api/auth';
+import { useAppContext } from '../../context/AppContext';
+import { commonStyles } from '../../styles/commonStyles';
+import { authApi } from '../../services/api/auth';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '../store/slices/authSlice';
+import { useAuthStore } from '../../store/slices/authSlice';
 
 const AuthView: React.FC = () => {
     const { login } = useAppContext();

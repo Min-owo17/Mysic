@@ -3,14 +3,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAudioRecorder } from '../hooks/useAudioRecorder';
-import { analyzePerformanceNotes, analyzeAudioForPlayingTime } from '../services/geminiService';
-import { useAppContext } from '../context/AppContext';
-import { practiceApi } from '../services/api/practice';
-import { formatTime } from '../utils/time';
-import { instruments } from '../utils/constants';
-import { View } from '../types';
-import { commonStyles } from '../styles/commonStyles';
+import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { analyzePerformanceNotes, analyzeAudioForPlayingTime } from '../../services/geminiService';
+import { useAppContext } from '../../context/AppContext';
+import { practiceApi } from '../../services/api/practice';
+import { formatTime } from '../../utils/time';
+import { instruments } from '../../utils/constants';
+import { View } from '../../types';
+import { commonStyles } from '../../styles/commonStyles';
 import toast from 'react-hot-toast';
 
 type RecordingState = 'idle' | 'recording' | 'analyzingAudio' | 'recorded' | 'saving';

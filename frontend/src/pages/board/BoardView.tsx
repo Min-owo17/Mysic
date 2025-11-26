@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext } from '../../context/AppContext';
 import CreatePostView from './CreatePostView';
 import PostDetailView from './PostDetailView';
-import { boardApi, Post } from '../services/api/board';
-import { instrumentsApi } from '../services/api/instruments';
-import { userTypesApi } from '../services/api/userTypes';
-import { timeAgo } from '../utils/time';
-import { defaultAvatar } from '../utils/avatar';
-import { commonStyles } from '../styles/commonStyles';
+import { boardApi, Post } from '../../services/api/board';
+import { instrumentsApi } from '../../services/api/instruments';
+import { userTypesApi } from '../../services/api/userTypes';
+import { timeAgo } from '../../utils/time';
+import { defaultAvatar } from '../../utils/avatar';
+import { commonStyles } from '../../styles/commonStyles';
 import toast from 'react-hot-toast';
 
 const BoardView: React.FC = () => {

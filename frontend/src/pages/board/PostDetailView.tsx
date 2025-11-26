@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppContext } from '../context/AppContext';
-import { commonStyles } from '../styles/commonStyles';
-import { boardApi, Post, PostComment } from '../services/api/board';
-import { defaultAvatar } from '../utils/avatar';
+import { useAppContext } from '../../context/AppContext';
+import { commonStyles } from '../../styles/commonStyles';
+import { boardApi, Post, PostComment } from '../../services/api/board';
+import { defaultAvatar } from '../../utils/avatar';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '../store/slices/authSlice';
+import { useAuthStore } from '../../store/slices/authSlice';
 
 interface PostDetailViewProps {
   post: Post;

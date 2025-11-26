@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAppContext } from '../context/AppContext';
-import { allFeatures, instruments } from '../utils/constants';
-import { commonStyles } from '../styles/commonStyles';
-import { Post } from '../services/api/board';
-import { usersApi } from '../services/api/users';
-import { UserDetailResponse } from '../types';
+import { useAppContext } from '../../context/AppContext';
+import { allFeatures, instruments } from '../../utils/constants';
+import { commonStyles } from '../../styles/commonStyles';
+import { Post } from '../../services/api/board';
+import { usersApi } from '../../services/api/users';
+import { UserDetailResponse } from '../../types';
 
 interface CreatePostViewProps {
     postToEdit?: Post;

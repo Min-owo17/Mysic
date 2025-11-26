@@ -2,12 +2,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useAppContext } from '../context/AppContext';
-import { formatTime, getLocalDateString } from '../utils/time';
-import { PerformanceRecord, PracticeSession, UserDetailResponse } from '../types';
-import { practiceApi } from '../services/api/practice';
-import { usersApi } from '../services/api/users';
-import { commonStyles } from '../styles/commonStyles';
+import { useAppContext } from '../../context/AppContext';
+import { formatTime, getLocalDateString } from '../../utils/time';
+import { PerformanceRecord, PracticeSession, UserDetailResponse } from '../../types';
+import { practiceApi } from '../../services/api/practice';
+import { usersApi } from '../../services/api/users';
+import { commonStyles } from '../../styles/commonStyles';
 
 
 

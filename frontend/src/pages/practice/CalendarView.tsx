@@ -2,12 +2,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppContext } from '../context/AppContext';
-import { PerformanceRecord, PracticeSession } from '../types';
-import { practiceApi } from '../services/api/practice';
-import { formatTime, getLocalDateString } from '../utils/time';
+import { useAppContext } from '../../context/AppContext';
+import { PerformanceRecord, PracticeSession } from '../../types';
+import { practiceApi } from '../../services/api/practice';
+import { formatTime, getLocalDateString } from '../../utils/time';
 import ComparisonView from './ComparisonView';
-import { commonStyles } from '../styles/commonStyles';
+import { commonStyles } from '../../styles/commonStyles';
 import toast from 'react-hot-toast';
 
 type ViewMode = 'monthly' | 'weekly';

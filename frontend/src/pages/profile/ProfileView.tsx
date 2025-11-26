@@ -8,13 +8,13 @@ import {
   UpdateProfileRequest,
   UpdateInstrumentsRequest,
   UpdateUserTypesRequest,
-} from '../types';
-import { usersApi } from '../services/api/users';
-import { instrumentsApi } from '../services/api/instruments';
-import { userTypesApi } from '../services/api/userTypes';
-import { achievementsApi } from '../services/api/achievements';
-import { commonStyles } from '../styles/commonStyles';
-import { resizeImage, validateImageFile } from '../utils/imageResize';
+} from '../../types';
+import { usersApi } from '../../services/api/users';
+import { instrumentsApi } from '../../services/api/instruments';
+import { userTypesApi } from '../../services/api/userTypes';
+import { achievementsApi } from '../../services/api/achievements';
+import { commonStyles } from '../../styles/commonStyles';
+import { resizeImage, validateImageFile } from '../../utils/imageResize';
 
 const CoffeeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-300" viewBox="0 0 20 20" fill="currentColor">
