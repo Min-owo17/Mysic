@@ -584,19 +584,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
 
             <div className="p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto animate-fade-in">
                 <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center relative">
-                        {/* 모바일: 통계 버튼을 화면 우측에 배치 */}
-                        <div className="md:hidden absolute -top-10 right-0">
-                            <button
-                                onClick={() => navigate(`/groups/${initialGroup.group_id}/statistics`, { state: { from: 'group-detail' } })}
-                                className="p-2 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white transition-colors"
-                                aria-label="그룹 통계 보기"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                            </button>
-                        </div>
+                    <div className="flex items-center">
                         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-700 mr-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
@@ -613,11 +601,11 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                             </p>
                         </div>
                     </div>
-                    <div className="hidden md:flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                         {isOwner && (
                             <button
                                 onClick={handleOpenEditModal}
-                                className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-4 py-2`}
+                                className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-4 py-2 hidden md:flex`}
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -625,6 +613,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                 수정
                             </button>
                         )}
+                        {/* PC: 기존 위치 유지, 모바일: justify-between의 맨 오른쪽에 위치 */}
                         <button
                             onClick={() => navigate(`/groups/${initialGroup.group_id}/statistics`, { state: { from: 'group-detail' } })}
                             className="p-2 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white transition-colors"
@@ -731,52 +720,54 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                     </div>
                 )}
                 
-                <div className={`mt-8 pt-6 ${commonStyles.divider} grid grid-cols-1 md:flex md:flex-row gap-4 md:justify-center items-center`}>
+                <div className={`mt-8 pt-6 ${commonStyles.divider} flex flex-col gap-4`}>
+                    <div className="flex flex-col md:flex-row gap-4 md:justify-center items-center">
+                        {isOwner && (
+                            <button
+                                onClick={() => setIsInviteModalOpen(true)}
+                                className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
+                            >
+                                <InviteIcon />
+                                멤버 초대
+                            </button>
+                        )}
+                    
+                        {isOwner ? (
+                            <button
+                                onClick={() => setShowDeleteGroupConfirm(true)}
+                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3 !bg-red-600/80 hover:!bg-red-600`}
+                            >
+                                <TrashIcon />
+                                그룹 삭제
+                            </button>
+                        ) : isMember ? (
+                            <button
+                                onClick={() => setShowLeaveConfirm(true)}
+                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButtonOutline} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
+                            >
+                                <LeaveIcon />
+                                그룹 탈퇴
+                            </button>
+                        ) : (
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await groupsApi.joinGroup(group.group_id);
+                                        queryClient.invalidateQueries({ queryKey: ['groups'] });
+                                        toast.success('그룹에 가입했습니다.');
+                                    } catch (error: any) {
+                                        toast.error(error.response?.data?.detail || '그룹 가입에 실패했습니다.');
+                                    }
+                                }}
+                                className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
+                            >
+                                <InviteIcon />
+                                그룹 가입
+                            </button>
+                        )}
+                    </div>
                     {isOwner && (
-                        <button
-                            onClick={() => setIsInviteModalOpen(true)}
-                            className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
-                        >
-                            <InviteIcon />
-                            멤버 초대
-                        </button>
-                    )}
-                
-                    {isOwner ? (
-                        <button
-                            onClick={() => setShowDeleteGroupConfirm(true)}
-                            className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3 !bg-red-600/80 hover:!bg-red-600`}
-                        >
-                            <TrashIcon />
-                            그룹 삭제
-                        </button>
-                    ) : isMember ? (
-                        <button
-                            onClick={() => setShowLeaveConfirm(true)}
-                            className={`${commonStyles.buttonBase} ${commonStyles.dangerButtonOutline} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
-                        >
-                            <LeaveIcon />
-                            그룹 탈퇴
-                        </button>
-                    ) : (
-                        <button
-                            onClick={async () => {
-                                try {
-                                    await groupsApi.joinGroup(group.group_id);
-                                    queryClient.invalidateQueries({ queryKey: ['groups'] });
-                                    toast.success('그룹에 가입했습니다.');
-                                } catch (error: any) {
-                                    toast.error(error.response?.data?.detail || '그룹 가입에 실패했습니다.');
-                                }
-                            }}
-                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
-                        >
-                            <InviteIcon />
-                            그룹 가입
-                        </button>
-                    )}
-                    {isOwner && (
-                        <p className="text-xs text-gray-500 mt-4 w-full text-center col-span-full md:col-span-1">그룹을 나가려면 먼저 다른 멤버에게 그룹장 권한을 위임해야 합니다.</p>
+                        <p className="text-xs text-gray-500 text-center">그룹을 나가려면 먼저 다른 멤버에게 그룹장 권한을 위임해야 합니다.</p>
                     )}
                 </div>
             </div>

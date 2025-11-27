@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import { groupsApi, Group, GroupCreate, GroupInvitation } from '../services/api/groups';
 import GroupDetailView from './GroupDetailView';
 import { useAppContext } from '../context/AppContext';
@@ -12,6 +13,7 @@ const GroupsView: React.FC = () => {
     userProfile
   } = useAppContext();
   const queryClient = useQueryClient();
+  const location = useLocation();
   
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,6 +62,19 @@ const GroupsView: React.FC = () => {
       toast.error(error.response?.data?.detail || '그룹 생성에 실패했습니다.');
     },
   });
+
+  // location state에서 그룹 ID를 받아서 자동으로 선택
+  useEffect(() => {
+    const state = location.state as { selectGroupId?: number } | null;
+    if (state?.selectGroupId && groupsData?.groups) {
+      const group = groupsData.groups.find(g => g.group_id === state.selectGroupId);
+      if (group) {
+        setSelectedGroup(group);
+        // state를 초기화하여 다음 방문 시 다시 선택되지 않도록
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, groupsData]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
