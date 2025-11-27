@@ -6,6 +6,7 @@ import PostDetailView from './PostDetailView';
 import { boardApi, Post } from '../../services/api/board';
 import { instrumentsApi } from '../../services/api/instruments';
 import { userTypesApi } from '../../services/api/userTypes';
+import { usersApi } from '../../services/api/users';
 import { timeAgo } from '../../utils/time';
 import { defaultAvatar } from '../../utils/avatar';
 import { commonStyles } from '../../styles/commonStyles';
@@ -158,6 +159,13 @@ const BoardView: React.FC = () => {
     staleTime: 30 * 60 * 1000, // 30분
   });
 
+  // 사용자 프로필 정보 조회 (악기 정보 포함)
+  const { data: userProfileData } = useQuery({
+    queryKey: ['userProfile'],
+    queryFn: () => usersApi.getMyProfile(),
+    staleTime: 5 * 60 * 1000, // 5분
+  });
+
   // 한글 가나다 순 정렬 함수
   const sortKorean = (a: string, b: string): number => {
     return a.localeCompare(b, 'ko-KR');
@@ -224,23 +232,61 @@ const BoardView: React.FC = () => {
       });
     }
 
-    // 맞춤 게시글 우선 정렬
-    const userFeaturesSet = new Set(userProfile.features);
+    // 맞춤 게시글 우선 정렬 (사용자의 악기 및 특징 정보 고려)
+    const userFeaturesSet = new Set(userProfile.features || []);
+    
+    // 사용자의 악기 이름 추출 (프로필에서)
+    const userInstruments = new Set<string>();
+    if (userProfileData?.profile?.instruments) {
+      userProfileData.profile.instruments.forEach(inst => {
+        userInstruments.add(inst.instrument_name);
+      });
+    }
+    // 기존 instrument 필드도 확인 (하위 호환성)
+    if (userProfile.instrument) {
+      userInstruments.add(userProfile.instrument);
+    }
+    
+    // 사용자의 특징 이름 추출
+    const userTypeNames = new Set<string>();
+    if (userProfileData?.profile?.user_types) {
+      userProfileData.profile.user_types.forEach(ut => {
+        userTypeNames.add(ut.user_type_name);
+      });
+    }
+    
+    // 모든 사용자 관련 태그 통합
+    const userRelevantTags = new Set([...userFeaturesSet, ...userInstruments, ...userTypeNames]);
+    
     filteredPosts.sort((a, b) => {
       const aTags = a.tags || [];
       const bTags = b.tags || [];
       
-      const aIsPrioritized = selectedTags.length === 0 && aTags.some(tag => userFeaturesSet.has(tag));
-      const bIsPrioritized = selectedTags.length === 0 && bTags.some(tag => userFeaturesSet.has(tag));
+      // 태그 필터가 없을 때만 맞춤 게시글 우선 정렬
+      if (selectedTags.length === 0) {
+        // 사용자 관련 태그가 있는 게시글에 우선순위 부여
+        const aRelevantCount = aTags.filter(tag => userRelevantTags.has(tag)).length;
+        const bRelevantCount = bTags.filter(tag => userRelevantTags.has(tag)).length;
+        
+        // 관련 태그가 더 많은 게시글이 우선
+        if (aRelevantCount !== bRelevantCount) {
+          return bRelevantCount - aRelevantCount;
+        }
+        
+        // 관련 태그가 있으면 우선
+        const aIsPrioritized = aRelevantCount > 0;
+        const bIsPrioritized = bRelevantCount > 0;
+        
+        if (aIsPrioritized && !bIsPrioritized) return -1;
+        if (!aIsPrioritized && bIsPrioritized) return 1;
+      }
 
-      if (aIsPrioritized && !bIsPrioritized) return -1;
-      if (!aIsPrioritized && bIsPrioritized) return 1;
-
+      // 최신순 정렬
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
     return filteredPosts;
-  }, [postsData, selectedTags, userProfile.features, showBookmarksOnly]);
+  }, [postsData, selectedTags, userProfile.features, userProfile.instrument, userProfileData, showBookmarksOnly]);
 
   const unreadCount = useMemo(() => postNotifications.filter(n => !n.read).length, [postNotifications]);
 
@@ -507,7 +553,14 @@ const BoardView: React.FC = () => {
           </div>
         ) : filteredAndSortedPosts.length > 0 ? (
           filteredAndSortedPosts.map(post => {
-            const isRecommended = selectedTags.length === 0 && post.tags?.some(tag => userProfile.features.includes(tag));
+            // 맞춤 게시글 여부 확인 (사용자의 악기, 특징, user_types 포함)
+            const userRelevantTags = new Set([
+              ...(userProfile.features || []),
+              ...(userProfileData?.profile?.instruments?.map(inst => inst.instrument_name) || []),
+              ...(userProfileData?.profile?.user_types?.map(ut => ut.user_type_name) || []),
+              ...(userProfile.instrument ? [userProfile.instrument] : [])
+            ]);
+            const isRecommended = selectedTags.length === 0 && post.tags?.some(tag => userRelevantTags.has(tag));
             const authorProfile = getProfile(post.author.nickname);
             const isExcellentPost = post.like_count >= 30;
 

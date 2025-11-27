@@ -11,6 +11,7 @@ import MemberCalendarModal from './MemberCalendarModal';
 import { commonStyles } from '../styles/commonStyles';
 import toast from 'react-hot-toast';
 import { PerformanceRecord } from '../types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface GroupDetailViewProps {
   group: Group;
@@ -311,6 +312,20 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
         staleTime: 1 * 60 * 1000, // 1분
     });
 
+    // 그룹 전체 통계 조회
+    const { data: groupStatistics, isLoading: isLoadingStatistics } = useQuery({
+        queryKey: ['groups', initialGroup.group_id, 'statistics'],
+        queryFn: () => groupsApi.getGroupStatistics(initialGroup.group_id),
+        staleTime: 2 * 60 * 1000, // 2분
+    });
+
+    // 그룹 멤버별 통계 조회
+    const { data: memberStatistics, isLoading: isLoadingMemberStatistics } = useQuery({
+        queryKey: ['groups', initialGroup.group_id, 'members', 'statistics'],
+        queryFn: () => groupsApi.getGroupMemberStatistics(initialGroup.group_id),
+        staleTime: 2 * 60 * 1000, // 2분
+    });
+
     const group = groupData || initialGroup;
     const isOwner = group.current_user_role === 'owner';
     const isMember = group.is_member;
@@ -605,6 +620,83 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                     )}
                 </div>
 
+                {/* 그룹 대시보드 */}
+                {isLoadingStatistics ? (
+                    <div className="flex justify-center items-center py-10 mb-6">
+                        <div className={`${commonStyles.spinner} w-8 h-8`}></div>
+                    </div>
+                ) : groupStatistics && (
+                    <div className="mb-8">
+                        <h2 className={`${commonStyles.subTitle} mb-4`}>그룹 통계</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            <div className={commonStyles.card}>
+                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">총 연습 시간</p>
+                                <p className="text-2xl font-bold text-purple-300">{formatTime(groupStatistics.total_practice_time)}</p>
+                            </div>
+                            <div className={commonStyles.card}>
+                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">총 연습 횟수</p>
+                                <p className="text-2xl font-bold text-purple-300">{groupStatistics.total_sessions.toLocaleString()}회</p>
+                            </div>
+                            <div className={commonStyles.card}>
+                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">멤버당 평균 연습 시간</p>
+                                <p className="text-2xl font-bold text-purple-300">{formatTime(Math.round(groupStatistics.average_practice_time_per_member))}</p>
+                            </div>
+                            <div className={commonStyles.card}>
+                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">멤버당 평균 연습 횟수</p>
+                                <p className="text-2xl font-bold text-purple-300">{groupStatistics.average_sessions_per_member.toFixed(1)}회</p>
+                            </div>
+                        </div>
+
+                        {/* 주간 연습 시간 차트 */}
+                        <div className={commonStyles.card + ' mb-6'}>
+                            <h3 className="text-lg font-semibold text-purple-300 mb-4">최근 7일간 연습 시간</h3>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <BarChart data={groupStatistics.weekly_practice_data.map((time, index) => {
+                                    const date = new Date();
+                                    date.setDate(date.getDate() - (6 - index));
+                                    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                                    return {
+                                        name: dayNames[date.getDay()],
+                                        시간: Math.round(time / 60), // 분 단위로 변환
+                                        초: time
+                                    };
+                                })}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis dataKey="name" stroke="#9CA3AF" />
+                                    <YAxis stroke="#9CA3AF" label={{ value: '분', angle: -90, position: 'insideLeft', style: { fill: '#9CA3AF' } }} />
+                                    <Tooltip 
+                                        formatter={(value: number) => [formatTime(value * 60), '연습 시간']}
+                                        contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
+                                    />
+                                    <Bar dataKey="시간" fill="#9333EA" radius={[8, 8, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        {/* 가장 활발한 멤버 */}
+                        {groupStatistics.most_active_member && (
+                            <div className={commonStyles.card + ' mb-6'}>
+                                <h3 className="text-lg font-semibold text-purple-300 mb-3">가장 활발한 멤버</h3>
+                                <div className="flex items-center gap-3">
+                                    <img 
+                                        src={groupStatistics.most_active_member.profile_image_url || defaultAvatar(groupStatistics.most_active_member.nickname)} 
+                                        alt={groupStatistics.most_active_member.nickname} 
+                                        className="w-12 h-12 rounded-full object-cover bg-gray-700" 
+                                    />
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-gray-200">{groupStatistics.most_active_member.nickname}</p>
+                                        <div className="flex gap-4 mt-1 text-sm text-gray-400">
+                                            <span>총 {formatTime(groupStatistics.most_active_member.total_practice_time)}</span>
+                                            <span>{groupStatistics.most_active_member.total_sessions}회</span>
+                                            <span>{groupStatistics.most_active_member.consecutive_days}일 연속</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <h2 className={`${commonStyles.subTitle} mb-4`}>멤버 목록</h2>
 
                 {isLoadingMembers ? (
@@ -618,6 +710,9 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                             const todayStr = getLocalDateString(new Date());
                             const todayRecords = memberData.records.filter(record => getLocalDateString(new Date(record.date)) === todayStr);
                             
+                            // 멤버별 통계 정보 찾기
+                            const memberStat = memberStatistics?.members.find(stat => stat.user_id === member.user_id);
+                            
                             return (
                                 <div key={member.member_id} className={commonStyles.card}>
                                     <div className="flex items-center justify-between">
@@ -625,7 +720,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                             <button onClick={() => setViewingMemberData(memberData)} className="flex-shrink-0">
                                                 <img src={memberData.profilePicture!} alt={`${memberData.name} profile`} className="w-10 h-10 rounded-full object-cover bg-gray-700" />
                                             </button>
-                                            <div>
+                                            <div className="flex-1">
                                                 <div className="flex items-center gap-2">
                                                   {member.selected_achievement && (
                                                     <span className="text-xs text-purple-300 font-medium flex items-center gap-1">
@@ -650,6 +745,17 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                                   )}
                                                 </div>
                                                 {memberData.title && <p className="text-xs text-yellow-300 leading-tight">{memberData.title}</p>}
+                                                
+                                                {/* 멤버 통계 정보 */}
+                                                {memberStat && (
+                                                    <div className="flex gap-4 mt-2 text-xs text-gray-400">
+                                                        <span>총 {formatTime(memberStat.total_practice_time)}</span>
+                                                        <span>{memberStat.total_sessions}회</span>
+                                                        {memberStat.consecutive_days > 0 && (
+                                                            <span className="text-purple-300">{memberStat.consecutive_days}일 연속</span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         {isOwner && user && member.user_id !== user.user_id && member.role !== 'owner' && (
@@ -661,6 +767,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                     </div>
                                     {todayRecords.length > 0 ? (
                                         <div className="mt-3 space-y-3 pl-1">
+                                            <p className="text-xs text-gray-400 mb-2">오늘의 연습</p>
                                             {todayRecords.map(record => (
                                                 <div key={record.id} className="bg-gray-900/50 p-3 rounded-md">
                                                     <div className="flex justify-between items-start">

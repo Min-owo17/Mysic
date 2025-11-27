@@ -13,6 +13,8 @@ from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.group import Group, GroupMember, GroupInvitation
 from app.models.achievement import Achievement
+from app.models.practice import PracticeSession
+from datetime import date, timedelta
 from app.schemas.groups import (
     GroupCreate,
     GroupUpdate,
@@ -27,7 +29,10 @@ from app.schemas.groups import (
     GroupInvitationListResponse,
     GroupInvitationGroupResponse,
     GroupInvitationInviterResponse,
-    GroupInvitationInviteeResponse
+    GroupInvitationInviteeResponse,
+    GroupStatisticsResponse,
+    GroupMemberStatisticsResponse,
+    GroupMemberStatisticsListResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -313,7 +318,7 @@ async def get_group_invitations(
         invitations = query.order_by(desc(GroupInvitation.created_at)).all()
         
         invitation_responses = [
-            _build_group_invitation_response(invitation)
+            _build_group_invitation_response(invitation, db)
             for invitation in invitations
         ]
         
@@ -885,7 +890,7 @@ async def delete_group(
 
 # ========== 그룹 초대 API ==========
 
-def _build_group_invitation_response(invitation: GroupInvitation) -> GroupInvitationResponse:
+def _build_group_invitation_response(invitation: GroupInvitation, db: Session) -> GroupInvitationResponse:
     """
     GroupInvitation 모델을 GroupInvitationResponse로 변환
     
@@ -1079,7 +1084,7 @@ async def create_group_invitation(
         
         logger.info(f"그룹 초대 생성 완료: invitation_id={new_invitation.invitation_id}, group_id={group_id}, invitee_id={invitation_data.invitee_id}")
         
-        return _build_group_invitation_response(new_invitation)
+        return _build_group_invitation_response(new_invitation, db)
     
     except HTTPException:
         raise
@@ -1089,5 +1094,280 @@ async def create_group_invitation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="그룹 초대 생성 중 오류가 발생했습니다."
+        )
+
+
+# ========== 그룹 통계 API ==========
+
+def _calculate_member_statistics(user_id: int, db: Session) -> GroupMemberStatisticsResponse:
+    """
+    멤버별 연습 통계 계산
+    
+    Args:
+        user_id: 사용자 ID
+        db: 데이터베이스 세션
+    
+    Returns:
+        GroupMemberStatisticsResponse: 멤버 통계 정보
+    """
+    from app.models.user import User
+    
+    # 사용자 정보 조회
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다."
+        )
+    
+    # 총 연습 시간 및 횟수
+    stats = db.query(
+        func.sum(PracticeSession.actual_play_time).label("total_time"),
+        func.count(PracticeSession.session_id).label("total_sessions"),
+        func.max(PracticeSession.practice_date).label("last_date")
+    ).filter(
+        and_(
+            PracticeSession.user_id == user_id,
+            PracticeSession.status == "completed"
+        )
+    ).first()
+    
+    total_practice_time = int(stats.total_time or 0)
+    total_sessions = int(stats.total_sessions or 0)
+    last_practice_date = stats.last_date
+    
+    # 평균 세션 시간 계산
+    average_session_time = None
+    if total_sessions > 0:
+        average_session_time = total_practice_time / total_sessions
+    
+    # 연속 연습 일수 계산
+    consecutive_days = 0
+    if last_practice_date:
+        today = date.today()
+        start_check_date = today - timedelta(days=365)
+        
+        practice_dates = db.query(
+            func.distinct(PracticeSession.practice_date).label("practice_date")
+        ).filter(
+            and_(
+                PracticeSession.user_id == user_id,
+                PracticeSession.practice_date >= start_check_date,
+                PracticeSession.practice_date <= today,
+                PracticeSession.status == "completed"
+            )
+        ).order_by(desc(PracticeSession.practice_date)).all()
+        
+        practice_date_set = {row.practice_date for row in practice_dates}
+        check_date = today
+        while check_date >= start_check_date:
+            if check_date in practice_date_set:
+                consecutive_days += 1
+                check_date = check_date - timedelta(days=1)
+            else:
+                break
+    
+    return GroupMemberStatisticsResponse(
+        user_id=user.user_id,
+        nickname=user.nickname,
+        profile_image_url=user.profile_image_url,
+        total_practice_time=total_practice_time,
+        total_sessions=total_sessions,
+        consecutive_days=consecutive_days,
+        last_practice_date=last_practice_date,
+        average_session_time=average_session_time
+    )
+
+
+@router.get("/{group_id}/statistics", response_model=GroupStatisticsResponse)
+async def get_group_statistics(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    그룹 전체 통계 조회
+    - 그룹 내 전체 연습 통계 및 멤버별 통계 제공
+    """
+    try:
+        # 그룹 조회
+        group = db.query(Group).filter(Group.group_id == group_id).first()
+        
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="그룹을 찾을 수 없습니다."
+            )
+        
+        # 권한 확인: 공개 그룹이거나 멤버여야 함
+        is_member = db.query(GroupMember).filter(
+            and_(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == current_user.user_id
+            )
+        ).first() is not None
+        
+        if not group.is_public and not is_member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="이 그룹에 대한 접근 권한이 없습니다."
+            )
+        
+        # 그룹 멤버 목록 조회
+        members = db.query(GroupMember).filter(
+            GroupMember.group_id == group_id
+        ).all()
+        
+        if not members:
+            return GroupStatisticsResponse(
+                group_id=group_id,
+                total_members=0,
+                total_practice_time=0,
+                total_sessions=0,
+                average_practice_time_per_member=0.0,
+                average_sessions_per_member=0.0,
+                most_active_member=None,
+                weekly_practice_data=[0] * 7
+            )
+        
+        member_ids = [m.user_id for m in members]
+        
+        # 그룹 전체 통계 계산
+        group_stats = db.query(
+            func.sum(PracticeSession.actual_play_time).label("total_time"),
+            func.count(PracticeSession.session_id).label("total_sessions")
+        ).filter(
+            and_(
+                PracticeSession.user_id.in_(member_ids),
+                PracticeSession.status == "completed"
+            )
+        ).first()
+        
+        total_practice_time = int(group_stats.total_time or 0)
+        total_sessions = int(group_stats.total_sessions or 0)
+        total_members = len(members)
+        
+        average_practice_time_per_member = total_practice_time / total_members if total_members > 0 else 0.0
+        average_sessions_per_member = total_sessions / total_members if total_members > 0 else 0.0
+        
+        # 가장 활발한 멤버 찾기
+        most_active_member = None
+        max_practice_time = 0
+        for member in members:
+            member_stats = _calculate_member_statistics(member.user_id, db)
+            if member_stats.total_practice_time > max_practice_time:
+                max_practice_time = member_stats.total_practice_time
+                most_active_member = member_stats
+        
+        # 최근 7일간 일별 총 연습 시간 계산
+        today = date.today()
+        weekly_practice_data = []
+        for i in range(6, -1, -1):  # 6일 전부터 오늘까지
+            check_date = today - timedelta(days=i)
+            day_stats = db.query(
+                func.sum(PracticeSession.actual_play_time).label("total_time")
+            ).filter(
+                and_(
+                    PracticeSession.user_id.in_(member_ids),
+                    PracticeSession.practice_date == check_date,
+                    PracticeSession.status == "completed"
+                )
+            ).first()
+            weekly_practice_data.append(int(day_stats.total_time or 0))
+        
+        return GroupStatisticsResponse(
+            group_id=group_id,
+            total_members=total_members,
+            total_practice_time=total_practice_time,
+            total_sessions=total_sessions,
+            average_practice_time_per_member=average_practice_time_per_member,
+            average_sessions_per_member=average_sessions_per_member,
+            most_active_member=most_active_member,
+            weekly_practice_data=weekly_practice_data
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"그룹 통계 조회 중 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="그룹 통계를 조회하는 중 오류가 발생했습니다."
+        )
+
+
+@router.get("/{group_id}/members/statistics", response_model=GroupMemberStatisticsListResponse)
+async def get_group_member_statistics(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    그룹 멤버별 통계 조회
+    - 그룹 내 모든 멤버의 개별 연습 통계 제공
+    """
+    try:
+        # 그룹 조회
+        group = db.query(Group).filter(Group.group_id == group_id).first()
+        
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="그룹을 찾을 수 없습니다."
+            )
+        
+        # 권한 확인: 공개 그룹이거나 멤버여야 함
+        is_member = db.query(GroupMember).filter(
+            and_(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id == current_user.user_id
+            )
+        ).first() is not None
+        
+        if not group.is_public and not is_member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="이 그룹에 대한 접근 권한이 없습니다."
+            )
+        
+        # 그룹 멤버 목록 조회
+        members = db.query(GroupMember).options(
+            joinedload(GroupMember.user)
+        ).filter(
+            GroupMember.group_id == group_id
+        ).order_by(
+            case(
+                (GroupMember.role == "owner", 1),
+                (GroupMember.role == "admin", 2),
+                else_=3
+            ),
+            GroupMember.joined_at
+        ).all()
+        
+        # 각 멤버의 통계 계산
+        member_statistics = []
+        for member in members:
+            try:
+                stats = _calculate_member_statistics(member.user_id, db)
+                member_statistics.append(stats)
+            except Exception as e:
+                logger.warning(f"멤버 {member.user_id} 통계 계산 중 오류: {str(e)}")
+                continue
+        
+        # 총 연습 시간 기준으로 정렬 (내림차순)
+        member_statistics.sort(key=lambda x: x.total_practice_time, reverse=True)
+        
+        return GroupMemberStatisticsListResponse(
+            members=member_statistics,
+            total=len(member_statistics)
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"그룹 멤버 통계 조회 중 오류 발생: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="그룹 멤버 통계를 조회하는 중 오류가 발생했습니다."
         )
 

@@ -120,6 +120,33 @@ export interface GroupInvitationCreate {
   invitee_id: number;
 }
 
+export interface GroupMemberStatistics {
+  user_id: number;
+  nickname: string;
+  profile_image_url?: string | null;
+  total_practice_time: number;
+  total_sessions: number;
+  consecutive_days: number;
+  last_practice_date?: string | null;
+  average_session_time?: number | null;
+}
+
+export interface GroupStatistics {
+  group_id: number;
+  total_members: number;
+  total_practice_time: number;
+  total_sessions: number;
+  average_practice_time_per_member: number;
+  average_sessions_per_member: number;
+  most_active_member?: GroupMemberStatistics | null;
+  weekly_practice_data: number[];
+}
+
+export interface GroupMemberStatisticsListResponse {
+  members: GroupMemberStatistics[];
+  total: number;
+}
+
 export const groupsApi = {
   /**
    * 그룹 목록 조회
@@ -228,6 +255,22 @@ export const groupsApi = {
    */
   declineInvitation: async (invitation_id: number): Promise<MessageResponse> => {
     const response = await apiClient.post<MessageResponse>(`/groups/invitations/${invitation_id}/decline`);
+    return response.data;
+  },
+
+  /**
+   * 그룹 전체 통계 조회
+   */
+  getGroupStatistics: async (group_id: number): Promise<GroupStatistics> => {
+    const response = await apiClient.get<GroupStatistics>(`/groups/${group_id}/statistics`);
+    return response.data;
+  },
+
+  /**
+   * 그룹 멤버별 통계 조회
+   */
+  getGroupMemberStatistics: async (group_id: number): Promise<GroupMemberStatisticsListResponse> => {
+    const response = await apiClient.get<GroupMemberStatisticsListResponse>(`/groups/${group_id}/members/statistics`);
     return response.data;
   },
 };

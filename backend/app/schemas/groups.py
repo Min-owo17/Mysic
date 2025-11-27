@@ -213,8 +213,77 @@ class GroupInvitationListResponse(BaseModel):
         }
 
 
+# ========== 그룹 통계 스키마 ==========
+
+class GroupMemberStatisticsResponse(BaseModel):
+    """그룹 멤버별 통계 응답 스키마"""
+    user_id: int
+    nickname: str
+    profile_image_url: Optional[str] = None
+    total_practice_time: int = Field(..., description="총 연습 시간 (초)")
+    total_sessions: int = Field(..., description="총 연습 횟수")
+    consecutive_days: int = Field(..., description="연속 연습 일수")
+    last_practice_date: Optional[date] = Field(None, description="마지막 연습 날짜")
+    average_session_time: Optional[float] = Field(None, description="평균 세션 시간 (초)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "user_id": 1,
+                "nickname": "사용자1",
+                "profile_image_url": None,
+                "total_practice_time": 36000,
+                "total_sessions": 10,
+                "consecutive_days": 5,
+                "last_practice_date": "2024-01-15",
+                "average_session_time": 3600.0
+            }
+        }
+
+
+class GroupStatisticsResponse(BaseModel):
+    """그룹 전체 통계 응답 스키마"""
+    group_id: int
+    total_members: int
+    total_practice_time: int = Field(..., description="그룹 전체 총 연습 시간 (초)")
+    total_sessions: int = Field(..., description="그룹 전체 총 연습 횟수")
+    average_practice_time_per_member: float = Field(..., description="멤버당 평균 연습 시간 (초)")
+    average_sessions_per_member: float = Field(..., description="멤버당 평균 연습 횟수")
+    most_active_member: Optional[GroupMemberStatisticsResponse] = Field(None, description="가장 활발한 멤버")
+    weekly_practice_data: List[int] = Field(..., description="최근 7일간 일별 총 연습 시간 (초)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "group_id": 1,
+                "total_members": 5,
+                "total_practice_time": 180000,
+                "total_sessions": 50,
+                "average_practice_time_per_member": 36000.0,
+                "average_sessions_per_member": 10.0,
+                "most_active_member": None,
+                "weekly_practice_data": [3600, 7200, 5400, 9000, 10800, 7200, 5400]
+            }
+        }
+
+
+class GroupMemberStatisticsListResponse(BaseModel):
+    """그룹 멤버별 통계 목록 응답 스키마"""
+    members: List[GroupMemberStatisticsResponse]
+    total: int
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "members": [],
+                "total": 0
+            }
+        }
+
+
 # Forward reference 해결을 위한 import 및 model_rebuild
 from app.schemas.achievements import AchievementResponse
+from datetime import date
 GroupOwnerResponse.model_rebuild()
 GroupMemberResponse.model_rebuild()
 GroupInvitationInviterResponse.model_rebuild()
