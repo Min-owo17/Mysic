@@ -64,17 +64,40 @@ const GroupsView: React.FC = () => {
   });
 
   // location state에서 그룹 ID를 받아서 자동으로 선택
+  const { data: selectedGroupData } = useQuery({
+    queryKey: ['groups', 'select', (location.state as { selectGroupId?: number } | null)?.selectGroupId],
+    queryFn: () => {
+      const state = location.state as { selectGroupId?: number } | null;
+      if (state?.selectGroupId) {
+        return groupsApi.getGroup(state.selectGroupId);
+      }
+      return null;
+    },
+    enabled: !!(location.state as { selectGroupId?: number } | null)?.selectGroupId,
+    staleTime: 1 * 60 * 1000, // 1분
+  });
+
   useEffect(() => {
     const state = location.state as { selectGroupId?: number } | null;
-    if (state?.selectGroupId && groupsData?.groups) {
-      const group = groupsData.groups.find(g => g.group_id === state.selectGroupId);
-      if (group) {
-        setSelectedGroup(group);
+    if (state?.selectGroupId) {
+      // 먼저 groupsData에서 찾기
+      if (groupsData?.groups) {
+        const group = groupsData.groups.find(g => g.group_id === state.selectGroupId);
+        if (group) {
+          setSelectedGroup(group);
+          // state를 초기화하여 다음 방문 시 다시 선택되지 않도록
+          window.history.replaceState({}, document.title);
+          return;
+        }
+      }
+      // groupsData에 없으면 selectedGroupData에서 가져오기
+      if (selectedGroupData) {
+        setSelectedGroup(selectedGroupData);
         // state를 초기화하여 다음 방문 시 다시 선택되지 않도록
         window.history.replaceState({}, document.title);
       }
     }
-  }, [location.state, groupsData]);
+  }, [location.state, groupsData, selectedGroupData]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

@@ -50,13 +50,9 @@ function GroupStatisticsViewWrapper() {
   }
 
   const handleBack = () => {
-    // 이전 페이지가 그룹 상세 페이지인 경우 (state로 확인)
-    if (location.state?.from === 'group-detail') {
-      navigate(-1)
-    } else {
-      // 그룹 목록으로 이동하고, GroupsView에서 해당 그룹을 선택하도록 state 전달
-      navigate('/groups', { state: { selectGroupId: Number(groupId) } })
-    }
+    // 그룹 상세 페이지로 이동하기 위해 GroupsView에 그룹 ID를 전달
+    // GroupsView에서 해당 그룹을 자동으로 선택하여 그룹 상세 페이지를 표시
+    navigate('/groups', { state: { selectGroupId: Number(groupId) } })
   }
   
   return <GroupStatisticsView groupId={Number(groupId)} onBack={handleBack} />
