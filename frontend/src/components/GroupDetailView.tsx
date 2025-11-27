@@ -632,7 +632,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                         <div className={`${commonStyles.spinner} w-8 h-8`}></div>
                     </div>
                 ) : (
-                    <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {membersData?.members.map(member => {
                             const memberData = getMemberData(member);
                             const todayStr = getLocalDateString(new Date());
@@ -642,14 +642,14 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                             const memberStat = memberStatistics?.members.find(stat => stat.user_id === member.user_id);
                             
                             return (
-                                <div key={member.member_id} className={commonStyles.card}>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
+                                <div key={member.member_id} className={commonStyles.card + ' flex flex-col'}>
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
                                             <button onClick={() => setViewingMemberData(memberData)} className="flex-shrink-0">
                                                 <img src={memberData.profilePicture!} alt={`${memberData.name} profile`} className="w-10 h-10 rounded-full object-cover bg-gray-700" />
                                             </button>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                   {member.selected_achievement && (
                                                     <span className="text-xs text-purple-300 font-medium flex items-center gap-1">
                                                       [
@@ -666,17 +666,17 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                                       {member.selected_achievement.title}]
                                                     </span>
                                                   )}
-                                                  <h3 className="text-lg font-bold text-purple-300 leading-tight">{memberData.name}</h3>
+                                                  <h3 className="text-base font-bold text-purple-300 leading-tight truncate">{memberData.name}</h3>
                                                   {member.role === 'owner' && <CrownIcon />}
                                                   {member.role === 'admin' && (
                                                       <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-600/20 dark:text-blue-300 px-2 py-0.5 rounded-full">관리자</span>
                                                   )}
                                                 </div>
-                                                {memberData.title && <p className="text-xs text-yellow-300 leading-tight">{memberData.title}</p>}
+                                                {memberData.title && <p className="text-xs text-yellow-300 leading-tight mt-1 truncate">{memberData.title}</p>}
                                                 
                                                 {/* 멤버 통계 정보 */}
                                                 {memberStat && (
-                                                    <div className="flex gap-4 mt-2 text-xs text-gray-400">
+                                                    <div className="flex gap-2 mt-2 text-xs text-gray-400 flex-wrap">
                                                         <span>총 {formatTime(memberStat.total_practice_time)}</span>
                                                         <span>{memberStat.total_sessions}회</span>
                                                         {memberStat.consecutive_days > 0 && (
@@ -687,29 +687,31 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                             </div>
                                         </div>
                                         {isOwner && user && member.user_id !== user.user_id && member.role !== 'owner' && (
-                                            <GroupMemberMenu
-                                                onKick={() => setMemberToKick(member)}
-                                                onMakeOwner={() => setMemberToPromote(member)}
-                                            />
+                                            <div className="flex-shrink-0 ml-2">
+                                                <GroupMemberMenu
+                                                    onKick={() => setMemberToKick(member)}
+                                                    onMakeOwner={() => setMemberToPromote(member)}
+                                                />
+                                            </div>
                                         )}
                                     </div>
                                     {todayRecords.length > 0 ? (
-                                        <div className="mt-3 space-y-3 pl-1">
-                                            <p className="text-xs text-gray-400 mb-2">오늘의 연습</p>
+                                        <div className="mt-auto space-y-2 pt-3 border-t border-gray-700">
+                                            <p className="text-xs text-gray-400">오늘의 연습</p>
                                             {todayRecords.map(record => (
-                                                <div key={record.id} className="bg-gray-900/50 p-3 rounded-md">
+                                                <div key={record.id} className="bg-gray-900/50 p-2 rounded-md">
                                                     <div className="flex justify-between items-start">
-                                                        <div>
-                                                            <p className="font-semibold">{record.title}</p>
-                                                            <p className="text-sm text-gray-400">{record.instrument}</p>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="font-semibold text-sm truncate">{record.title}</p>
+                                                            <p className="text-xs text-gray-400">{record.instrument}</p>
                                                         </div>
-                                                        <span className="text-sm font-mono bg-gray-700 px-2 py-1 rounded">{formatTime(record.duration)}</span>
+                                                        <span className="text-xs font-mono bg-gray-700 px-2 py-1 rounded ml-2 flex-shrink-0">{formatTime(record.duration)}</span>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <p className="text-gray-500 mt-2 text-sm pl-1">오늘 연습 기록이 없습니다.</p>
+                                        <p className="text-gray-500 mt-auto pt-3 border-t border-gray-700 text-xs">오늘 연습 기록이 없습니다.</p>
                                     )}
                                 </div>
                             );

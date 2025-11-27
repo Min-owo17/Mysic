@@ -1234,7 +1234,8 @@ async def get_group_statistics(
         member_ids = [m.user_id for m in members]
         
         # 기간 필터 설정
-        date_filter = None
+        monday = None
+        sunday = None
         if period == "week":
             # 이번 주(월~일) 범위 설정
             today = date.today()
@@ -1242,18 +1243,18 @@ async def get_group_statistics(
             monday_offset = day_of_week  # 월요일로부터의 오프셋
             monday = today - timedelta(days=monday_offset)
             sunday = monday + timedelta(days=6)
-            date_filter = and_(
-                PracticeSession.practice_date >= monday,
-                PracticeSession.practice_date <= sunday
-            )
         
         # 그룹 전체 통계 계산
         base_filter = and_(
             PracticeSession.user_id.in_(member_ids),
             PracticeSession.status == "completed"
         )
-        if date_filter:
-            base_filter = and_(base_filter, date_filter)
+        if period == "week" and monday and sunday:
+            base_filter = and_(
+                base_filter,
+                PracticeSession.practice_date >= monday,
+                PracticeSession.practice_date <= sunday
+            )
         
         group_stats = db.query(
             func.sum(PracticeSession.actual_play_time).label("total_time"),
@@ -1272,35 +1273,44 @@ async def get_group_statistics(
         max_practice_time = 0
         for member in members:
             # 멤버 통계 계산 시 기간 필터 적용
-            member_stats_query = db.query(
+            member_base_filter = and_(
+                PracticeSession.user_id == member.user_id,
+                PracticeSession.status == "completed"
+            )
+            if period == "week" and monday and sunday:
+                member_base_filter = and_(
+                    member_base_filter,
+                    PracticeSession.practice_date >= monday,
+                    PracticeSession.practice_date <= sunday
+                )
+            
+            member_stats_result = db.query(
                 func.sum(PracticeSession.actual_play_time).label("total_time"),
                 func.count(PracticeSession.session_id).label("total_sessions")
-            ).filter(
-                and_(
-                    PracticeSession.user_id == member.user_id,
-                    PracticeSession.status == "completed"
-                )
-            )
-            if date_filter:
-                member_stats_query = member_stats_query.filter(date_filter)
+            ).filter(member_base_filter).first()
             
-            member_stats_result = member_stats_query.first()
             member_total_time = int(member_stats_result.total_time or 0)
+            member_total_sessions = int(member_stats_result.total_sessions or 0)
             
             if member_total_time > max_practice_time:
                 max_practice_time = member_total_time
                 # 멤버 정보 가져오기
                 user = db.query(User).filter(User.user_id == member.user_id).first()
                 if user:
+                    # 평균 세션 시간 계산
+                    average_session_time = None
+                    if member_total_sessions > 0:
+                        average_session_time = member_total_time / member_total_sessions
+                    
                     most_active_member = GroupMemberStatisticsResponse(
                         user_id=member.user_id,
                         nickname=user.nickname,
                         profile_image_url=user.profile_image_url,
                         total_practice_time=member_total_time,
-                        total_sessions=int(member_stats_result.total_sessions or 0),
+                        total_sessions=member_total_sessions,
                         consecutive_days=0,  # 주간 통계에서는 연속 일수 계산 생략
                         last_practice_date=None,
-                        average_session_time=None
+                        average_session_time=average_session_time
                     )
         
         # 이번 주(월~일) 일별 총 연습 시간 계산
