@@ -582,11 +582,11 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                 </div>
             )}
 
-            <div className="p-4 md:p-6 max-w-md md:max-w-2xl lg:max-w-3xl lg:px-12 mx-auto animate-fade-in">
+            <div className="p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto animate-fade-in">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center relative">
-                        {/* 모바일: 통계 버튼을 뒤로가기 버튼 위에 배치 */}
-                        <div className="md:hidden absolute -top-10 left-0">
+                        {/* 모바일: 통계 버튼을 화면 우측에 배치 */}
+                        <div className="md:hidden absolute -top-10 right-0">
                             <button
                                 onClick={() => navigate(`/groups/${initialGroup.group_id}/statistics`, { state: { from: 'group-detail' } })}
                                 className="p-2 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white transition-colors"
@@ -731,11 +731,11 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                     </div>
                 )}
                 
-                <div className={`mt-8 pt-6 ${commonStyles.divider} flex flex-col md:flex-row gap-4 md:justify-center`}>
+                <div className={`mt-8 pt-6 ${commonStyles.divider} grid grid-cols-1 md:flex md:flex-row gap-4 md:justify-center items-center`}>
                     {isOwner && (
                         <button
                             onClick={() => setIsInviteModalOpen(true)}
-                            className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} md:max-w-sm flex items-center justify-center gap-2 py-3`}
+                            className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
                         >
                             <InviteIcon />
                             멤버 초대
@@ -743,20 +743,17 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                     )}
                 
                     {isOwner ? (
-                         <div className="flex flex-col items-center">
-                            <button
-                                onClick={() => setShowDeleteGroupConfirm(true)}
-                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} md:max-w-sm flex items-center justify-center gap-2 py-3 !bg-red-600/80 hover:!bg-red-600`}
-                            >
-                                <TrashIcon />
-                                그룹 삭제
-                            </button>
-                            <p className="text-xs text-gray-500 mt-2">그룹을 나가려면 먼저 다른 멤버에게 그룹장 권한을 위임해야 합니다.</p>
-                         </div>
+                        <button
+                            onClick={() => setShowDeleteGroupConfirm(true)}
+                            className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3 !bg-red-600/80 hover:!bg-red-600`}
+                        >
+                            <TrashIcon />
+                            그룹 삭제
+                        </button>
                     ) : isMember ? (
                         <button
                             onClick={() => setShowLeaveConfirm(true)}
-                            className={`${commonStyles.buttonBase} ${commonStyles.dangerButtonOutline} md:max-w-sm flex items-center justify-center gap-2 py-3`}
+                            className={`${commonStyles.buttonBase} ${commonStyles.dangerButtonOutline} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
                         >
                             <LeaveIcon />
                             그룹 탈퇴
@@ -772,11 +769,14 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                     toast.error(error.response?.data?.detail || '그룹 가입에 실패했습니다.');
                                 }
                             }}
-                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} md:max-w-sm flex items-center justify-center gap-2 py-3`}
+                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} w-full md:max-w-sm flex items-center justify-center gap-2 py-3`}
                         >
                             <InviteIcon />
                             그룹 가입
                         </button>
+                    )}
+                    {isOwner && (
+                        <p className="text-xs text-gray-500 mt-4 w-full text-center col-span-full md:col-span-1">그룹을 나가려면 먼저 다른 멤버에게 그룹장 권한을 위임해야 합니다.</p>
                     )}
                 </div>
             </div>
