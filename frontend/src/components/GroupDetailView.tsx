@@ -582,9 +582,21 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                 </div>
             )}
 
-            <div className="p-4 md:p-6 max-w-md md:max-w-2xl lg:max-w-3xl mx-auto animate-fade-in">
+            <div className="p-4 md:p-6 max-w-md md:max-w-2xl lg:max-w-3xl lg:px-12 mx-auto animate-fade-in">
                 <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center">
+                    <div className="flex items-center relative">
+                        {/* 모바일: 통계 버튼을 뒤로가기 버튼 위에 배치 */}
+                        <div className="md:hidden absolute -top-10 left-0">
+                            <button
+                                onClick={() => navigate(`/groups/${initialGroup.group_id}/statistics`, { state: { from: 'group-detail' } })}
+                                className="p-2 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white transition-colors"
+                                aria-label="그룹 통계 보기"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </button>
+                        </div>
                         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-700 mr-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
@@ -601,7 +613,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="hidden md:flex items-center gap-2">
                         {isOwner && (
                             <button
                                 onClick={handleOpenEditModal}
@@ -719,11 +731,11 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                     </div>
                 )}
                 
-                <div className={`mt-8 pt-6 ${commonStyles.divider} space-y-4`}>
+                <div className={`mt-8 pt-6 ${commonStyles.divider} flex flex-col md:flex-row gap-4 md:justify-center`}>
                     {isOwner && (
                         <button
                             onClick={() => setIsInviteModalOpen(true)}
-                            className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} md:max-w-sm md:mx-auto flex items-center justify-center gap-2 py-3`}
+                            className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} md:max-w-sm flex items-center justify-center gap-2 py-3`}
                         >
                             <InviteIcon />
                             멤버 초대
@@ -731,10 +743,10 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                     )}
                 
                     {isOwner ? (
-                         <div className="text-center">
+                         <div className="flex flex-col items-center">
                             <button
                                 onClick={() => setShowDeleteGroupConfirm(true)}
-                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} md:max-w-sm md:mx-auto flex items-center justify-center gap-2 py-3 !bg-red-600/80 hover:!bg-red-600`}
+                                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} md:max-w-sm flex items-center justify-center gap-2 py-3 !bg-red-600/80 hover:!bg-red-600`}
                             >
                                 <TrashIcon />
                                 그룹 삭제
@@ -744,7 +756,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                     ) : isMember ? (
                         <button
                             onClick={() => setShowLeaveConfirm(true)}
-                            className={`${commonStyles.buttonBase} ${commonStyles.dangerButtonOutline} md:max-w-sm md:mx-auto flex items-center justify-center gap-2 py-3`}
+                            className={`${commonStyles.buttonBase} ${commonStyles.dangerButtonOutline} md:max-w-sm flex items-center justify-center gap-2 py-3`}
                         >
                             <LeaveIcon />
                             그룹 탈퇴
@@ -760,7 +772,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                                     toast.error(error.response?.data?.detail || '그룹 가입에 실패했습니다.');
                                 }
                             }}
-                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} md:max-w-sm md:mx-auto flex items-center justify-center gap-2 py-3`}
+                            className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} md:max-w-sm flex items-center justify-center gap-2 py-3`}
                         >
                             <InviteIcon />
                             그룹 가입
