@@ -1182,6 +1182,7 @@ def _calculate_member_statistics(user_id: int, db: Session) -> GroupMemberStatis
 @router.get("/{group_id}/statistics", response_model=GroupStatisticsResponse)
 async def get_group_statistics(
     group_id: int,
+    period: str = Query("all", description="통계 기간: 'all' (전체 기간) 또는 'week' (이번 주)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -1232,16 +1233,32 @@ async def get_group_statistics(
         
         member_ids = [m.user_id for m in members]
         
+        # 기간 필터 설정
+        date_filter = None
+        if period == "week":
+            # 이번 주(월~일) 범위 설정
+            today = date.today()
+            day_of_week = today.weekday()  # 0(월) ~ 6(일)
+            monday_offset = day_of_week  # 월요일로부터의 오프셋
+            monday = today - timedelta(days=monday_offset)
+            sunday = monday + timedelta(days=6)
+            date_filter = and_(
+                PracticeSession.practice_date >= monday,
+                PracticeSession.practice_date <= sunday
+            )
+        
         # 그룹 전체 통계 계산
+        base_filter = and_(
+            PracticeSession.user_id.in_(member_ids),
+            PracticeSession.status == "completed"
+        )
+        if date_filter:
+            base_filter = and_(base_filter, date_filter)
+        
         group_stats = db.query(
             func.sum(PracticeSession.actual_play_time).label("total_time"),
             func.count(PracticeSession.session_id).label("total_sessions")
-        ).filter(
-            and_(
-                PracticeSession.user_id.in_(member_ids),
-                PracticeSession.status == "completed"
-            )
-        ).first()
+        ).filter(base_filter).first()
         
         total_practice_time = int(group_stats.total_time or 0)
         total_sessions = int(group_stats.total_sessions or 0)
@@ -1250,14 +1267,41 @@ async def get_group_statistics(
         average_practice_time_per_member = total_practice_time / total_members if total_members > 0 else 0.0
         average_sessions_per_member = total_sessions / total_members if total_members > 0 else 0.0
         
-        # 가장 활발한 멤버 찾기
+        # 가장 활발한 멤버 찾기 (기간 필터 적용)
         most_active_member = None
         max_practice_time = 0
         for member in members:
-            member_stats = _calculate_member_statistics(member.user_id, db)
-            if member_stats.total_practice_time > max_practice_time:
-                max_practice_time = member_stats.total_practice_time
-                most_active_member = member_stats
+            # 멤버 통계 계산 시 기간 필터 적용
+            member_stats_query = db.query(
+                func.sum(PracticeSession.actual_play_time).label("total_time"),
+                func.count(PracticeSession.session_id).label("total_sessions")
+            ).filter(
+                and_(
+                    PracticeSession.user_id == member.user_id,
+                    PracticeSession.status == "completed"
+                )
+            )
+            if date_filter:
+                member_stats_query = member_stats_query.filter(date_filter)
+            
+            member_stats_result = member_stats_query.first()
+            member_total_time = int(member_stats_result.total_time or 0)
+            
+            if member_total_time > max_practice_time:
+                max_practice_time = member_total_time
+                # 멤버 정보 가져오기
+                user = db.query(User).filter(User.user_id == member.user_id).first()
+                if user:
+                    most_active_member = GroupMemberStatisticsResponse(
+                        user_id=member.user_id,
+                        nickname=user.nickname,
+                        profile_image_url=user.profile_image_url,
+                        total_practice_time=member_total_time,
+                        total_sessions=int(member_stats_result.total_sessions or 0),
+                        consecutive_days=0,  # 주간 통계에서는 연속 일수 계산 생략
+                        last_practice_date=None,
+                        average_session_time=None
+                    )
         
         # 이번 주(월~일) 일별 총 연습 시간 계산
         today = date.today()

@@ -48,7 +48,7 @@ function GroupStatisticsViewWrapper() {
     return <Navigate to="/groups" replace />
   }
 
-  return <GroupStatisticsView groupId={Number(groupId)} onBack={() => navigate('/groups')} />
+  return <GroupStatisticsView groupId={Number(groupId)} onBack={() => navigate(-1)} />
 }
 
 // Main Layout Component

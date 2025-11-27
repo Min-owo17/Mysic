@@ -261,8 +261,10 @@ export const groupsApi = {
   /**
    * 그룹 전체 통계 조회
    */
-  getGroupStatistics: async (group_id: number): Promise<GroupStatistics> => {
-    const response = await apiClient.get<GroupStatistics>(`/groups/${group_id}/statistics`);
+  getGroupStatistics: async (group_id: number, period: 'all' | 'week' = 'all'): Promise<GroupStatistics> => {
+    const response = await apiClient.get<GroupStatistics>(`/groups/${group_id}/statistics`, {
+      params: { period }
+    });
     return response.data;
   },
 

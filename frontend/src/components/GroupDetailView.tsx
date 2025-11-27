@@ -614,7 +614,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                             </button>
                         )}
                         <button
-                            onClick={() => navigate(`/groups/${initialGroup.group_id}/statistics`)}
+                            onClick={() => navigate(`/groups/${initialGroup.group_id}/statistics`, { state: { from: 'group-detail' } })}
                             className="p-2 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white transition-colors"
                             aria-label="그룹 통계 보기"
                         >
