@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { groupsApi, Group, GroupMember } from '../services/api/groups';
 import { usersApi } from '../services/api/users';
 import { useAppContext } from '../context/AppContext';
@@ -11,7 +12,6 @@ import MemberCalendarModal from './MemberCalendarModal';
 import { commonStyles } from '../styles/commonStyles';
 import toast from 'react-hot-toast';
 import { PerformanceRecord } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface GroupDetailViewProps {
   group: Group;
@@ -285,6 +285,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
     const { userProfile, userProfiles, records: myRecords } = useAppContext();
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
     
     const [viewingMemberData, setViewingMemberData] = useState<{ name: string; records: PerformanceRecord[]; profilePicture: string | null; } | null>(null);
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -312,15 +313,8 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
         staleTime: 1 * 60 * 1000, // 1분
     });
 
-    // 그룹 전체 통계 조회
-    const { data: groupStatistics, isLoading: isLoadingStatistics } = useQuery({
-        queryKey: ['groups', initialGroup.group_id, 'statistics'],
-        queryFn: () => groupsApi.getGroupStatistics(initialGroup.group_id),
-        staleTime: 2 * 60 * 1000, // 2분
-    });
-
-    // 그룹 멤버별 통계 조회
-    const { data: memberStatistics, isLoading: isLoadingMemberStatistics } = useQuery({
+    // 그룹 멤버별 통계 조회 (멤버 목록에 표시용)
+    const { data: memberStatistics } = useQuery({
         queryKey: ['groups', initialGroup.group_id, 'members', 'statistics'],
         queryFn: () => groupsApi.getGroupMemberStatistics(initialGroup.group_id),
         staleTime: 2 * 60 * 1000, // 2분
@@ -607,95 +601,29 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
                             </p>
                         </div>
                     </div>
-                    {isOwner && (
-                        <button
-                            onClick={handleOpenEditModal}
-                            className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-4 py-2`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            수정
-                        </button>
-                    )}
-                </div>
-
-                {/* 그룹 대시보드 */}
-                {isLoadingStatistics ? (
-                    <div className="flex justify-center items-center py-10 mb-6">
-                        <div className={`${commonStyles.spinner} w-8 h-8`}></div>
-                    </div>
-                ) : groupStatistics && (
-                    <div className="mb-8">
-                        <h2 className={`${commonStyles.subTitle} mb-4`}>그룹 통계</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                            <div className={commonStyles.card}>
-                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">총 연습 시간</p>
-                                <p className="text-2xl font-bold text-purple-300">{formatTime(groupStatistics.total_practice_time)}</p>
-                            </div>
-                            <div className={commonStyles.card}>
-                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">총 연습 횟수</p>
-                                <p className="text-2xl font-bold text-purple-300">{groupStatistics.total_sessions.toLocaleString()}회</p>
-                            </div>
-                            <div className={commonStyles.card}>
-                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">멤버당 평균 연습 시간</p>
-                                <p className="text-2xl font-bold text-purple-300">{formatTime(Math.round(groupStatistics.average_practice_time_per_member))}</p>
-                            </div>
-                            <div className={commonStyles.card}>
-                                <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">멤버당 평균 연습 횟수</p>
-                                <p className="text-2xl font-bold text-purple-300">{groupStatistics.average_sessions_per_member.toFixed(1)}회</p>
-                            </div>
-                        </div>
-
-                        {/* 주간 연습 시간 차트 */}
-                        <div className={commonStyles.card + ' mb-6'}>
-                            <h3 className="text-lg font-semibold text-purple-300 mb-4">최근 7일간 연습 시간</h3>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={groupStatistics.weekly_practice_data.map((time, index) => {
-                                    const date = new Date();
-                                    date.setDate(date.getDate() - (6 - index));
-                                    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-                                    return {
-                                        name: dayNames[date.getDay()],
-                                        시간: Math.round(time / 60), // 분 단위로 변환
-                                        초: time
-                                    };
-                                })}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                    <XAxis dataKey="name" stroke="#9CA3AF" />
-                                    <YAxis stroke="#9CA3AF" label={{ value: '분', angle: -90, position: 'insideLeft', style: { fill: '#9CA3AF' } }} />
-                                    <Tooltip 
-                                        formatter={(value: number) => [formatTime(value * 60), '연습 시간']}
-                                        contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
-                                    />
-                                    <Bar dataKey="시간" fill="#9333EA" radius={[8, 8, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-
-                        {/* 가장 활발한 멤버 */}
-                        {groupStatistics.most_active_member && (
-                            <div className={commonStyles.card + ' mb-6'}>
-                                <h3 className="text-lg font-semibold text-purple-300 mb-3">가장 활발한 멤버</h3>
-                                <div className="flex items-center gap-3">
-                                    <img 
-                                        src={groupStatistics.most_active_member.profile_image_url || defaultAvatar(groupStatistics.most_active_member.nickname)} 
-                                        alt={groupStatistics.most_active_member.nickname} 
-                                        className="w-12 h-12 rounded-full object-cover bg-gray-700" 
-                                    />
-                                    <div className="flex-1">
-                                        <p className="font-semibold text-gray-200">{groupStatistics.most_active_member.nickname}</p>
-                                        <div className="flex gap-4 mt-1 text-sm text-gray-400">
-                                            <span>총 {formatTime(groupStatistics.most_active_member.total_practice_time)}</span>
-                                            <span>{groupStatistics.most_active_member.total_sessions}회</span>
-                                            <span>{groupStatistics.most_active_member.consecutive_days}일 연속</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    <div className="flex items-center gap-2">
+                        {isOwner && (
+                            <button
+                                onClick={handleOpenEditModal}
+                                className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} !w-auto px-4 py-2`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                수정
+                            </button>
                         )}
+                        <button
+                            onClick={() => navigate(`/groups/${initialGroup.group_id}/statistics`)}
+                            className="p-2 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white transition-colors"
+                            aria-label="그룹 통계 보기"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </button>
                     </div>
-                )}
+                </div>
 
                 <h2 className={`${commonStyles.subTitle} mb-4`}>멤버 목록</h2>
 

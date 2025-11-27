@@ -32,6 +32,7 @@ const BoardView: React.FC = () => {
   const notificationRef = useRef<HTMLDivElement>(null);
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
   const [page, setPage] = useState(1);
+  const [isInitialTagsSet, setIsInitialTagsSet] = useState(false); // 초기 태그 설정 여부
 
   // --- Report Modal State ---
   const [reportingPost, setReportingPost] = useState<Post | null>(null);
@@ -165,6 +166,43 @@ const BoardView: React.FC = () => {
     queryFn: () => usersApi.getMyProfile(),
     staleTime: 5 * 60 * 1000, // 5분
   });
+
+  // 초기 태그 설정: 사용자의 주요 악기와 특징으로 자동 필터링
+  useEffect(() => {
+    // 이미 초기 태그가 설정되었거나 프로필 데이터가 없으면 건너뛰기
+    if (isInitialTagsSet || !userProfileData?.profile) {
+      return;
+    }
+
+    const initialTags: string[] = [];
+
+    // 주요 악기 추출 (is_primary가 true인 악기)
+    if (userProfileData.profile.instruments && userProfileData.profile.instruments.length > 0) {
+      const primaryInstrument = userProfileData.profile.instruments.find(inst => inst.is_primary);
+      if (primaryInstrument) {
+        initialTags.push(primaryInstrument.instrument_name);
+      } else {
+        // 주요 악기가 없으면 첫 번째 악기 사용
+        initialTags.push(userProfileData.profile.instruments[0].instrument_name);
+      }
+    }
+
+    // 특징(user_types) 추출
+    if (userProfileData.profile.user_types && userProfileData.profile.user_types.length > 0) {
+      userProfileData.profile.user_types.forEach(ut => {
+        initialTags.push(ut.user_type_name);
+      });
+    }
+
+    // 악기와 특징이 모두 있으면 초기 태그 설정
+    if (initialTags.length > 0) {
+      setSelectedTags(initialTags);
+      setIsInitialTagsSet(true);
+    } else {
+      // 악기와 특징이 모두 없으면 초기 태그 설정 완료로 표시 (전체로 표시)
+      setIsInitialTagsSet(true);
+    }
+  }, [userProfileData, isInitialTagsSet]);
 
   // 한글 가나다 순 정렬 함수
   const sortKorean = (a: string, b: string): number => {

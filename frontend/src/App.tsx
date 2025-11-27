@@ -5,6 +5,8 @@ import AuthView from './pages/auth/AuthView'
 import RecordView from './pages/practice/RecordView'
 import CalendarView from './pages/practice/CalendarView'
 import GroupsView from './components/GroupsView'
+import GroupDetailView from './components/GroupDetailView'
+import GroupStatisticsView from './components/GroupStatisticsView'
 import BoardView from './pages/board/BoardView'
 import ProfileView from './pages/profile/ProfileView'
 import SettingsView from './components/SettingsView'
@@ -13,10 +15,12 @@ import BottomNavBar from './components/BottomNavBar'
 import SideNavBar from './components/SideNavBar'
 import { Header } from './components/layout/Header'
 import { useMemo, useState, useContext, ReactNode, useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { useParams, useNavigate } from 'react-router-dom'
 import { View } from './types'
 import { authApi } from './services/api/auth'
 import { useAuthStore } from './store/slices/authSlice'
+import { groupsApi } from './services/api/groups'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -28,6 +32,23 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   }
   
   return <>{children}</>
+}
+
+// Group Statistics View Wrapper
+function GroupStatisticsViewWrapper() {
+  const { groupId } = useParams<{ groupId: string }>()
+  const navigate = useNavigate()
+  const { data: group } = useQuery({
+    queryKey: ['groups', Number(groupId)],
+    queryFn: () => groupsApi.getGroup(Number(groupId)),
+    enabled: !!groupId,
+  })
+
+  if (!groupId || !group) {
+    return <Navigate to="/groups" replace />
+  }
+
+  return <GroupStatisticsView groupId={Number(groupId)} onBack={() => navigate('/groups')} />
 }
 
 // Main Layout Component
@@ -188,6 +209,16 @@ function App() {
               <ProtectedRoute>
                 <MainLayout>
                   <GroupsView />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/groups/:groupId/statistics"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <GroupStatisticsViewWrapper />
                 </MainLayout>
               </ProtectedRoute>
             }

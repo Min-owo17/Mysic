@@ -1259,11 +1259,15 @@ async def get_group_statistics(
                 max_practice_time = member_stats.total_practice_time
                 most_active_member = member_stats
         
-        # 최근 7일간 일별 총 연습 시간 계산
+        # 이번 주(월~일) 일별 총 연습 시간 계산
         today = date.today()
+        day_of_week = today.weekday()  # 0(월) ~ 6(일)
+        monday_offset = day_of_week  # 월요일로부터의 오프셋
+        
+        monday = today - timedelta(days=monday_offset)
         weekly_practice_data = []
-        for i in range(6, -1, -1):  # 6일 전부터 오늘까지
-            check_date = today - timedelta(days=i)
+        for i in range(7):  # 월요일부터 일요일까지
+            check_date = monday + timedelta(days=i)
             day_stats = db.query(
                 func.sum(PracticeSession.actual_play_time).label("total_time")
             ).filter(
