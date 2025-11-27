@@ -5,7 +5,7 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 
 # ========== 그룹 스키마 ==========
@@ -283,7 +283,6 @@ class GroupMemberStatisticsListResponse(BaseModel):
 
 # Forward reference 해결을 위한 import 및 model_rebuild
 from app.schemas.achievements import AchievementResponse
-from datetime import date
 GroupOwnerResponse.model_rebuild()
 GroupMemberResponse.model_rebuild()
 GroupInvitationInviterResponse.model_rebuild()
