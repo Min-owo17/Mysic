@@ -18,6 +18,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=True)  # 소셜 로그인 사용자는 NULL 가능
     nickname = Column(String(100), nullable=False, index=True)
+    unique_code = Column(String(12), unique=True, nullable=False, index=True)  # 12자리 고유 코드
     profile_image_url = Column(Text, nullable=True)  # base64 Data URL 또는 S3 URL 저장용 (최적화된 WebP 이미지 지원)
     is_active = Column(Boolean, default=True)
     deleted_at = Column(TIMESTAMP, nullable=True, index=True)  # Soft delete

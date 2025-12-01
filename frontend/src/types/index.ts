@@ -18,6 +18,7 @@ export interface User {
   user_id: number;
   email: string;
   nickname: string;
+  unique_code: string;
   profile_image_url?: string;
   is_active: boolean;
   last_login_at?: string;
@@ -68,6 +69,7 @@ export interface UserDetailResponse {
   user_id: number;
   email: string;
   nickname: string;
+  unique_code: string;
   profile_image_url?: string | null;
   is_active: boolean;
   last_login_at?: string | null;

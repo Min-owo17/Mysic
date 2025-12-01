@@ -69,6 +69,7 @@ class UserDetailResponse(BaseModel):
     user_id: int
     email: str
     nickname: str
+    unique_code: str
     profile_image_url: Optional[str] = None
     is_active: bool
     last_login_at: Optional[datetime] = None

@@ -10,6 +10,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.core.dependencies import get_current_user
+from app.core.utils import generate_unique_code
 from app.models.user import User, UserProfile
 from app.schemas.auth import (
     RegisterRequest,
@@ -62,6 +63,9 @@ async def register(
         )
     
     try:
+        # 고유 코드 생성
+        unique_code = generate_unique_code(db)
+        
         # 비밀번호 해싱
         password_hash = get_password_hash(request.password)
         
@@ -70,6 +74,7 @@ async def register(
             email=request.email,
             password_hash=password_hash,
             nickname=request.nickname,
+            unique_code=unique_code,
             is_active=True
         )
         db.add(new_user)

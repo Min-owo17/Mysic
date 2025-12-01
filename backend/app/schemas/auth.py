@@ -56,6 +56,7 @@ class UserResponse(BaseModel):
     user_id: int
     email: str
     nickname: str
+    unique_code: str
     profile_image_url: Optional[str] = None
     is_active: bool
     last_login_at: Optional[datetime] = None
@@ -68,6 +69,7 @@ class UserResponse(BaseModel):
                 "user_id": 1,
                 "email": "user@example.com",
                 "nickname": "사용자닉네임",
+                "unique_code": "aB3cD5eF7gH9i",
                 "profile_image_url": None,
                 "is_active": True,
                 "last_login_at": "2024-01-01T00:00:00",
@@ -91,6 +93,7 @@ class AuthResponse(BaseModel):
                     "user_id": 1,
                     "email": "user@example.com",
                     "nickname": "사용자닉네임",
+                    "unique_code": "aB3cD5eF7gH9i",
                     "profile_image_url": None,
                     "is_active": True,
                     "last_login_at": "2024-01-01T00:00:00",
