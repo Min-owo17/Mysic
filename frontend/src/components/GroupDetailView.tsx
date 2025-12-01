@@ -100,7 +100,7 @@ const InviteMemberModal: React.FC<{
     const { data: searchUsersData, isLoading: isLoadingSearch } = useQuery({
         queryKey: ['users', 'search', searchQuery, searchPage],
         queryFn: () => usersApi.searchUsers({
-            nickname: searchQuery,
+            query: searchQuery,
             page: searchPage,
             page_size: 20,
         }),
@@ -163,7 +163,7 @@ const InviteMemberModal: React.FC<{
                     <div className="relative mt-3">
                         <input
                             type="text"
-                            placeholder="닉네임으로 검색..."
+                            placeholder="닉네임 또는 고유 코드로 검색..."
                             value={searchQuery}
                             onChange={e => {
                                 setSearchQuery(e.target.value);
@@ -267,7 +267,7 @@ const InviteMemberModal: React.FC<{
                         )
                     ) : (
                         <p className="text-gray-500 text-center py-8">
-                            닉네임을 입력하여 사용자를 검색하세요.
+                            닉네임 또는 고유 코드를 입력하여 사용자를 검색하세요.
                         </p>
                     )}
                 </div>

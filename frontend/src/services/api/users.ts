@@ -67,10 +67,10 @@ export const usersApi = {
   },
 
   /**
-   * 사용자 검색 (닉네임으로 검색)
+   * 사용자 검색 (닉네임 또는 고유 코드로 검색)
    */
   searchUsers: async (params: {
-    nickname: string;
+    query: string;
     page?: number;
     page_size?: number;
   }): Promise<{

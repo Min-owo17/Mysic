@@ -509,25 +509,28 @@ async def delete_my_account(
 
 @router.get("/search", response_model=UserSearchListResponse)
 async def search_users(
-    nickname: str = Query(..., min_length=1, description="검색할 닉네임"),
+    query: str = Query(..., min_length=1, description="검색할 닉네임 또는 고유 코드"),
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    사용자 검색 (닉네임으로 검색)
+    사용자 검색 (닉네임 또는 고유 코드로 검색)
     
-    - 닉네임으로 사용자 검색
+    - 닉네임 또는 고유 코드로 사용자 검색
     - Soft Delete된 사용자 제외
     - 비활성화된 사용자 제외
     - 페이지네이션 지원
     """
     try:
-        # 검색 쿼리: 닉네임에 검색어가 포함된 사용자
-        query = db.query(User).filter(
+        # 검색 쿼리: 닉네임 또는 고유 코드에 검색어가 포함된 사용자
+        search_query = db.query(User).filter(
             and_(
-                User.nickname.ilike(f"%{nickname}%"),
+                or_(
+                    User.nickname.ilike(f"%{query}%"),
+                    User.unique_code.ilike(f"%{query}%")
+                ),
                 User.deleted_at.is_(None),  # Soft Delete 필터링
                 User.is_active == True,
                 User.user_id != current_user.user_id  # 자기 자신 제외
@@ -535,11 +538,11 @@ async def search_users(
         )
         
         # 총 개수 계산
-        total = query.count()
+        total = search_query.count()
         
         # 페이지네이션 (관계 데이터 미리 로드하여 N+1 쿼리 방지)
         offset = (page - 1) * page_size
-        users = query.options(
+        users = search_query.options(
             joinedload(User.selected_achievement)
         ).order_by(desc(User.last_login_at), desc(User.created_at))\
             .offset(offset)\
