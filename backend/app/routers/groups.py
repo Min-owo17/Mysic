@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, func, case
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.utils import get_achievement_response
 from app.models.user import User
 from app.models.group import Group, GroupMember, GroupInvitation
 from app.models.achievement import Achievement
@@ -57,14 +58,7 @@ def _build_group_response(
         GroupResponse: 그룹 응답 객체
     """
     # 소유자 정보 (선택한 칭호 포함)
-    selected_achievement_data = None
-    if group.owner.selected_achievement_id:
-        selected_achievement = db.query(Achievement).filter(
-            Achievement.achievement_id == group.owner.selected_achievement_id
-        ).first() if db else None
-        if selected_achievement:
-            from app.schemas.achievements import AchievementResponse
-            selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+    selected_achievement_data = get_achievement_response(db, group.owner.selected_achievement_id) if db else None
     
     owner = GroupOwnerResponse(
         user_id=group.owner.user_id,
@@ -125,14 +119,7 @@ def _build_group_member_response(member: GroupMember, db: Session) -> GroupMembe
         GroupMemberResponse: 그룹 멤버 응답 객체
     """
     # 선택한 칭호 정보 조회
-    selected_achievement_data = None
-    if member.user.selected_achievement_id:
-        selected_achievement = db.query(Achievement).filter(
-            Achievement.achievement_id == member.user.selected_achievement_id
-        ).first()
-        if selected_achievement:
-            from app.schemas.achievements import AchievementResponse
-            selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+    selected_achievement_data = get_achievement_response(db, member.user.selected_achievement_id)
     
     # UTC timezone 정보 추가
     joined_at_aware = member.joined_at

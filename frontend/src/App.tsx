@@ -123,18 +123,10 @@ function App() {
   }, [queryClient, setUser])
 
   const contextValue = useMemo(() => ({
+    // 실제로 사용되는 필드만 유지
     records: [],
     addRecord: () => {},
     resetRecords: () => {},
-    posts: [],
-    addPost: () => {},
-    updatePost: () => {},
-    deletePost: () => {},
-    addComment: () => {},
-    addReply: () => {},
-    togglePostLike: () => {},
-    toggleCommentLike: () => {},
-    togglePostBookmark: () => {},
     userProfile: {
       nickname: '',
       instrument: '',
@@ -146,21 +138,8 @@ function App() {
     updateProfile: () => {},
     deleteAccount: () => {},
     userProfiles: {},
-    allUsers: [],
-    groups: [],
-    addGroup: () => {},
-    leaveGroup: () => {},
-    kickMember: () => {},
-    deleteGroup: () => {},
-    transferOwnership: () => {},
-    sendGroupInvitation: () => {},
-    acceptInvitation: () => {},
-    declineInvitation: () => {},
     postNotifications: [],
-    groupNotifications: [],
     markPostNotificationsAsRead: () => {},
-    markGroupNotificationsAsRead: () => {},
-    setCurrentView: () => {},
     isAuthenticated,
     login: () => setIsAuthenticated(true),
     logout: () => {

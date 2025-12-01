@@ -10,10 +10,14 @@ from app.core.config import settings
 # SQLAlchemy 엔진 생성
 # pool_pre_ping: 연결이 살아있는지 확인
 # pool_recycle: 연결 풀 재사용 시간 (초)
+# pool_size: 기본 연결 풀 크기 (메모리 제약 환경에 맞게 조정)
+# max_overflow: 추가 연결 허용 수
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=300,
+    pool_size=5,  # 기본 연결 풀 크기 (메모리 제약 환경에 맞게 조정)
+    max_overflow=10,  # 추가 연결 허용 수
     echo=settings.DEBUG,  # DEBUG 모드에서 SQL 쿼리 로깅
 )
 

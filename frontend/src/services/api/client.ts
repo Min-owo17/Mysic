@@ -16,35 +16,43 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
-    const fullUrl = `${config.baseURL}${config.url}`;
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('API Request:', {
-        relativeUrl: config.url,
-        baseURL: config.baseURL,
-        fullUrl: fullUrl,
-        method: config.method,
-        hasToken: true,
-        tokenLength: token.length,
-        tokenPreview: token.substring(0, 20) + '...', // 토큰 일부만 표시
-        headers: {
-          ...config.headers,
-          Authorization: 'Bearer ***', // 토큰 전체는 숨김
-        },
-      });
-    } else {
-      console.warn('API Request (No Token):', {
-        relativeUrl: config.url,
-        baseURL: config.baseURL,
-        fullUrl: fullUrl,
-        method: config.method,
-        hasToken: false,
-      });
     }
+    
+    // 개발 모드에서만 상세 로깅
+    if (import.meta.env.DEV) {
+      const fullUrl = `${config.baseURL}${config.url}`;
+      if (token) {
+        console.log('API Request:', {
+          relativeUrl: config.url,
+          baseURL: config.baseURL,
+          fullUrl: fullUrl,
+          method: config.method,
+          hasToken: true,
+          tokenLength: token.length,
+          tokenPreview: token.substring(0, 20) + '...', // 토큰 일부만 표시
+          headers: {
+            ...config.headers,
+            Authorization: 'Bearer ***', // 토큰 전체는 숨김
+          },
+        });
+      } else {
+        console.warn('API Request (No Token):', {
+          relativeUrl: config.url,
+          baseURL: config.baseURL,
+          fullUrl: fullUrl,
+          method: config.method,
+          hasToken: false,
+        });
+      }
+    }
+    
     return config;
   },
   (error) => {
+    // 에러는 항상 로깅
     console.error('Request Interceptor Error:', error);
     return Promise.reject(error);
   }
@@ -54,35 +62,46 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 모든 에러를 콘솔에 상세히 로깅 (디버깅용)
     const relativeUrl = error.config?.url || 'unknown';
     const baseURL = error.config?.baseURL || '';
     const fullUrl = `${baseURL}${relativeUrl}`;
     
-    console.error('API Error:', {
-      relativeUrl: relativeUrl,
-      baseURL: baseURL,
-      fullUrl: fullUrl,
-      method: error.config?.method,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      requestHeaders: error.config?.headers,
-      responseHeaders: error.response?.headers,
-    });
+    // 개발 모드에서만 상세 로깅
+    if (import.meta.env.DEV) {
+      console.error('API Error:', {
+        relativeUrl: relativeUrl,
+        baseURL: baseURL,
+        fullUrl: fullUrl,
+        method: error.config?.method,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        requestHeaders: error.config?.headers,
+        responseHeaders: error.response?.headers,
+      });
+    } else {
+      // 프로덕션에서는 간단한 에러 로깅만
+      console.error('API Error:', {
+        url: relativeUrl,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+      });
+    }
 
     if (error.response?.status === 401) {
       // Handle unauthorized - clear token and redirect to login
-      console.error('=== 401 Unauthorized 에러 상세 정보 ===');
-      console.error('실제 요청 URL:', fullUrl);
-      console.error('상대 경로:', relativeUrl);
-      console.error('Base URL:', baseURL);
-      console.error('요청 메서드:', error.config?.method);
-      console.error('Authorization 헤더 존재:', !!error.config?.headers?.Authorization);
-      console.error('Authorization 헤더 값:', error.config?.headers?.Authorization ? 'Bearer ***' : '없음');
-      console.error('응답 데이터:', error.response?.data);
-      console.error('현재 localStorage 토큰 존재:', !!localStorage.getItem('access_token'));
-      console.error('=====================================');
+      if (import.meta.env.DEV) {
+        console.error('=== 401 Unauthorized 에러 상세 정보 ===');
+        console.error('실제 요청 URL:', fullUrl);
+        console.error('상대 경로:', relativeUrl);
+        console.error('Base URL:', baseURL);
+        console.error('요청 메서드:', error.config?.method);
+        console.error('Authorization 헤더 존재:', !!error.config?.headers?.Authorization);
+        console.error('Authorization 헤더 값:', error.config?.headers?.Authorization ? 'Bearer ***' : '없음');
+        console.error('응답 데이터:', error.response?.data);
+        console.error('현재 localStorage 토큰 존재:', !!localStorage.getItem('access_token'));
+        console.error('=====================================');
+      }
       
       localStorage.removeItem('access_token');
       
@@ -96,11 +115,15 @@ apiClient.interceptors.response.use(
         const isDevelopment = import.meta.env.DEV;
         const redirectDelay = isDevelopment ? 5000 : 1000; // 개발 모드: 5초, 프로덕션: 1초
         
-        console.warn(`${redirectDelay / 1000}초 후 로그인 페이지로 리다이렉트됩니다.`);
-        console.warn('Network 탭에서 요청 상세 정보를 확인하세요.');
+        if (isDevelopment) {
+          console.warn(`${redirectDelay / 1000}초 후 로그인 페이지로 리다이렉트됩니다.`);
+          console.warn('Network 탭에서 요청 상세 정보를 확인하세요.');
+        }
         
         setTimeout(() => {
-          console.warn('리다이렉트 실행');
+          if (isDevelopment) {
+            console.warn('리다이렉트 실행');
+          }
           window.location.href = '/auth';
         }, redirectDelay);
       }

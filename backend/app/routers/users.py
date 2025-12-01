@@ -4,7 +4,7 @@
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, and_, desc
 from datetime import datetime
@@ -12,6 +12,7 @@ from typing import List, Optional
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.security import get_password_hash, verify_password
+from app.core.utils import get_achievement_response
 from app.models.user import User, UserProfile
 from app.models.user_profile import UserProfileInstrument, UserProfileUserType
 from app.models.instrument import Instrument
@@ -37,12 +38,11 @@ router = APIRouter(prefix="/api/users", tags=["사용자"])
 
 
 def _get_user_profile_with_relations(db: Session, user_id: int) -> UserProfile:
-    """사용자 프로필을 관계 데이터와 함께 조회"""
-    profile = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
-    if profile:
-        # 관계 데이터를 로드하기 위해 접근
-        _ = profile.instruments
-        _ = profile.user_types
+    """사용자 프로필을 관계 데이터와 함께 조회 (N+1 쿼리 방지)"""
+    profile = db.query(UserProfile).options(
+        joinedload(UserProfile.instruments).joinedload(UserProfileInstrument.instrument),
+        joinedload(UserProfile.user_types).joinedload(UserProfileUserType.user_type)
+    ).filter(UserProfile.user_id == user_id).first()
     return profile
 
 
@@ -97,14 +97,7 @@ async def get_my_profile(
             profile_data = _build_profile_response(profile)
         
         # 선택한 칭호 정보 조회
-        selected_achievement_data = None
-        if current_user.selected_achievement_id:
-            selected_achievement = db.query(Achievement).filter(
-                Achievement.achievement_id == current_user.selected_achievement_id
-            ).first()
-            if selected_achievement:
-                from app.schemas.achievements import AchievementResponse
-                selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+        selected_achievement_data = get_achievement_response(db, current_user.selected_achievement_id)
         
         return UserDetailResponse(
             user_id=current_user.user_id,
@@ -465,9 +458,11 @@ async def search_users(
         # 총 개수 계산
         total = query.count()
         
-        # 페이지네이션
+        # 페이지네이션 (관계 데이터 미리 로드하여 N+1 쿼리 방지)
         offset = (page - 1) * page_size
-        users = query.order_by(desc(User.last_login_at), desc(User.created_at))\
+        users = query.options(
+            joinedload(User.selected_achievement)
+        ).order_by(desc(User.last_login_at), desc(User.created_at))\
             .offset(offset)\
             .limit(page_size)\
             .all()
@@ -475,15 +470,11 @@ async def search_users(
         # 응답 생성 (선택한 칭호 포함)
         user_responses = []
         for user in users:
+            # joinedload로 이미 로드된 관계 사용
             selected_achievement_data = None
-            if user.selected_achievement_id:
-                from app.models.achievement import Achievement
-                selected_achievement = db.query(Achievement).filter(
-                    Achievement.achievement_id == user.selected_achievement_id
-                ).first()
-                if selected_achievement:
-                    from app.schemas.achievements import AchievementResponse
-                    selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+            if user.selected_achievement:
+                from app.schemas.achievements import AchievementResponse
+                selected_achievement_data = AchievementResponse.model_validate(user.selected_achievement)
             
             user_responses.append(
                 UserSearchResponse(

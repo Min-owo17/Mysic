@@ -1,15 +1,13 @@
 # Docker Compose for Local Development
 version: '3.8'
 
-# 환경 변수 파일 로드 (선택사항)
-# env_file:
-#   - ../../.env.local
-
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: mysic_postgres
+    env_file:
+      - ../../.env.local  # 로컬 개발 환경 변수 파일
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-mysic_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mysic_password}
@@ -32,11 +30,14 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.backend
     container_name: mysic_backend
+    env_file:
+      - ../../.env.local  # 로컬 개발 환경 변수 파일
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-mysic_user}:${POSTGRES_PASSWORD:-mysic_password}@postgres:5432/${POSTGRES_DB:-mysic_db}
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-      - ENVIRONMENT=development
-      - CORS_ORIGINS=http://localhost,http://localhost:80,http://localhost:3000,http://localhost:5173
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost,http://localhost:80,http://localhost:3000,http://localhost:5173}
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
     ports:
       - "8000:8000"
     volumes:
@@ -53,7 +54,11 @@ services:
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.frontend
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
     container_name: mysic_frontend
+    env_file:
+      - ../../.env.local  # 로컬 개발 환경 변수 파일
     ports:
       - "80:80"
     depends_on:

@@ -6,13 +6,14 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, desc, func, text
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.board import Post, Comment, PostLike, CommentLike
 from app.models.achievement import Achievement
+from app.core.utils import get_achievement_response
 from app.schemas.board import (
     PostCreate,
     PostUpdate,
@@ -44,15 +45,7 @@ def _build_post_response(post: Post, db: Session, current_user_id: Optional[int]
         PostResponse: 게시글 응답 객체
     """
     # 작성자 정보 (선택한 칭호 포함)
-    selected_achievement_data = None
-    if post.user.selected_achievement_id:
-        # 관계가 로드되지 않은 경우 직접 조회
-        selected_achievement = db.query(Achievement).filter(
-            Achievement.achievement_id == post.user.selected_achievement_id
-        ).first()
-        if selected_achievement:
-            from app.schemas.achievements import AchievementResponse
-            selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+    selected_achievement_data = get_achievement_response(db, post.user.selected_achievement_id)
     
     author = PostAuthorResponse(
         user_id=post.user.user_id,
@@ -105,14 +98,7 @@ def _build_comment_response(comment: Comment, db: Session, current_user_id: Opti
         CommentResponse: 댓글 응답 객체
     """
     # 작성자 정보 (선택한 칭호 포함)
-    selected_achievement_data = None
-    if comment.user.selected_achievement_id:
-        selected_achievement = db.query(Achievement).filter(
-            Achievement.achievement_id == comment.user.selected_achievement_id
-        ).first()
-        if selected_achievement:
-            from app.schemas.achievements import AchievementResponse
-            selected_achievement_data = AchievementResponse.model_validate(selected_achievement)
+    selected_achievement_data = get_achievement_response(db, comment.user.selected_achievement_id)
     
     author = PostAuthorResponse(
         user_id=comment.user.user_id,
@@ -217,8 +203,11 @@ async def get_posts(
     # 전체 개수
     total = query.count()
     
-    # 정렬 및 페이지네이션
-    posts = query.order_by(desc(Post.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+    # 정렬 및 페이지네이션 (관계 데이터 미리 로드하여 N+1 쿼리 방지)
+    posts = query.options(
+        joinedload(Post.user).joinedload(User.selected_achievement),
+        joinedload(Post.likes)
+    ).order_by(desc(Post.created_at)).offset((page - 1) * page_size).limit(page_size).all()
     
     # 응답 변환
     current_user_id = current_user.user_id if current_user else None
@@ -262,13 +251,15 @@ async def create_post(
     db.commit()
     db.refresh(new_post)
     
-    # 관계 데이터 로드
-    _ = new_post.user
-    _ = new_post.likes
+    # 관계 데이터 미리 로드하여 N+1 쿼리 방지 (refresh 후 다시 조회)
+    post_with_relations = db.query(Post).options(
+        joinedload(Post.user).joinedload(User.selected_achievement),
+        joinedload(Post.likes)
+    ).filter(Post.post_id == new_post.post_id).first()
     
     logger.info(f"게시글 작성 완료: post_id={new_post.post_id}, user_id={current_user.user_id}")
     
-    return _build_post_response(new_post, db, current_user.user_id)
+    return _build_post_response(post_with_relations, db, current_user.user_id)
 
 
 @router.get("/posts/{post_id}", response_model=PostResponse)
@@ -282,7 +273,11 @@ async def get_post(
     - 조회수 증가
     - Soft Delete된 게시글은 404 반환
     """
-    post = db.query(Post).filter(
+    # 관계 데이터 미리 로드하여 N+1 쿼리 방지
+    post = db.query(Post).options(
+        joinedload(Post.user).joinedload(User.selected_achievement),
+        joinedload(Post.likes)
+    ).filter(
         and_(
             Post.post_id == post_id,
             Post.deleted_at.is_(None)
@@ -300,10 +295,6 @@ async def get_post(
     db.commit()
     db.refresh(post)
     
-    # 관계 데이터 로드
-    _ = post.user
-    _ = post.likes
-    
     current_user_id = current_user.user_id if current_user else None
     return _build_post_response(post, db, current_user_id)
 
@@ -320,7 +311,11 @@ async def update_post(
     - 작성자만 수정 가능
     - Soft Delete된 게시글은 수정 불가
     """
-    post = db.query(Post).filter(
+    # 관계 데이터 미리 로드하여 N+1 쿼리 방지
+    post = db.query(Post).options(
+        joinedload(Post.user).joinedload(User.selected_achievement),
+        joinedload(Post.likes)
+    ).filter(
         and_(
             Post.post_id == post_id,
             Post.deleted_at.is_(None)
@@ -354,10 +349,6 @@ async def update_post(
     
     db.commit()
     db.refresh(post)
-    
-    # 관계 데이터 로드
-    _ = post.user
-    _ = post.likes
     
     logger.info(f"게시글 수정 완료: post_id={post_id}, user_id={current_user.user_id}")
     
@@ -488,22 +479,18 @@ async def get_comments(
     
     # 부모 댓글만 조회 (parent_comment_id가 NULL인 댓글)
     # 삭제된 댓글도 포함하여 "삭제된 댓글입니다" 메시지를 표시하기 위해 필터링하지 않음
-    comments = db.query(Comment).filter(
+    # 관계 데이터 미리 로드하여 N+1 쿼리 방지
+    comments = db.query(Comment).options(
+        joinedload(Comment.user).joinedload(User.selected_achievement),
+        joinedload(Comment.likes),
+        joinedload(Comment.replies).joinedload(Comment.user).joinedload(User.selected_achievement),
+        joinedload(Comment.replies).joinedload(Comment.likes)
+    ).filter(
         and_(
             Comment.post_id == post_id,
             Comment.parent_comment_id.is_(None)
         )
     ).order_by(Comment.created_at).all()
-    
-    # 관계 데이터 로드
-    for comment in comments:
-        _ = comment.user
-        _ = comment.likes
-        # 답글도 로드 (삭제된 답글 포함)
-        if hasattr(comment, 'replies'):
-            for reply in comment.replies:
-                _ = reply.user
-                _ = reply.likes
     
     current_user_id = current_user.user_id if current_user else None
     comment_responses = [_build_comment_response(comment, db, current_user_id) for comment in comments]
@@ -581,13 +568,15 @@ async def create_comment(
     db.commit()
     db.refresh(new_comment)
     
-    # 관계 데이터 로드
-    _ = new_comment.user
-    _ = new_comment.likes
+    # 관계 데이터 미리 로드하여 N+1 쿼리 방지 (refresh 후 다시 조회)
+    comment_with_relations = db.query(Comment).options(
+        joinedload(Comment.user).joinedload(User.selected_achievement),
+        joinedload(Comment.likes)
+    ).filter(Comment.comment_id == new_comment.comment_id).first()
     
     logger.info(f"댓글 작성 완료: comment_id={new_comment.comment_id}, post_id={post_id}, user_id={current_user.user_id}")
     
-    return _build_comment_response(new_comment, db, current_user.user_id)
+    return _build_comment_response(comment_with_relations, db, current_user.user_id)
 
 
 @router.put("/comments/{comment_id}", response_model=CommentResponse)
@@ -602,7 +591,11 @@ async def update_comment(
     - 작성자만 수정 가능
     - 삭제된 댓글은 수정 불가
     """
-    comment = db.query(Comment).filter(
+    # 관계 데이터 미리 로드하여 N+1 쿼리 방지
+    comment = db.query(Comment).options(
+        joinedload(Comment.user).joinedload(User.selected_achievement),
+        joinedload(Comment.likes)
+    ).filter(
         and_(
             Comment.comment_id == comment_id,
             Comment.deleted_at.is_(None)  # 삭제된 댓글은 수정 불가
@@ -628,10 +621,6 @@ async def update_comment(
     
     db.commit()
     db.refresh(comment)
-    
-    # 관계 데이터 로드
-    _ = comment.user
-    _ = comment.likes
     
     logger.info(f"댓글 수정 완료: comment_id={comment_id}, user_id={current_user.user_id}")
     
