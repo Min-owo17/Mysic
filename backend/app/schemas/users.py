@@ -155,6 +155,20 @@ class ChangePasswordRequest(BaseModel):
         }
 
 
+class ChangeEmailRequest(BaseModel):
+    """이메일 변경 요청 스키마"""
+    current_password: str = Field(..., description="현재 비밀번호 (변경 확인용)")
+    new_email: EmailStr = Field(..., description="새 이메일 주소")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "current_password": "password123",
+                "new_email": "newemail@example.com"
+            }
+        }
+
+
 class MessageResponse(BaseModel):
     """일반 메시지 응답 스키마"""
     message: str

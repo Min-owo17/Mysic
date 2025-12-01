@@ -5,6 +5,7 @@ import {
   UpdateInstrumentsRequest,
   UpdateUserTypesRequest,
   ChangePasswordRequest,
+  ChangeEmailRequest,
   MessageResponse,
 } from '../../types';
 
@@ -46,6 +47,14 @@ export const usersApi = {
    */
   changePassword: async (data: ChangePasswordRequest): Promise<MessageResponse> => {
     const response = await apiClient.put<MessageResponse>('/users/me/password', data);
+    return response.data;
+  },
+
+  /**
+   * 이메일 변경
+   */
+  changeEmail: async (data: ChangeEmailRequest): Promise<MessageResponse> => {
+    const response = await apiClient.put<MessageResponse>('/users/me/email', data);
     return response.data;
   },
 

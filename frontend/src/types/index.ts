@@ -102,6 +102,11 @@ export interface ChangePasswordRequest {
   new_password: string;
 }
 
+export interface ChangeEmailRequest {
+  current_password: string;
+  new_email: string;
+}
+
 export interface MessageResponse {
   message: string;
 }

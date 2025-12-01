@@ -25,6 +25,7 @@ from app.schemas.users import (
     UpdateInstrumentsRequest,
     UpdateUserTypesRequest,
     ChangePasswordRequest,
+    ChangeEmailRequest,
     MessageResponse,
     UserProfileInstrumentResponse,
     UserProfileUserTypeResponse,
@@ -397,6 +398,82 @@ async def change_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="비밀번호 변경 중 오류가 발생했습니다."
+        )
+
+
+@router.put("/me/email", response_model=MessageResponse)
+async def change_email(
+    request: ChangeEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    이메일 변경
+    
+    - 현재 비밀번호 확인
+    - 새 이메일로 변경
+    - 이메일 중복 확인
+    - 소셜 로그인 사용자는 이메일을 변경할 수 없음
+    """
+    try:
+        # 소셜 로그인 사용자 확인
+        if not current_user.password_hash:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="소셜 로그인 사용자는 이메일을 변경할 수 없습니다."
+            )
+        
+        # 현재 비밀번호 확인
+        if not verify_password(request.current_password, current_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="현재 비밀번호가 올바르지 않습니다."
+            )
+        
+        # 새 이메일이 현재 이메일과 같은지 확인
+        if request.new_email == current_user.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="새 이메일이 현재 이메일과 동일합니다."
+            )
+        
+        # 이메일 중복 확인
+        existing_user = db.query(User).filter(
+            User.email == request.new_email,
+            User.user_id != current_user.user_id,
+            User.deleted_at.is_(None)  # Soft Delete된 사용자 제외
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="이미 사용 중인 이메일입니다."
+            )
+        
+        # 이메일 변경
+        current_user.email = request.new_email
+        current_user.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(current_user)
+        
+        return MessageResponse(message="이메일이 변경되었습니다.")
+        
+    except HTTPException:
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"이메일 변경 오류 (IntegrityError): {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이메일 변경 중 오류가 발생했습니다."
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"이메일 변경 오류: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="이메일 변경 중 오류가 발생했습니다."
         )
 
 

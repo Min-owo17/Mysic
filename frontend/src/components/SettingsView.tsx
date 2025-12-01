@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppContext } from '../context/AppContext';
-import { View, UserProfile } from '../types';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuthStore } from '../store/slices/authSlice';
+import { View } from '../types';
 import { usersApi } from '../services/api/users';
 import { commonStyles } from '../styles/commonStyles';
 
@@ -37,8 +38,16 @@ const NaverIcon = () => (<svg className="w-5 h-5" viewBox="0 0 24 24"><path fill
 
 
 const SettingsView: React.FC = () => {
-    const { userProfile, updateProfile, resetRecords, deleteAccount, logout } = useAppContext();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const { user, setUser } = useAuthStore();
+    
+    // 사용자 프로필 조회
+    const { data: userProfile, isLoading } = useQuery({
+        queryKey: ['userProfile'],
+        queryFn: () => usersApi.getMyProfile(),
+        enabled: !!user,
+    });
     
     const [accountData, setAccountData] = useState({ email: '', password: '' });
     const [isSaving, setIsSaving] = useState(false);
@@ -48,10 +57,20 @@ const SettingsView: React.FC = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showDeleteResultModal, setShowDeleteResultModal] = useState(false);
     const [deleteResult, setDeleteResult] = useState<{ success: boolean; message: string } | null>(null);
-    const [showConfirmPasswordModal, setShowConfirmPasswordModal] = useState(false);
     
+    // 비밀번호 확인 모달 (이메일/비밀번호 변경 전)
+    const [showConfirmPasswordModal, setShowConfirmPasswordModal] = useState(false);
     const [confirmPassword, setConfirmPassword] = useState('');
     const [confirmError, setConfirmError] = useState('');
+    const [pendingAction, setPendingAction] = useState<'email' | 'password' | null>(null);
+    
+    // 변경 확인 모달
+    const [showChangeConfirmModal, setShowChangeConfirmModal] = useState(false);
+    const [changeType, setChangeType] = useState<'email' | 'password' | null>(null);
+    
+    // 비밀번호 틀림 안내 모달
+    const [showPasswordErrorModal, setShowPasswordErrorModal] = useState(false);
+    
     const [copied, setCopied] = useState(false);
 
     // --- Feedback Modal State ---
@@ -66,10 +85,10 @@ const SettingsView: React.FC = () => {
     const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
 
-    const MOCK_CURRENT_PASSWORD = 'password123'; // For demonstration purposes
-
     useEffect(() => {
-        setAccountData({ email: userProfile.email, password: '' });
+        if (userProfile) {
+            setAccountData({ email: userProfile.email, password: '' });
+        }
     }, [userProfile]);
 
     const handleAccountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,46 +96,104 @@ const SettingsView: React.FC = () => {
         setAccountData(prev => ({ ...prev, [name]: value }));
     };
 
-    const performSave = () => {
-        setIsSaving(true);
-        setTimeout(() => {
-            const profileToUpdate: UserProfile = {
-                ...userProfile,
-                email: accountData.email,
-                // Only include the password if it's being changed
-                ...(accountData.password && { password: accountData.password }),
-            };
-            updateProfile(profileToUpdate);
-            // Clear password field after saving
-            setAccountData(prev => ({...prev, password: ''}));
-            setIsSaving(false);
-            setShowSuccess(true);
-            setTimeout(() => setShowSuccess(false), 2000);
-        }, 1000);
-    };
-
-    const handleSaveAccount = () => {
+    const handleSaveAccount = async () => {
+        if (!userProfile) return;
+        
         const isEmailChanged = accountData.email !== userProfile.email;
         const isPasswordChanged = !!accountData.password;
 
-        if (isEmailChanged || isPasswordChanged) {
+        if (isEmailChanged && isPasswordChanged) {
+            // 이메일과 비밀번호 모두 변경하는 경우는 이메일 변경만 처리
+            // (비밀번호는 별도로 변경하도록 안내)
+            alert('이메일과 비밀번호는 각각 변경해주세요.');
+            return;
+        }
+
+        if (isEmailChanged) {
+            setPendingAction('email');
+            setShowConfirmPasswordModal(true);
+        } else if (isPasswordChanged) {
+            setPendingAction('password');
             setShowConfirmPasswordModal(true);
         }
     };
     
     const handlePasswordConfirm = () => {
-        if (confirmPassword === MOCK_CURRENT_PASSWORD) {
+        if (!confirmPassword.trim()) {
+            setConfirmError('비밀번호를 입력해주세요.');
+            return;
+        }
+
+        // 비밀번호 확인 모달 닫고 변경 확인 모달 표시
+        if (pendingAction === 'email') {
             setShowConfirmPasswordModal(false);
-            setConfirmPassword('');
+            setShowChangeConfirmModal(true);
+            setChangeType('email');
             setConfirmError('');
-            performSave();
-        } else {
-            setConfirmError('비밀번호가 올바르지 않습니다.');
+        } else if (pendingAction === 'password') {
+            setShowConfirmPasswordModal(false);
+            setShowChangeConfirmModal(true);
+            setChangeType('password');
+            setConfirmError('');
+        }
+    };
+
+    const handleChangeConfirm = async () => {
+        if (!userProfile) return;
+
+        setIsSaving(true);
+        try {
+            if (changeType === 'email') {
+                // 이메일 변경
+                await usersApi.changeEmail({
+                    current_password: confirmPassword,
+                    new_email: accountData.email,
+                });
+                
+                // 프로필 다시 조회하여 업데이트
+                await queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+                const updatedProfile = await usersApi.getMyProfile();
+                if (updatedProfile && user) {
+                    setUser({
+                        ...user,
+                        email: updatedProfile.email,
+                    });
+                }
+                
+                setShowSuccess(true);
+                setTimeout(() => setShowSuccess(false), 2000);
+            } else if (changeType === 'password') {
+                // 비밀번호 변경
+                await usersApi.changePassword({
+                    current_password: confirmPassword,
+                    new_password: accountData.password,
+                });
+                
+                // 비밀번호 필드 초기화
+                setAccountData(prev => ({ ...prev, password: '' }));
+                setShowSuccess(true);
+                setTimeout(() => setShowSuccess(false), 2000);
+            }
+            
+            setShowChangeConfirmModal(false);
+            setChangeType(null);
+            setConfirmPassword('');
+            setPendingAction(null);
+        } catch (error: any) {
+            // 비밀번호가 틀린 경우
+            if (error.response?.status === 400 && error.response?.data?.detail?.includes('비밀번호')) {
+                setShowChangeConfirmModal(false);
+                setShowPasswordErrorModal(true);
+            } else {
+                alert(error.response?.data?.detail || '변경 중 오류가 발생했습니다.');
+            }
+        } finally {
+            setIsSaving(false);
         }
     };
 
     const handleResetRecords = () => {
-        resetRecords();
+        // TODO: 연습 기록 초기화 API 호출
         setShowResetModal(false);
     };
 
@@ -134,9 +211,6 @@ const SettingsView: React.FC = () => {
                 message: '회원 탈퇴가 완료되었습니다. 확인 버튼을 클릭하면 로그인 페이지로 이동합니다.'
             });
             setShowDeleteResultModal(true);
-            
-            // 로그아웃 처리 (모달이 닫힐 때까지 지연)
-            // 사용자가 확인 버튼을 클릭할 때까지 인증 상태 유지
         } catch (error) {
             console.error('회원 탈퇴 오류:', error);
             
@@ -152,8 +226,9 @@ const SettingsView: React.FC = () => {
     // 회원 탈퇴 성공 후 확인 버튼 클릭 시 처리
     const handleDeleteResultConfirm = () => {
         // 로그아웃 처리
-        logout();
+        setUser(null);
         localStorage.removeItem('access_token');
+        queryClient.clear();
         
         // 모달 닫기
         setShowDeleteResultModal(false);
@@ -164,12 +239,32 @@ const SettingsView: React.FC = () => {
     };
     
     const handleCopyCode = () => {
-        navigator.clipboard.writeText(userProfile.userCode);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        if (userProfile?.unique_code) {
+            navigator.clipboard.writeText(userProfile.unique_code);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
-    const isAccountSaveDisabled = (accountData.email === userProfile.email && !accountData.password) || isSaving;
+    const isAccountSaveDisabled = (!userProfile || (accountData.email === userProfile.email && !accountData.password)) || isSaving;
+
+    if (isLoading) {
+        return (
+            <div className="p-4 md:p-6 max-w-md md:max-w-2xl mx-auto animate-fade-in">
+                <div className="flex items-center justify-center h-64">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!userProfile) {
+        return (
+            <div className="p-4 md:p-6 max-w-md md:max-w-2xl mx-auto animate-fade-in">
+                <p className="text-center text-gray-600 dark:text-gray-400">사용자 정보를 불러올 수 없습니다.</p>
+            </div>
+        );
+    }
 
     const handleOpenFeedbackModal = () => {
         setFeedbackType('inquiry');
@@ -192,6 +287,7 @@ const SettingsView: React.FC = () => {
 
     return (
         <>
+            {/* 비밀번호 확인 모달 */}
             {showConfirmPasswordModal && (
                 <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
                     <div className={commonStyles.confirmModalContainer}>
@@ -201,13 +297,73 @@ const SettingsView: React.FC = () => {
                             type="password"
                             value={confirmPassword}
                             onChange={(e) => { setConfirmPassword(e.target.value); setConfirmError(''); }}
+                            onKeyPress={(e) => { if (e.key === 'Enter') handlePasswordConfirm(); }}
                             className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                             placeholder="현재 비밀번호"
+                            autoFocus
                         />
                         {confirmError && <p className="text-red-500 dark:text-red-400 text-xs mt-2 text-left">{confirmError}</p>}
                         <div className="flex gap-4 mt-6">
-                            <button onClick={() => { setShowConfirmPasswordModal(false); setConfirmError(''); setConfirmPassword(''); }} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
+                            <button onClick={() => { setShowConfirmPasswordModal(false); setConfirmError(''); setConfirmPassword(''); setPendingAction(null); }} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
                             <button onClick={handlePasswordConfirm} className={`${commonStyles.buttonBase} ${commonStyles.primaryButton}`}>확인</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 변경 확인 모달 */}
+            {showChangeConfirmModal && (
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.confirmModalContainer}>
+                        <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-300 mb-2">
+                            {changeType === 'email' ? '이메일 변경' : '비밀번호 변경'}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm">
+                            {changeType === 'email' 
+                                ? `이메일을 "${accountData.email}"로 변경하시겠습니까?`
+                                : '비밀번호를 변경하시겠습니까?'}
+                        </p>
+                        <div className="flex gap-4 mt-6">
+                            <button 
+                                onClick={() => { 
+                                    setShowChangeConfirmModal(false); 
+                                    setChangeType(null); 
+                                    setConfirmPassword(''); 
+                                    setPendingAction(null);
+                                }} 
+                                className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}
+                            >
+                                취소
+                            </button>
+                            <button 
+                                onClick={handleChangeConfirm} 
+                                disabled={isSaving} 
+                                className={`${commonStyles.buttonBase} ${commonStyles.primaryButton}`}
+                            >
+                                {isSaving ? '변경 중...' : '변경'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 비밀번호 틀림 안내 모달 */}
+            {showPasswordErrorModal && (
+                <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+                    <div className={commonStyles.confirmModalContainer}>
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-2">비밀번호 오류</h3>
+                        <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm">비밀번호가 올바르지 않아 변경할 수 없습니다.</p>
+                        <div className="flex gap-4 mt-6">
+                            <button 
+                                onClick={() => { 
+                                    setShowPasswordErrorModal(false); 
+                                    setConfirmPassword('');
+                                    setPendingAction(null);
+                                }} 
+                                className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} w-full`}
+                            >
+                                확인
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -359,50 +515,50 @@ const SettingsView: React.FC = () => {
                         <div>
                             <label htmlFor="userCode" className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">고유 코드</label>
                             <div className="flex items-center gap-2">
-                                <input id="userCode" type="text" value={userProfile.userCode} readOnly className="flex-1 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 font-mono text-gray-500 dark:text-gray-400" />
+                                <input id="userCode" type="text" value={userProfile.unique_code || ''} readOnly className="flex-1 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 font-mono text-gray-500 dark:text-gray-400" />
                                 <button onClick={handleCopyCode} className="bg-indigo-600 text-white font-semibold py-2 px-3 rounded-md hover:bg-indigo-500 transition-colors text-sm">
                                     {copied ? '복사됨!' : '복사'}
                                 </button>
                             </div>
                         </div>
 
-                        {!userProfile.socialProvider && (
-                             <div>
-                                <label htmlFor="email" className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">이메일</label>
-                                <input type="email" id="email" name="email" value={accountData.email} onChange={handleAccountChange} className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none" />
-                            </div>
-                        )}
-                       
-                        {userProfile.socialProvider && (
-                            <div>
-                                 <p className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">연동된 소셜 계정</p>
-                                 <div className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        {userProfile.socialProvider === 'Google' && <GoogleIcon />}
-                                        {userProfile.socialProvider === 'Kakao' && <KakaoIcon />}
-                                        {userProfile.socialProvider === 'Naver' && <NaverIcon />}
-                                        <span className="font-semibold">{userProfile.email}</span>
-                                    </div>
-                                    <button className="text-xs text-gray-500 hover:text-red-500 dark:hover:text-red-400">연동 해제</button>
-                                 </div>
-                            </div>
-                        )}
+                        {/* 이메일 변경 (소셜 로그인 사용자가 아닌 경우) */}
+                        <div>
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">이메일</label>
+                            <input 
+                                type="email" 
+                                id="email" 
+                                name="email" 
+                                value={accountData.email} 
+                                onChange={handleAccountChange} 
+                                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                            />
+                        </div>
 
-                        {!userProfile.socialProvider && (
-                            <div>
-                                <label htmlFor="password" className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">새 비밀번호</label>
-                                <input type="password" id="password" name="password" value={accountData.password} onChange={handleAccountChange} placeholder="변경할 경우에만 입력" className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none" />
-                            </div>
-                        )}
+                        {/* 비밀번호 변경 */}
+                        <div>
+                            <label htmlFor="password" className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">새 비밀번호</label>
+                            <input 
+                                type="password" 
+                                id="password" 
+                                name="password" 
+                                value={accountData.password} 
+                                onChange={handleAccountChange} 
+                                placeholder="변경할 경우에만 입력" 
+                                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                            />
+                        </div>
 
-                        {!userProfile.socialProvider && (
-                           <div className="pt-2">
-                               <button onClick={handleSaveAccount} disabled={isAccountSaveDisabled} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-md hover:bg-purple-700 disabled:bg-purple-300 dark:disabled:bg-purple-800 disabled:cursor-not-allowed transition-colors">
-                                   {isSaving ? '저장 중...' : '계정 정보 저장'}
-                               </button>
-                               {showSuccess && <p className="text-green-600 dark:text-green-400 text-center mt-3 text-sm animate-fade-in">계정 정보가 저장되었습니다!</p>}
-                           </div>
-                        )}
+                        <div className="pt-2">
+                            <button 
+                                onClick={handleSaveAccount} 
+                                disabled={isAccountSaveDisabled} 
+                                className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-md hover:bg-purple-700 disabled:bg-purple-300 dark:disabled:bg-purple-800 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {isSaving ? '저장 중...' : '계정 정보 저장'}
+                            </button>
+                            {showSuccess && <p className="text-green-600 dark:text-green-400 text-center mt-3 text-sm animate-fade-in">계정 정보가 저장되었습니다!</p>}
+                        </div>
                     </div>
 
                     {/* Support */}
@@ -439,7 +595,9 @@ const SettingsView: React.FC = () => {
                     <div className="pt-4">
                         <button
                             onClick={() => {
-                                logout();
+                                setUser(null);
+                                localStorage.removeItem('access_token');
+                                queryClient.clear();
                                 navigate('/auth');
                             }}
                             className="w-full text-center text-gray-500 dark:text-gray-400 py-3 font-semibold hover:text-gray-800 dark:hover:text-white transition-colors"
