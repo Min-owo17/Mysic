@@ -100,7 +100,19 @@ const SettingsView: React.FC = () => {
         if (!userProfile) return;
         
         const isEmailChanged = accountData.email !== userProfile.email;
-        const isPasswordChanged = !!accountData.password;
+        const isPasswordChanged = !!accountData.password && accountData.password.trim().length > 0;
+
+        // 비밀번호 변경인 경우 유효성 검사
+        if (isPasswordChanged) {
+            if (accountData.password.trim().length < 8) {
+                alert('새 비밀번호는 8자 이상이어야 합니다.');
+                return;
+            }
+            if (accountData.password.length > 72) {
+                alert('비밀번호는 72자 이하여야 합니다.');
+                return;
+            }
+        }
 
         if (isEmailChanged && isPasswordChanged) {
             // 이메일과 비밀번호 모두 변경하는 경우는 이메일 변경만 처리
@@ -141,13 +153,31 @@ const SettingsView: React.FC = () => {
     const handleChangeConfirm = async () => {
         if (!userProfile) return;
 
+        // 비밀번호 변경인 경우 새 비밀번호 유효성 검사
+        if (changeType === 'password') {
+            if (!accountData.password || accountData.password.trim().length < 8) {
+                alert('새 비밀번호는 8자 이상이어야 합니다.');
+                return;
+            }
+            if (accountData.password.length > 72) {
+                alert('비밀번호는 72자 이하여야 합니다.');
+                return;
+            }
+        }
+
+        // 현재 비밀번호 확인
+        if (!confirmPassword || !confirmPassword.trim()) {
+            alert('현재 비밀번호를 입력해주세요.');
+            return;
+        }
+
         setIsSaving(true);
         try {
             if (changeType === 'email') {
                 // 이메일 변경
                 await usersApi.changeEmail({
-                    current_password: confirmPassword,
-                    new_email: accountData.email,
+                    current_password: confirmPassword.trim(),
+                    new_email: accountData.email.trim(),
                 });
                 
                 // 프로필 다시 조회하여 업데이트
@@ -163,11 +193,19 @@ const SettingsView: React.FC = () => {
                 setShowSuccess(true);
                 setTimeout(() => setShowSuccess(false), 2000);
             } else if (changeType === 'password') {
-                // 비밀번호 변경
-                await usersApi.changePassword({
-                    current_password: confirmPassword,
-                    new_password: accountData.password,
+                // 비밀번호 변경 - 전송 데이터 확인
+                const requestData = {
+                    current_password: confirmPassword.trim(),
+                    new_password: accountData.password.trim(),
+                };
+                
+                console.log('비밀번호 변경 요청 데이터:', {
+                    current_password_length: requestData.current_password.length,
+                    new_password_length: requestData.new_password.length,
+                    new_password_preview: requestData.new_password.substring(0, 3) + '...',
                 });
+                
+                await usersApi.changePassword(requestData);
                 
                 // 비밀번호 필드 초기화
                 setAccountData(prev => ({ ...prev, password: '' }));
@@ -180,8 +218,31 @@ const SettingsView: React.FC = () => {
             setConfirmPassword('');
             setPendingAction(null);
         } catch (error: any) {
-            // 비밀번호가 틀린 경우
-            if (error.response?.status === 400 && error.response?.data?.detail?.includes('비밀번호')) {
+            console.error('변경 오류:', error);
+            console.error('오류 상세:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+            });
+            
+            // 422 오류 (유효성 검사 실패)
+            if (error.response?.status === 422) {
+                const errorDetail = error.response?.data?.detail;
+                if (Array.isArray(errorDetail)) {
+                    // Pydantic 유효성 검사 오류 메시지 파싱
+                    const errorMessages = errorDetail.map((err: any) => {
+                        const field = err.loc?.join('.') || '필드';
+                        return `${field}: ${err.msg}`;
+                    }).join('\n');
+                    alert(`입력 정보를 확인해주세요:\n${errorMessages}`);
+                } else if (typeof errorDetail === 'string') {
+                    alert(`입력 정보 오류: ${errorDetail}`);
+                } else {
+                    alert('입력 정보가 올바르지 않습니다. 비밀번호는 8자 이상 72자 이하여야 합니다.');
+                }
+            }
+            // 400 오류 (비밀번호가 틀린 경우)
+            else if (error.response?.status === 400 && error.response?.data?.detail?.includes('비밀번호')) {
                 setShowChangeConfirmModal(false);
                 setShowPasswordErrorModal(true);
             } else {
