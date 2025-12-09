@@ -335,17 +335,27 @@ async def update_post(
             detail="게시글을 수정할 권한이 없습니다."
         )
     
+    # 제목 또는 본문이 실제로 변경되었는지 확인
+    title_changed = False
+    content_changed = False
+    
     # 수정할 필드만 업데이트
     if post_data.title is not None:
-        post.title = post_data.title
+        if post.title != post_data.title:
+            title_changed = True
+            post.title = post_data.title
     if post_data.content is not None:
-        post.content = post_data.content
+        if post.content != post_data.content:
+            content_changed = True
+            post.content = post_data.content
     if post_data.category is not None:
         post.category = post_data.category
     if post_data.manual_tags is not None:
         post.manual_tags = post_data.manual_tags if post_data.manual_tags else None
     
-    post.updated_at = datetime.now(timezone.utc)
+    # 제목 또는 본문이 실제로 변경된 경우에만 updated_at 갱신
+    if title_changed or content_changed:
+        post.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(post)
@@ -419,9 +429,6 @@ async def toggle_post_like(
             detail="게시글을 찾을 수 없습니다."
         )
     
-    # updated_at을 보존하기 위해 현재 값 저장
-    original_updated_at = post.updated_at
-    
     # 기존 좋아요 확인
     existing_like = db.query(PostLike).filter(
         and_(
@@ -445,9 +452,7 @@ async def toggle_post_like(
         post.like_count += 1
         is_liked = True
     
-    # updated_at을 원래 값으로 복원 (좋아요는 수정으로 간주하지 않음)
-    post.updated_at = original_updated_at
-    
+    # onupdate가 제거되었으므로 updated_at은 자동으로 변경되지 않음
     db.commit()
     db.refresh(post)
     
@@ -622,9 +627,15 @@ async def update_comment(
             detail="댓글을 수정할 권한이 없습니다."
         )
     
+    # 본문이 실제로 변경되었는지 확인
+    content_changed = comment.content != comment_data.content
+    
     # 댓글 수정
     comment.content = comment_data.content
-    comment.updated_at = datetime.now(timezone.utc)
+    
+    # 본문이 실제로 변경된 경우에만 updated_at 갱신
+    if content_changed:
+        comment.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(comment)
@@ -701,9 +712,6 @@ async def toggle_comment_like(
             detail="댓글을 찾을 수 없습니다."
         )
     
-    # updated_at을 보존하기 위해 현재 값 저장
-    original_updated_at = comment.updated_at
-    
     # 기존 좋아요 확인
     existing_like = db.query(CommentLike).filter(
         and_(
@@ -727,9 +735,7 @@ async def toggle_comment_like(
         comment.like_count += 1
         is_liked = True
     
-    # updated_at을 원래 값으로 복원 (좋아요는 수정으로 간주하지 않음)
-    comment.updated_at = original_updated_at
-    
+    # onupdate가 제거되었으므로 updated_at은 자동으로 변경되지 않음
     db.commit()
     db.refresh(comment)
     

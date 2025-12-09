@@ -27,9 +27,9 @@ class Post(Base):
     # created_at: UTC로 저장 (Python 코드에서 datetime.utcnow()로 명시적으로 설정)
     # server_default는 fallback으로만 사용됨
     created_at = Column(TIMESTAMP, server_default=func.now(), index=True)
-    # updated_at: UTC로 저장 (Python 코드에서 datetime.utcnow()로 명시적으로 설정)
-    # onupdate는 Python 코드에서 명시적으로 설정하므로 실행되지 않음
-    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.now())  # 수정 시에만 값이 설정됨
+    # updated_at: UTC로 저장 (Python 코드에서 제목/본문 수정 시에만 명시적으로 설정)
+    # onupdate 제거: 좋아요 등 다른 필드 변경 시 자동 갱신 방지
+    updated_at = Column(TIMESTAMP, nullable=True)  # 제목/본문 수정 시에만 값이 설정됨
 
     # 관계 설정
     user = relationship("User", back_populates="posts")
@@ -52,9 +52,9 @@ class Comment(Base):
     # created_at: UTC로 저장 (Python 코드에서 datetime.utcnow()로 명시적으로 설정)
     # server_default는 fallback으로만 사용됨
     created_at = Column(TIMESTAMP, server_default=func.now())
-    # updated_at: UTC로 저장 (Python 코드에서 datetime.utcnow()로 명시적으로 설정)
-    # onupdate는 Python 코드에서 명시적으로 설정하므로 실행되지 않음
-    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.now())  # 수정 시에만 값이 설정됨
+    # updated_at: UTC로 저장 (Python 코드에서 본문 수정 시에만 명시적으로 설정)
+    # onupdate 제거: 좋아요 등 다른 필드 변경 시 자동 갱신 방지
+    updated_at = Column(TIMESTAMP, nullable=True)  # 본문 수정 시에만 값이 설정됨
 
     # 관계 설정
     post = relationship("Post", back_populates="comments")
