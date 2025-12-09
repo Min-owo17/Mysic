@@ -404,6 +404,7 @@ async def toggle_post_like(
     """
     게시글 좋아요 토글
     - 이미 좋아요를 누른 경우 취소, 안 누른 경우 추가
+    - 좋아요는 updated_at을 변경하지 않음 (제목/본문 수정 시에만 updated_at 변경)
     """
     post = db.query(Post).filter(
         and_(
@@ -417,6 +418,9 @@ async def toggle_post_like(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="게시글을 찾을 수 없습니다."
         )
+    
+    # updated_at을 보존하기 위해 현재 값 저장
+    original_updated_at = post.updated_at
     
     # 기존 좋아요 확인
     existing_like = db.query(PostLike).filter(
@@ -440,6 +444,9 @@ async def toggle_post_like(
         db.add(new_like)
         post.like_count += 1
         is_liked = True
+    
+    # updated_at을 원래 값으로 복원 (좋아요는 수정으로 간주하지 않음)
+    post.updated_at = original_updated_at
     
     db.commit()
     db.refresh(post)
@@ -679,6 +686,7 @@ async def toggle_comment_like(
     댓글 좋아요 토글
     - 이미 좋아요를 누른 경우 취소, 안 누른 경우 추가
     - 삭제된 댓글은 좋아요 불가
+    - 좋아요는 updated_at을 변경하지 않음 (본문 수정 시에만 updated_at 변경)
     """
     comment = db.query(Comment).filter(
         and_(
@@ -692,6 +700,9 @@ async def toggle_comment_like(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="댓글을 찾을 수 없습니다."
         )
+    
+    # updated_at을 보존하기 위해 현재 값 저장
+    original_updated_at = comment.updated_at
     
     # 기존 좋아요 확인
     existing_like = db.query(CommentLike).filter(
@@ -715,6 +726,9 @@ async def toggle_comment_like(
         db.add(new_like)
         comment.like_count += 1
         is_liked = True
+    
+    # updated_at을 원래 값으로 복원 (좋아요는 수정으로 간주하지 않음)
+    comment.updated_at = original_updated_at
     
     db.commit()
     db.refresh(comment)
