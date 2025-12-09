@@ -80,7 +80,7 @@ function MainLayout({ children }: { children: ReactNode }) {
       <SideNavBar currentView={currentView} />
       <div className="md:ml-64 pb-16 md:pb-0">
         <Header />
-        <main className="p-4 md:p-8 min-h-[calc(100vh-4rem)]">
+        <main className="pt-16 p-4 md:p-8 min-h-[calc(100vh-4rem)]">
           {children}
         </main>
       </div>

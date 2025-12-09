@@ -132,7 +132,9 @@ const ProfileView: React.FC = () => {
   const updateProfileMutation = useMutation({
     mutationFn: (data: UpdateProfileRequest) => usersApi.updateProfile(data),
     onSuccess: () => {
+      // Header와 ProfileView 모두 업데이트되도록 두 쿼리 키 모두 invalidate
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['myProfile'] });
     },
   });
 
@@ -140,7 +142,9 @@ const ProfileView: React.FC = () => {
   const updateInstrumentsMutation = useMutation({
     mutationFn: (data: UpdateInstrumentsRequest) => usersApi.updateInstruments(data),
     onSuccess: () => {
+      // Header와 ProfileView 모두 업데이트되도록 두 쿼리 키 모두 invalidate
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['myProfile'] });
     },
   });
 
@@ -148,7 +152,9 @@ const ProfileView: React.FC = () => {
   const updateUserTypesMutation = useMutation({
     mutationFn: (data: UpdateUserTypesRequest) => usersApi.updateUserTypes(data),
     onSuccess: () => {
+      // Header와 ProfileView 모두 업데이트되도록 두 쿼리 키 모두 invalidate
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['myProfile'] });
     },
   });
 

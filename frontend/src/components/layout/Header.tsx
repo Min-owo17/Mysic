@@ -8,7 +8,7 @@ export const Header = () => {
   const [imageError, setImageError] = useState(false);
   
   const { data: userDetail } = useQuery({
-    queryKey: ['myProfile'],
+    queryKey: ['userProfile'],
     queryFn: () => usersApi.getMyProfile(),
     enabled: isAuthenticated,
   });
@@ -29,7 +29,7 @@ export const Header = () => {
   const showProfileImage = userDetail?.profile_image_url && !imageError;
 
   return (
-    <header className="bg-gray-50 dark:bg-gray-900 shadow-sm">
+    <header className="fixed top-0 left-0 right-0 md:left-64 z-50 bg-gray-50 dark:bg-gray-900 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-3">
