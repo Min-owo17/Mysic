@@ -269,8 +269,8 @@ const CalendarView: React.FC = () => {
                         <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">&gt;</button>
                     </div>
                     
-                    <div className="h-[calc((100vh-4rem)*0.45)] flex flex-col bg-gray-100/50 dark:bg-gray-800/50 rounded-lg p-2">
-                        <div className="grid grid-cols-7 gap-1 mb-2">
+                    <div className="h-[calc((100vh-4rem)*0.45)] flex flex-col bg-gray-100/50 dark:bg-gray-800/50 rounded-lg p-2 overflow-hidden">
+                        <div className="grid grid-cols-7 gap-1 mb-2 flex-shrink-0">
                             {['일', '월', '화', '수', '목', '금', '토'].map(day => (
                                 <div key={day} className="h-10 w-10 md:h-14 md:w-14 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
                                     {day}
@@ -278,7 +278,7 @@ const CalendarView: React.FC = () => {
                             ))}
                         </div>
                         
-                        <div className="grid grid-cols-7 gap-1 flex-1">
+                        <div className="grid grid-cols-7 gap-1 flex-1 min-h-0 overflow-auto">
                             {Array.from({ length: startDayOfMonth }).map((_, i) => <div key={`empty-${i}`} className="h-10 w-10 md:h-14 md:w-14"></div>)}
                             {daysInMonth.map(day => {
                                 const dateStr = getLocalDateString(day);
