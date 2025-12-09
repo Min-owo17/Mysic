@@ -583,7 +583,7 @@ const GroupDetailView: React.FC<GroupDetailViewProps> = ({ group: initialGroup, 
             )}
 
             <div className="p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto animate-fade-in">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-6 pt-4">
                     <div className="flex items-center">
                         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-700 mr-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
