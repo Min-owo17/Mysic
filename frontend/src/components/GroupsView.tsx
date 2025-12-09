@@ -153,15 +153,6 @@ const GroupsView: React.FC = () => {
       max_members: 50,
     });
   };
-  
-  const handleSearchGroup = () => {
-    if (!searchQuery.trim()) {
-      toast.error('검색어를 입력해주세요.');
-      return;
-    }
-    setSearchPage(1);
-    // 검색 쿼리는 useQuery의 queryKey에 포함되어 있어서 자동으로 재조회됨
-  };
 
   // 그룹 가입 Mutation
   const joinGroupMutation = useMutation({
@@ -308,7 +299,7 @@ const GroupsView: React.FC = () => {
                 <div className="space-y-4 flex flex-col flex-1 min-h-0">
                   <div className="flex-shrink-0">
                     <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-300">그룹 검색</h3>
-                    <div className="flex gap-2 mt-3">
+                    <div className="mt-3">
                       <input
                         type="text"
                         value={searchQuery}
@@ -318,19 +309,7 @@ const GroupsView: React.FC = () => {
                         }}
                         className={commonStyles.textInputDarkerP3}
                         placeholder="그룹 이름으로 검색..."
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSearchGroup();
-                          }
-                        }}
                       />
-                      <button 
-                        onClick={handleSearchGroup} 
-                        className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} !w-auto px-4`}
-                        disabled={!searchQuery.trim() || isLoadingSearch}
-                      >
-                        {isLoadingSearch ? '검색 중...' : '검색'}
-                      </button>
                     </div>
                   </div>
                   
@@ -450,7 +429,7 @@ const GroupsView: React.FC = () => {
       )}
 
       <div className={commonStyles.pageContainer}>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-6 pt-4">
             <h1 className={commonStyles.mainTitle}>그룹</h1>
             <div className="flex items-center gap-4">
                  <button
