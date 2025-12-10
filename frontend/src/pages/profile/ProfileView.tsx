@@ -393,7 +393,7 @@ const ProfileView: React.FC = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-md md:max-w-2xl mx-auto animate-fade-in">
+    <div className="p-4 md:p-6 md:pt-[calc(1.5rem+4rem)] max-w-md md:max-w-2xl mx-auto animate-fade-in">
       <div className="flex flex-col items-center space-y-6">
         {/* 프로필 이미지 */}
         <div className="relative">
