@@ -17,7 +17,10 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
   const [cropSize, setCropSize] = useState(200); // 크롭 영역 크기 (1:1 비율)
   const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeHandle, setResizeHandle] = useState<'nw' | 'ne' | 'sw' | 'se' | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [initialCropState, setInitialCropState] = useState({ size: 0, x: 0, y: 0 });
   
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -92,83 +95,374 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
     return () => clearTimeout(timer);
   }, [imageLoaded, imageSize.width, imageSize.height, getImageDisplayArea]);
 
-  // 마우스 다운 - 드래그 시작
+  // 마우스 다운 - 드래그 시작 (이동 또는 크기 조정)
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!cropAreaRef.current) return;
-    setIsDragging(true);
-    const rect = cropAreaRef.current.getBoundingClientRect();
-    setDragStart({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
+    
+    // 핸들 클릭인지 확인
+    const target = e.target as HTMLElement;
+    const handleType = target.getAttribute('data-handle') as 'nw' | 'ne' | 'sw' | 'se' | null;
+    
+    if (handleType) {
+      // 크기 조정 모드
+      setIsResizing(true);
+      setResizeHandle(handleType);
+      setInitialCropState({
+        size: cropSize,
+        x: cropPosition.x,
+        y: cropPosition.y,
+      });
+      setDragStart({
+        x: e.clientX,
+        y: e.clientY,
+      });
+    } else {
+      // 이동 모드
+      setIsDragging(true);
+      const rect = cropAreaRef.current.getBoundingClientRect();
+      setDragStart({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    }
   };
 
-  // 마우스 이동 - 드래그 중
+  // 마우스 이동 - 드래그 중 (이동 또는 크기 조정)
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !containerRef.current || !cropAreaRef.current) return;
-    
     const displayArea = getImageDisplayArea();
-    if (!displayArea) return;
+    if (!displayArea || !containerRef.current) return;
     
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const newX = e.clientX - containerRect.left - dragStart.x;
-    const newY = e.clientY - containerRect.top - dragStart.y;
-    
-    // 이미지 표시 영역 내에서만 이동 가능하도록 경계 체크
-    const minX = displayArea.displayX;
-    const minY = displayArea.displayY;
-    const maxX = displayArea.displayX + displayArea.displayWidth - cropSize;
-    const maxY = displayArea.displayY + displayArea.displayHeight - cropSize;
-    
-    setCropPosition({
-      x: Math.max(minX, Math.min(newX, maxX)),
-      y: Math.max(minY, Math.min(newY, maxY)),
-    });
+    if (isResizing && resizeHandle) {
+      // 크기 조정 모드
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const mouseX = e.clientX - containerRect.left;
+      const mouseY = e.clientY - containerRect.top;
+      
+      // 핸들 위치에 따라 크기 조정 계산
+      let newSize = initialCropState.size;
+      let newX = initialCropState.x;
+      let newY = initialCropState.y;
+      
+      const startX = initialCropState.x;
+      const startY = initialCropState.y;
+      const startSize = initialCropState.size;
+      const endX = startX + startSize;
+      const endY = startY + startSize;
+      
+      // 핸들 위치에 따라 크기와 위치 계산
+      switch (resizeHandle) {
+        case 'nw': // 왼쪽 위
+          newSize = Math.max(endX - mouseX, endY - mouseY);
+          newX = endX - newSize;
+          newY = endY - newSize;
+          break;
+        case 'ne': // 오른쪽 위
+          newSize = Math.max(mouseX - startX, endY - mouseY);
+          newX = startX;
+          newY = endY - newSize;
+          break;
+        case 'sw': // 왼쪽 아래
+          newSize = Math.max(endX - mouseX, mouseY - startY);
+          newX = endX - newSize;
+          newY = startY;
+          break;
+        case 'se': // 오른쪽 아래
+          newSize = Math.max(mouseX - startX, mouseY - startY);
+          newX = startX;
+          newY = startY;
+          break;
+      }
+      
+      // 최소/최대 크기 제한
+      const minSize = 50;
+      const maxSize = Math.min(displayArea.displayWidth, displayArea.displayHeight);
+      newSize = Math.max(minSize, Math.min(newSize, maxSize));
+      
+      // 크기 조정에 따른 위치 재계산
+      switch (resizeHandle) {
+        case 'nw':
+          newX = endX - newSize;
+          newY = endY - newSize;
+          break;
+        case 'ne':
+          newX = startX;
+          newY = endY - newSize;
+          break;
+        case 'sw':
+          newX = endX - newSize;
+          newY = startY;
+          break;
+        case 'se':
+          newX = startX;
+          newY = startY;
+          break;
+      }
+      
+      // 이미지 표시 영역 내에서만 가능하도록 경계 체크
+      const minX = displayArea.displayX;
+      const minY = displayArea.displayY;
+      const maxX = displayArea.displayX + displayArea.displayWidth - newSize;
+      const maxY = displayArea.displayY + displayArea.displayHeight - newSize;
+      
+      // 경계를 벗어나면 위치 조정
+      if (newX < minX) {
+        newX = minX;
+        if (resizeHandle === 'nw' || resizeHandle === 'sw') {
+          newSize = endX - newX;
+        }
+      }
+      if (newY < minY) {
+        newY = minY;
+        if (resizeHandle === 'nw' || resizeHandle === 'ne') {
+          newSize = endY - newY;
+        }
+      }
+      if (newX + newSize > displayArea.displayX + displayArea.displayWidth) {
+        newSize = displayArea.displayX + displayArea.displayWidth - newX;
+      }
+      if (newY + newSize > displayArea.displayY + displayArea.displayHeight) {
+        newSize = displayArea.displayY + displayArea.displayHeight - newY;
+      }
+      
+      // 최소 크기 재확인
+      if (newSize < minSize) {
+        newSize = minSize;
+        switch (resizeHandle) {
+          case 'nw':
+            newX = endX - minSize;
+            newY = endY - minSize;
+            break;
+          case 'ne':
+            newX = startX;
+            newY = endY - minSize;
+            break;
+          case 'sw':
+            newX = endX - minSize;
+            newY = startY;
+            break;
+          case 'se':
+            newX = startX;
+            newY = startY;
+            break;
+        }
+      }
+      
+      setCropSize(newSize);
+      setCropPosition({
+        x: Math.max(minX, Math.min(newX, maxX)),
+        y: Math.max(minY, Math.min(newY, maxY)),
+      });
+    } else if (isDragging && cropAreaRef.current) {
+      // 이동 모드
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newX = e.clientX - containerRect.left - dragStart.x;
+      const newY = e.clientY - containerRect.top - dragStart.y;
+      
+      // 이미지 표시 영역 내에서만 이동 가능하도록 경계 체크
+      const minX = displayArea.displayX;
+      const minY = displayArea.displayY;
+      const maxX = displayArea.displayX + displayArea.displayWidth - cropSize;
+      const maxY = displayArea.displayY + displayArea.displayHeight - cropSize;
+      
+      setCropPosition({
+        x: Math.max(minX, Math.min(newX, maxX)),
+        y: Math.max(minY, Math.min(newY, maxY)),
+      });
+    }
   };
 
   // 마우스 업 - 드래그 종료
   const handleMouseUp = () => {
     setIsDragging(false);
+    setIsResizing(false);
+    setResizeHandle(null);
   };
 
   // 터치 이벤트 처리
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!cropAreaRef.current) return;
-    setIsDragging(true);
-    const touch = e.touches[0];
-    const rect = cropAreaRef.current.getBoundingClientRect();
-    setDragStart({
-      x: touch.clientX - rect.left,
-      y: touch.clientY - rect.top,
-    });
+    
+    // 핸들 터치인지 확인
+    const target = e.target as HTMLElement;
+    const handleType = target.getAttribute('data-handle') as 'nw' | 'ne' | 'sw' | 'se' | null;
+    
+    if (handleType) {
+      // 크기 조정 모드
+      setIsResizing(true);
+      setResizeHandle(handleType);
+      setInitialCropState({
+        size: cropSize,
+        x: cropPosition.x,
+        y: cropPosition.y,
+      });
+      const touch = e.touches[0];
+      setDragStart({
+        x: touch.clientX,
+        y: touch.clientY,
+      });
+    } else {
+      // 이동 모드
+      setIsDragging(true);
+      const touch = e.touches[0];
+      const rect = cropAreaRef.current.getBoundingClientRect();
+      setDragStart({
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top,
+      });
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || !containerRef.current || !cropAreaRef.current) return;
+    if ((!isDragging && !isResizing) || !containerRef.current) return;
     e.preventDefault();
     
     const displayArea = getImageDisplayArea();
     if (!displayArea) return;
     
     const touch = e.touches[0];
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const newX = touch.clientX - containerRect.left - dragStart.x;
-    const newY = touch.clientY - containerRect.top - dragStart.y;
     
-    // 이미지 표시 영역 내에서만 이동 가능하도록 경계 체크
-    const minX = displayArea.displayX;
-    const minY = displayArea.displayY;
-    const maxX = displayArea.displayX + displayArea.displayWidth - cropSize;
-    const maxY = displayArea.displayY + displayArea.displayHeight - cropSize;
-    
-    setCropPosition({
-      x: Math.max(minX, Math.min(newX, maxX)),
-      y: Math.max(minY, Math.min(newY, maxY)),
-    });
+    if (isResizing && resizeHandle) {
+      // 크기 조정 모드 (터치)
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const touchX = touch.clientX - containerRect.left;
+      const touchY = touch.clientY - containerRect.top;
+      
+      // 핸들 위치에 따라 크기 조정 계산
+      let newSize = initialCropState.size;
+      let newX = initialCropState.x;
+      let newY = initialCropState.y;
+      
+      const startX = initialCropState.x;
+      const startY = initialCropState.y;
+      const startSize = initialCropState.size;
+      const endX = startX + startSize;
+      const endY = startY + startSize;
+      
+      // 핸들 위치에 따라 크기와 위치 계산
+      switch (resizeHandle) {
+        case 'nw': // 왼쪽 위
+          newSize = Math.max(endX - touchX, endY - touchY);
+          newX = endX - newSize;
+          newY = endY - newSize;
+          break;
+        case 'ne': // 오른쪽 위
+          newSize = Math.max(touchX - startX, endY - touchY);
+          newX = startX;
+          newY = endY - newSize;
+          break;
+        case 'sw': // 왼쪽 아래
+          newSize = Math.max(endX - touchX, touchY - startY);
+          newX = endX - newSize;
+          newY = startY;
+          break;
+        case 'se': // 오른쪽 아래
+          newSize = Math.max(touchX - startX, touchY - startY);
+          newX = startX;
+          newY = startY;
+          break;
+      }
+      
+      // 최소/최대 크기 제한
+      const minSize = 50;
+      const maxSize = Math.min(displayArea.displayWidth, displayArea.displayHeight);
+      newSize = Math.max(minSize, Math.min(newSize, maxSize));
+      
+      // 크기 조정에 따른 위치 재계산
+      switch (resizeHandle) {
+        case 'nw':
+          newX = endX - newSize;
+          newY = endY - newSize;
+          break;
+        case 'ne':
+          newX = startX;
+          newY = endY - newSize;
+          break;
+        case 'sw':
+          newX = endX - newSize;
+          newY = startY;
+          break;
+        case 'se':
+          newX = startX;
+          newY = startY;
+          break;
+      }
+      
+      // 이미지 표시 영역 내에서만 가능하도록 경계 체크
+      const minX = displayArea.displayX;
+      const minY = displayArea.displayY;
+      const maxX = displayArea.displayX + displayArea.displayWidth - newSize;
+      const maxY = displayArea.displayY + displayArea.displayHeight - newSize;
+      
+      // 경계를 벗어나면 위치 조정
+      if (newX < minX) {
+        newX = minX;
+        if (resizeHandle === 'nw' || resizeHandle === 'sw') {
+          newSize = endX - newX;
+        }
+      }
+      if (newY < minY) {
+        newY = minY;
+        if (resizeHandle === 'nw' || resizeHandle === 'ne') {
+          newSize = endY - newY;
+        }
+      }
+      if (newX + newSize > displayArea.displayX + displayArea.displayWidth) {
+        newSize = displayArea.displayX + displayArea.displayWidth - newX;
+      }
+      if (newY + newSize > displayArea.displayY + displayArea.displayHeight) {
+        newSize = displayArea.displayY + displayArea.displayHeight - newY;
+      }
+      
+      // 최소 크기 재확인
+      if (newSize < minSize) {
+        newSize = minSize;
+        switch (resizeHandle) {
+          case 'nw':
+            newX = endX - minSize;
+            newY = endY - minSize;
+            break;
+          case 'ne':
+            newX = startX;
+            newY = endY - minSize;
+            break;
+          case 'sw':
+            newX = endX - minSize;
+            newY = startY;
+            break;
+          case 'se':
+            newX = startX;
+            newY = startY;
+            break;
+        }
+      }
+      
+      setCropSize(newSize);
+      setCropPosition({
+        x: Math.max(minX, Math.min(newX, maxX)),
+        y: Math.max(minY, Math.min(newY, maxY)),
+      });
+    } else if (isDragging && cropAreaRef.current) {
+      // 이동 모드 (터치)
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newX = touch.clientX - containerRect.left - dragStart.x;
+      const newY = touch.clientY - containerRect.top - dragStart.y;
+      
+      const minX = displayArea.displayX;
+      const minY = displayArea.displayY;
+      const maxX = displayArea.displayX + displayArea.displayWidth - cropSize;
+      const maxY = displayArea.displayY + displayArea.displayHeight - cropSize;
+      
+      setCropPosition({
+        x: Math.max(minX, Math.min(newX, maxX)),
+        y: Math.max(minY, Math.min(newY, maxY)),
+      });
+    }
   };
 
   const handleTouchEnd = () => {
     setIsDragging(false);
+    setIsResizing(false);
+    setResizeHandle(null);
   };
 
   // 크롭 실행
@@ -255,7 +549,7 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
             프로필 이미지 선택
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            드래그하여 원하는 영역을 선택하세요 (1:1 비율)
+            드래그하여 이동하거나 모서리를 드래그하여 크기를 조정하세요 (1:1 비율)
           </p>
         </div>
         
@@ -312,11 +606,27 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
               >
-                {/* 크롭 영역 핸들 */}
-                <div className="absolute -top-1 -left-1 w-3 h-3 bg-white rounded-full border border-gray-300" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full border border-gray-300" />
-                <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-white rounded-full border border-gray-300" />
-                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-white rounded-full border border-gray-300" />
+                {/* 크롭 영역 핸들 - 크기 조정용 */}
+                <div 
+                  data-handle="nw"
+                  className="absolute -top-2 -left-2 w-4 h-4 bg-white rounded-full border-2 border-purple-500 cursor-nwse-resize hover:bg-purple-100 transition-colors"
+                  style={{ touchAction: 'none' }}
+                />
+                <div 
+                  data-handle="ne"
+                  className="absolute -top-2 -right-2 w-4 h-4 bg-white rounded-full border-2 border-purple-500 cursor-nesw-resize hover:bg-purple-100 transition-colors"
+                  style={{ touchAction: 'none' }}
+                />
+                <div 
+                  data-handle="sw"
+                  className="absolute -bottom-2 -left-2 w-4 h-4 bg-white rounded-full border-2 border-purple-500 cursor-nesw-resize hover:bg-purple-100 transition-colors"
+                  style={{ touchAction: 'none' }}
+                />
+                <div 
+                  data-handle="se"
+                  className="absolute -bottom-2 -right-2 w-4 h-4 bg-white rounded-full border-2 border-purple-500 cursor-nwse-resize hover:bg-purple-100 transition-colors"
+                  style={{ touchAction: 'none' }}
+                />
               </div>
             </>
           )}

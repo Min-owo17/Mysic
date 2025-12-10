@@ -1,8 +1,8 @@
 
 export const commonStyles = {
   // Layout
-  pageContainer: 'p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto',
-  pageContainerFullHeight: 'p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto h-full flex flex-col',
+  pageContainer: 'p-4 md:p-6 md:pt-[calc(1.5rem+4rem)] max-w-md md:max-w-3xl lg:max-w-5xl mx-auto',
+  pageContainerFullHeight: 'p-4 md:p-6 md:pt-[calc(1.5rem+4rem)] max-w-md md:max-w-3xl lg:max-w-5xl mx-auto h-full flex flex-col',
 
   // Modals
   modalOverlay: 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in',

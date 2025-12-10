@@ -413,7 +413,7 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto h-full flex flex-col animate-fade-in">
+    <div className="p-4 md:p-6 md:pt-[calc(1.5rem+4rem)] max-w-md md:max-w-3xl lg:max-w-5xl mx-auto h-full flex flex-col animate-fade-in">
       {reportingItem && (
          <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
             <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-11/12 max-w-sm transform animate-scale-in">
