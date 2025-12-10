@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usersApi } from '../../services/api/users';
 import { useAuthStore } from '../../store/slices/authSlice';
 
 export const Header = () => {
   const { user, isAuthenticated } = useAuthStore();
+  const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
   
   const { data: userDetail } = useQuery({
@@ -34,7 +36,10 @@ export const Header = () => {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-3">
             {isAuthenticated && userDetail ? (
-              <div className="flex items-center space-x-3">
+              <button
+                onClick={() => navigate('/profile')}
+                className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer"
+              >
                 {/* 프로필 사진 */}
                 <div className="relative">
                   {showProfileImage ? (
@@ -87,7 +92,7 @@ export const Header = () => {
                     )}
                   </div>
                 </div>
-              </div>
+              </button>
             ) : (
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Mysic</h1>
             )}
