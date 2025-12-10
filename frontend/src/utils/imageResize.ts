@@ -145,6 +145,19 @@ export const resizeImage = (
 };
 
 /**
+ * 허용되는 이미지 MIME 타입 목록
+ */
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/bmp',
+  'image/svg+xml',
+];
+
+/**
  * 이미지 파일 유효성 검사
  * @param file 파일 객체
  * @param maxFileSize 최대 파일 크기 (바이트, 기본값: 5MB)
@@ -154,9 +167,12 @@ export const validateImageFile = (
   file: File,
   maxFileSize: number = 5 * 1024 * 1024 // 5MB
 ): { valid: boolean; error?: string } => {
-  // 파일 타입 확인
-  if (!file.type.startsWith('image/')) {
-    return { valid: false, error: '이미지 파일만 업로드할 수 있습니다.' };
+  // 파일 타입 확인 - 허용된 이미지 MIME 타입만 허용
+  if (!file.type || !ALLOWED_IMAGE_TYPES.includes(file.type.toLowerCase())) {
+    return { 
+      valid: false, 
+      error: '이미지 파일만 업로드할 수 있습니다. (JPEG, PNG, GIF, WebP, BMP, SVG 형식만 지원됩니다.)' 
+    };
   }
   
   // 파일 크기 확인

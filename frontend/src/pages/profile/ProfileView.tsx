@@ -15,6 +15,7 @@ import { userTypesApi } from '../../services/api/userTypes';
 import { achievementsApi } from '../../services/api/achievements';
 import { commonStyles } from '../../styles/commonStyles';
 import { resizeImage, validateImageFile } from '../../utils/imageResize';
+import { ImageCropModal } from '../../components/common/ImageCropModal';
 
 const CoffeeIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-300" viewBox="0 0 20 20" fill="currentColor">
@@ -82,6 +83,8 @@ const ProfileView: React.FC = () => {
   const [primaryInstrumentId, setPrimaryInstrumentId] = useState<number | null>(null);
   const [selectedUserTypes, setSelectedUserTypes] = useState<number[]>([]);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
 
   // 검색 및 드롭다운 상태
   const [instrumentSearch, setInstrumentSearch] = useState('');
@@ -244,19 +247,59 @@ const ProfileView: React.FC = () => {
     }
 
     try {
-      // 이미지 리사이징 및 최적화 (WebP 포맷)
+      // 파일을 Data URL로 읽어서 크롭 모달에 표시
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImageSrc(reader.result as string);
+        setShowCropModal(true);
+      };
+      reader.onerror = () => {
+        alert('파일을 읽을 수 없습니다.');
+        e.target.value = ''; // 파일 입력 초기화
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('이미지 처리 오류:', error);
+      alert(error instanceof Error ? error.message : '이미지 처리 중 오류가 발생했습니다.');
+      e.target.value = ''; // 파일 입력 초기화
+    }
+  };
+
+  // 크롭 완료 핸들러
+  const handleCropComplete = async (croppedImageDataUrl: string) => {
+    try {
+      // 크롭된 이미지를 추가로 최적화 (300x300 크기로 리사이즈)
+      // Data URL을 Blob으로 변환
+      const response = await fetch(croppedImageDataUrl);
+      const blob = await response.blob();
+      
+      // Blob을 File로 변환
+      const file = new File([blob], 'cropped-image.webp', { type: blob.type });
+      
+      // 최종 최적화
       const optimizedImage = await resizeImage(file, {
         maxSize: 300,
         quality: 0.85,
         format: 'webp',
       });
 
-      // 최적화된 이미지로 상태 업데이트
       setProfileImageUrl(optimizedImage);
+      setShowCropModal(false);
+      setSelectedImageSrc(null);
     } catch (error) {
-      console.error('이미지 처리 오류:', error);
-      alert(error instanceof Error ? error.message : '이미지 처리 중 오류가 발생했습니다.');
-      e.target.value = ''; // 파일 입력 초기화
+      console.error('이미지 최적화 오류:', error);
+      alert('이미지 최적화 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 크롭 취소 핸들러
+  const handleCropCancel = () => {
+    setShowCropModal(false);
+    setSelectedImageSrc(null);
+    // 파일 입력 초기화
+    const fileInput = document.getElementById('profilePictureInput') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
     }
   };
 
@@ -357,7 +400,7 @@ const ProfileView: React.FC = () => {
           <input
             type="file"
             id="profilePictureInput"
-            accept="image/*"
+            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/bmp,image/svg+xml"
             className="hidden"
             onChange={handlePictureChange}
           />
@@ -626,6 +669,15 @@ const ProfileView: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* 이미지 크롭 모달 */}
+      {showCropModal && selectedImageSrc && (
+        <ImageCropModal
+          imageSrc={selectedImageSrc}
+          onCrop={handleCropComplete}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   );
 };
