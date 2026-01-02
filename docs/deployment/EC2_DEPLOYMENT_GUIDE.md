@@ -127,6 +127,7 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml logs -f
 
 ```bash
 docker-compose -f infrastructure/aws/docker-compose.prod.yml ps
+docker-compose -f infrastructure/aws/docker-compose.hub.yml ps
 ```
 
 모든 서비스가 `Up` 상태여야 합니다.
@@ -160,6 +161,7 @@ docker-compose -f infrastructure/aws/docker-compose.prod.yml restart
 
 ```bash
 docker-compose -f infrastructure/aws/docker-compose.prod.yml down
+docker-compose -f infrastructure/aws/docker-compose.hub.yml down
 ```
 
 ### 코드 업데이트 및 재배포

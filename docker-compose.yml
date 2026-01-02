@@ -3,7 +3,10 @@
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    # Docker Hub에 업로드된 커스텀 Postgres 이미지 사용
+    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-postgres:latest
+    # 기본 이미지 (사용 안 함)
+    # image: postgres:15-alpine
     container_name: mysic_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-mysic_user}
