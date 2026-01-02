@@ -1,0 +1,17 @@
+# React Frontend Development Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Expose Vite default port
+EXPOSE 5173
+
+# Start development server
+# --host ensures the server is accessible from outside the container
+CMD ["npm", "run", "dev", "--", "--host"]

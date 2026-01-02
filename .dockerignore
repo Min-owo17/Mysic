@@ -1,58 +1,39 @@
 # Git
 .git
 .gitignore
-.gitattributes
 
-# Documentation
-README.md
-requirements.md
-docs/
-*.md
-
-# Environment
-.env
-.env.*
-!.env.example
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Testing
-coverage/
-.nyc_output/
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 .pytest_cache/
 .coverage
 htmlcov/
+.env
+.venv
+venv/
 
-# Build outputs (will be built in Docker)
+# Node
 node_modules/
-dist/
-build/
-*.egg-info/
-*.egg
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# Infrastructure (don't copy to Docker context)
-infrastructure/
-# 하지만 nginx.conf는 Docker 빌드에 필요하므로 예외 처리
-!infrastructure/docker/nginx.conf
-
+npm-debug.log
+yarn-error.log
+.idea/
+.vscode/

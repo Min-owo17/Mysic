@@ -1,0 +1,94 @@
+# Docker Compose for Production (via Docker Hub)
+# This file pulls pre-built images from Docker Hub instead of building them locally.
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mysic_postgres_prod
+    restart: always
+    env_file:
+      - ../../.env.production
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+      - ./postgresql.conf:/docker-entrypoint-initdb.d/postgresql.conf:ro
+    command: >
+      postgres -c shared_buffers=64MB -c effective_cache_size=128MB -c maintenance_work_mem=32MB -c work_mem=4MB -c max_connections=50 -c wal_buffers=4MB -c checkpoint_completion_target=0.9 -c random_page_cost=1.1 -c effective_io_concurrency=200
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mysic_user} -d ${POSTGRES_DB:-mysic_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - mysic_network_prod
+    mem_limit: 400m
+    mem_reservation: 256m
+    ports:
+      - "5432:5432"
+
+  # FastAPI Backend
+  backend:
+    # Replace YOUR_USERNAME with your actual Docker Hub username in .env.production or here
+    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-backend:latest
+    container_name: mysic_backend_prod
+    restart: always
+    env_file:
+      - ../../.env.production
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - ENVIRONMENT=production
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://your-domain.com}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mysic_network_prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 400m
+    mem_reservation: 256m
+
+  # React Frontend
+  frontend:
+    # Replace YOUR_USERNAME with your actual Docker Hub username in .env.production or here
+    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-frontend:latest
+    container_name: mysic_frontend_prod
+    restart: always
+    env_file:
+      - ../../.env.production
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - mysic_network_prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 128m
+    mem_reservation: 64m
+
+volumes:
+  postgres_data_prod:
+
+
+networks:
+  mysic_network_prod:
+    driver: bridge
