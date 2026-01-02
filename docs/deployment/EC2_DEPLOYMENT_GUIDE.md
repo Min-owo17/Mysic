@@ -106,6 +106,9 @@ chmod 600 .env.production
 ```bash
 chmod +x infrastructure/aws/deploy.sh
 ./infrastructure/aws/deploy.sh
+
+chmod +x infrastructure/aws/deploy-hub.sh
+./infrastructure/aws/deploy-hub.sh
 ```
 
 #### 3.2 수동 배포

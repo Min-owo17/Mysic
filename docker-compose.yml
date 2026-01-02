@@ -23,9 +23,12 @@ services:
 
   # FastAPI Backend
   backend:
-    build:
-      context: .
-      dockerfile: infrastructure/docker/Dockerfile.backend
+    # Docker Hub 이미지 사용 주석 해제 (배포 시)
+    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-backend:latest
+    # 로컬 개발 시 빌드 옵션 (Docker Hub 이미지 사용 시 주석 처리)
+    # build:
+    #   context: .
+    #   dockerfile: infrastructure/docker/Dockerfile.backend
     container_name: mysic_backend
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-mysic_user}:${POSTGRES_PASSWORD:-mysic_password}@postgres:5432/${POSTGRES_DB:-mysic_db}
@@ -45,9 +48,12 @@ services:
 
   # React Frontend
   frontend:
-    build:
-      context: .
-      dockerfile: infrastructure/docker/Dockerfile.frontend.dev
+    # Docker Hub 이미지 사용 주석 해제 (배포 시)
+    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-frontend:latest
+    # 로컬 개발 시 빌드 옵션 (Docker Hub 이미지 사용 시 주석 처리)
+    # build:
+    #   context: .
+    #   dockerfile: infrastructure/docker/Dockerfile.frontend.dev
     container_name: mysic_frontend
     environment:
       - VITE_API_URL=http://localhost:8000

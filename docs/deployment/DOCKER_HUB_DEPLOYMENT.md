@@ -81,3 +81,20 @@ docker-compose -f infrastructure/aws/docker-compose.hub.yml up -d --pull always
 1. Docker Hub 로그인이 되어 있는지 확인 (`docker login`)
 2. 이미지가 Docker Hub에 정상적으로 Push 되었는지 웹사이트에서 확인
 3. `.env.production`의 `DOCKER_HUB_USERNAME`이 정확한지 확인
+
+## 7. 환경별 실행 방법
+
+실행 환경(Local vs Production)에 따라 서로 다른 환경 변수 파일을 적용해야 할 경우, `--env-file` 옵션을 사용합니다.
+
+### 7.1 로컬 개발 환경 (.env.local)
+```bash
+# 로컬 설정 파일(.env.local)을 적용하여 실행
+docker-compose --env-file .env.local up
+```
+
+### 7.2 프로덕션 환경 (.env.production)
+```bash
+# 프로덕션 설정 파일(.env.production)을 적용하여 실행
+docker-compose --env-file .env.production -f infrastructure/aws/docker-compose.hub.yml up -d
+```
+
