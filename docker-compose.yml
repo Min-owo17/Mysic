@@ -1,12 +1,10 @@
 # Docker Compose for Local Development
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (Development Mode)
+  # 표준 이미지를 사용하여 가볍게 실행
   postgres:
-    # Docker Hub에 업로드된 커스텀 Postgres 이미지 사용
-    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-postgres:latest
-    # 기본 이미지 (사용 안 함)
-    # image: postgres:15-alpine
+    image: postgres:15-alpine
     container_name: mysic_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-mysic_user}
@@ -24,14 +22,31 @@ services:
     networks:
       - mysic_network
 
-  # FastAPI Backend
+  # PostgreSQL Database (Production Mode)
+  # Docker Hub 이미지 테스트용
+  postgres-prod:
+    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-postgres:latest
+    container_name: mysic_postgres_prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mysic_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mysic_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mysic_db}
+    ports:
+      - "5433:5432" # 호스트 5433 -> 컨테이너 5432
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - mysic_network
+
+  # FastAPI Backend (Development Mode)
+  # 로컬 소스코드 빌드 및 Hot-reloading
   backend:
-    # Docker Hub 이미지 사용 주석 해제 (배포 시)
-    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-backend:latest
-    # 로컬 개발 시 빌드 옵션 (Docker Hub 이미지 사용 시 주석 처리)
-    # build:
-    #   context: .
-    #   dockerfile: infrastructure/docker/Dockerfile.backend
+    # Docker Hub 이미지 사용 주석 처리
+    # image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-backend:latest
+    # 로컬 개발 시 빌드 옵션 활성화
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.backend
     container_name: mysic_backend
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-mysic_user}:${POSTGRES_PASSWORD:-mysic_password}@postgres:5432/${POSTGRES_DB:-mysic_db}
@@ -49,17 +64,36 @@ services:
       - mysic_network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # React Frontend
+  # FastAPI Backend (Production Mode)
+  # Docker Hub 이미지 테스트용
+  backend-prod:
+    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-backend:latest
+    container_name: mysic_backend_prod
+    environment:
+      # postgres-prod 컨테이너로 연결
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-mysic_user}:${POSTGRES_PASSWORD:-mysic_password}@postgres-prod:5432/${POSTGRES_DB:-mysic_db}
+      - SECRET_KEY=${SECRET_KEY:-dev_secret_key}
+      - ENVIRONMENT=production
+    ports:
+      - "8001:8000"
+    depends_on:
+      - postgres-prod
+    networks:
+      - mysic_network
+
+  # React Frontend (Development Mode)
+  # 로컬 소스코드 변경 사항이 실시간으로 반영됩니다 (Hot-reloading)
   frontend:
-    # Docker Hub 이미지 사용 주석 해제 (배포 시)
-    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-frontend:latest
-    # 로컬 개발 시 빌드 옵션 (Docker Hub 이미지 사용 시 주석 처리)
-    # build:
-    #   context: .
-    #   dockerfile: infrastructure/docker/Dockerfile.frontend.dev
+    # Docker Hub 이미지 사용 주석 처리 (개발 모드이므로 사용 안 함)
+    # image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-frontend:latest
+    # 로컬 개발 시 빌드 옵션 활성화
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.frontend.dev
     container_name: mysic_frontend
     environment:
-      - VITE_API_URL=http://localhost:8000
+      # /api 접두사 추가 (백엔드 라우터 설정과 일치)
+      - VITE_API_URL=http://localhost:8000/api
     ports:
       - "5173:5173"
     volumes:
@@ -70,8 +104,27 @@ services:
     networks:
       - mysic_network
 
+  # React Frontend (Production Mode)
+  # Docker Hub에 배포된 이미지를 테스트할 때 사용합니다.
+  # 실행: docker-compose up frontend-prod
+  frontend-prod:
+    image: ${DOCKER_HUB_USERNAME:-your_username}/mysic-frontend:latest
+    container_name: mysic_frontend_prod
+    environment:
+      # 프로덕션 백엔드 포트(8001) 및 /api 접두사 지정
+      # 주의: 빌드 시점에 환경변수가 주입되지 않은 정적 이미지라면 적용되지 않을 수 있음
+      - VITE_API_URL=http://localhost:8001/api
+    ports:
+      - "8080:80" # 호스트 8080 포트를 컨테이너 80(Nginx) 포트로 연결
+    depends_on:
+      - backend-prod # 프로덕션 프론트엔드는 프로덕션 백엔드를 바라보도록 권장 (선택)
+    networks:
+      - mysic_network
+
 volumes:
   postgres_data:
+  postgres_data_prod:
+    # 프로덕션 데이터 분리
 
 
 networks:

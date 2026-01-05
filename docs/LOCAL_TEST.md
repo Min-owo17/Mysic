@@ -26,6 +26,7 @@ cd C:\Users\Lein(홍혜민)\Desktop\개발\Mysic
 
 ```bash
 docker-compose -f infrastructure/docker/docker-compose.yml up -d --build
+docker-compose --env-file .env.local up
 ```
 
 **설명:**

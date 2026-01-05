@@ -57,6 +57,7 @@ Docker Hub에서 이미지를 받아 서비스를 실행합니다.
 ```bash
 # 1. 기존 서비스 종료 (필요한 경우)
 docker-compose -f infrastructure/aws/docker-compose.prod.yml down
+docker-compose -f infrastructure/aws/docker-compose.hub.yml down
 
 # 2. Docker Hub 기반으로 실행
 # --pull always 옵션은 항상 최신 이미지를 확인하여 다운로드합니다.
