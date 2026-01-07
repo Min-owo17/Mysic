@@ -21,6 +21,7 @@ class User(Base):
     unique_code = Column(String(12), unique=True, nullable=False, index=True)  # 12자리 고유 코드
     profile_image_url = Column(Text, nullable=True)  # base64 Data URL 또는 S3 URL 저장용 (최적화된 WebP 이미지 지원)
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
     deleted_at = Column(TIMESTAMP, nullable=True, index=True)  # Soft delete
     last_login_at = Column(TIMESTAMP, nullable=True, index=True)  # 최종 접속일
     selected_achievement_id = Column(Integer, ForeignKey("achievements.achievement_id", ondelete="SET NULL"), nullable=True, index=True)  # 선택한 대표 칭호

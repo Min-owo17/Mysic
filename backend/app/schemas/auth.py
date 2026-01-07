@@ -59,6 +59,7 @@ class UserResponse(BaseModel):
     unique_code: str
     profile_image_url: Optional[str] = None
     is_active: bool
+    is_admin: bool = False
     last_login_at: Optional[datetime] = None
     created_at: datetime
 

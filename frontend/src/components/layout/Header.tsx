@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usersApi } from '../../services/api/users';
 import { useAuthStore } from '../../store/slices/authSlice';
@@ -7,8 +7,9 @@ import { useAuthStore } from '../../store/slices/authSlice';
 export const Header = () => {
   const { user, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [imageError, setImageError] = useState(false);
-  
+
   const { data: userDetail } = useQuery({
     queryKey: ['userProfile'],
     queryFn: () => usersApi.getMyProfile(),
@@ -31,7 +32,7 @@ export const Header = () => {
   const showProfileImage = userDetail?.profile_image_url && !imageError;
 
   return (
-    <header className="fixed top-0 left-0 right-0 md:left-64 z-50 bg-gray-50 dark:bg-gray-900 shadow-sm">
+    <header className="relative bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700 w-full">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-3">
@@ -97,12 +98,36 @@ export const Header = () => {
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Mysic</h1>
             )}
           </div>
-          <nav className="flex space-x-4">
-            {/* Navigation items will be added here */}
+          <nav className="flex items-center space-x-4">
+            {user?.is_admin && (
+              <button
+                onClick={() => navigate(location.pathname === '/admin' ? '/record' : '/admin')}
+                className={`p-2 rounded-full transition-colors ${location.pathname === '/admin'
+                  ? 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-gray-800'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-100 dark:hover:bg-gray-800'
+                  }`}
+                title={location.pathname === '/admin' ? '일반 대시보드' : '관리자 대시보드'}
+              >
+                <AdminIcon filled={location.pathname === '/admin'} />
+              </button>
+            )}
           </nav>
         </div>
       </div>
     </header>
   );
 };
+
+// Admin Shield Icon
+const AdminIcon = ({ filled }: { filled?: boolean }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-6 w-6"
+    fill={filled ? "currentColor" : "none"}
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+  </svg>
+);
 

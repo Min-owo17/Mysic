@@ -29,33 +29,35 @@ const ProfileView: React.FC = () => {
   const queryClient = useQueryClient();
 
   // 프로필 데이터 조회
-  const { data: profileData, isLoading: isLoadingProfile, error: profileError } = useQuery<UserDetailResponse>({
+  const { data: profileData, isLoading: isLoadingProfile, error: profileError } = useQuery<UserDetailResponse, Error>({
     queryKey: ['userProfile'],
     queryFn: () => {
       console.log('프로필 조회 API 호출 시작');
       return usersApi.getMyProfile();
     },
     retry: false, // 401 에러 시 재시도 방지
-    onError: (error: any) => {
-      console.error('프로필 조회 React Query 에러:', error);
-      console.error('에러 상태 코드:', error.response?.status);
-      console.error('에러 응답 데이터:', error.response?.data);
-      console.error('에러 전체:', error);
-      
-      // 401 에러인 경우 상세 정보 출력
+  });
+
+  // 에러 발생 시 로깅을 위한 useEffect
+  useEffect(() => {
+    if (profileError) {
+      console.error('프로필 조회 React Query 에러:', profileError);
+      const error = profileError as any;
       if (error.response?.status === 401) {
         console.error('=== 401 인증 에러 상세 정보 ===');
         console.error('요청 URL:', error.config?.url);
-        console.error('요청 헤더:', error.config?.headers);
         console.error('토큰 존재 여부:', !!localStorage.getItem('access_token'));
-        console.error('응답 데이터:', error.response?.data);
         console.error('============================');
       }
-    },
-    onSuccess: (data) => {
-      console.log('프로필 조회 성공:', data);
-    },
-  });
+    }
+  }, [profileError]);
+
+  // 성공 시 로깅을 위한 useEffect
+  useEffect(() => {
+    if (profileData) {
+      console.log('프로필 조회 성공:', profileData);
+    }
+  }, [profileData]);
 
   // 악기 목록 조회
   const { data: instruments = [] } = useQuery<InstrumentResponse[]>({
@@ -98,19 +100,20 @@ const ProfileView: React.FC = () => {
   // 프로필 데이터가 로드되면 폼 상태 업데이트
   useEffect(() => {
     if (profileData) {
-      setNickname(profileData.nickname || '');
-      setBio(profileData.profile?.bio || '');
-      setHashtags(profileData.profile?.hashtags || []);
-      setProfileImageUrl(profileData.profile_image_url || null);
-      
+      const data = profileData as UserDetailResponse;
+      setNickname(data.nickname || '');
+      setBio(data.profile?.bio || '');
+      setHashtags(data.profile?.hashtags || []);
+      setProfileImageUrl(data.profile_image_url || null);
+
       // 악기 정보
-      const instrumentIds = profileData.profile?.instruments.map(i => i.instrument_id) || [];
+      const instrumentIds = data.profile?.instruments.map((i: any) => i.instrument_id) || [];
       setSelectedInstruments(instrumentIds);
-      const primary = profileData.profile?.instruments.find(i => i.is_primary);
+      const primary = data.profile?.instruments.find((i: any) => i.is_primary);
       setPrimaryInstrumentId(primary?.instrument_id || null);
 
       // 특징 정보
-      const userTypeIds = profileData.profile?.user_types.map(t => t.user_type_id) || [];
+      const userTypeIds = data.profile?.user_types.map((t: any) => t.user_type_id) || [];
       setSelectedUserTypes(userTypeIds);
     }
   }, [profileData]);
@@ -272,10 +275,10 @@ const ProfileView: React.FC = () => {
       // Data URL을 Blob으로 변환
       const response = await fetch(croppedImageDataUrl);
       const blob = await response.blob();
-      
+
       // Blob을 File로 변환
       const file = new File([blob], 'cropped-image.webp', { type: blob.type });
-      
+
       // 최종 최적화
       const optimizedImage = await resizeImage(file, {
         maxSize: 300,
@@ -309,12 +312,12 @@ const ProfileView: React.FC = () => {
       // 프로필 기본 정보 수정
       // 빈 문자열을 undefined로 변환하여 유효성 검사 통과
       const updateData: UpdateProfileRequest = {};
-      
+
       // nickname: 변경되었고 빈 문자열이 아닐 때만 전송
       if (nickname !== profileData?.nickname && nickname.trim() !== '') {
         updateData.nickname = nickname.trim();
       }
-      
+
       // profile_image_url: 변경되었고 값이 있을 때만 전송
       if (profileImageUrl !== profileData?.profile_image_url) {
         // WebP로 최적화된 이미지 (약 30-50KB)를 base64로 전송
@@ -328,17 +331,17 @@ const ProfileView: React.FC = () => {
           updateData.profile_image_url = undefined;
         }
       }
-      
+
       // bio: 변경되었을 때만 전송 (빈 문자열도 허용)
       if (bio !== profileData?.profile?.bio) {
         updateData.bio = bio || undefined;
       }
-      
+
       // hashtags: 변경되었고 배열이 비어있지 않을 때만 전송
       if (JSON.stringify(hashtags) !== JSON.stringify(profileData?.profile?.hashtags || [])) {
         updateData.hashtags = hashtags.length > 0 ? hashtags : undefined;
       }
-      
+
       await updateProfileMutation.mutateAsync(updateData);
 
       // 악기 정보 수정
@@ -393,7 +396,7 @@ const ProfileView: React.FC = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 md:pt-[calc(1.5rem+4rem)] max-w-md md:max-w-2xl mx-auto animate-fade-in">
+    <div className="p-4 md:p-6 max-w-md md:max-w-2xl mx-auto animate-fade-in">
       <div className="flex flex-col items-center space-y-6">
         {/* 프로필 이미지 */}
         <div className="relative">
@@ -460,11 +463,10 @@ const ProfileView: React.FC = () => {
                 return (
                   <span
                     key={instrumentId}
-                    className={`text-sm font-medium px-2 py-1 rounded-full flex items-center gap-1 ${
-                      isPrimary
-                        ? 'bg-purple-600 text-purple-100'
-                        : 'bg-gray-700 text-gray-200'
-                    }`}
+                    className={`text-sm font-medium px-2 py-1 rounded-full flex items-center gap-1 ${isPrimary
+                      ? 'bg-purple-600 text-purple-100'
+                      : 'bg-gray-700 text-gray-200'
+                      }`}
                   >
                     {instrument.name}
                     {isPrimary && <span className="text-xs">(주요)</span>}
@@ -607,35 +609,24 @@ const ProfileView: React.FC = () => {
                 전체 보기 →
               </button>
             </div>
-            {profileData?.selected_achievement ? (
-              <div className="flex flex-wrap gap-2">
-                <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 border border-purple-500/50 rounded-lg px-3 py-2 flex items-center gap-2">
-                  {profileData.selected_achievement.icon_url ? (
-                    <img 
-                      src={profileData.selected_achievement.icon_url} 
-                      alt={profileData.selected_achievement.title}
-                      className="w-5 h-5 object-contain"
-                    />
+            {profileData && (profileData as UserDetailResponse).selected_achievement ? (
+              <div className="mt-4 flex flex-col items-center bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800">
+                <p className="text-xs text-purple-600 dark:text-purple-400 font-bold mb-2 uppercase tracking-wider">현재 장착 중인 칭호</p>
+                <div className="flex items-center gap-3">
+                  {(profileData as UserDetailResponse).selected_achievement!.icon_url ? (
+                    <img src={(profileData as UserDetailResponse).selected_achievement!.icon_url!} alt="" className="w-10 h-10 object-contain" />
                   ) : (
-                    <span className="text-purple-400">🏆</span>
+                    <div className="text-2xl">🏆</div>
                   )}
-                  <span className="text-sm font-medium text-purple-300">
-                    {profileData.selected_achievement.title}
-                  </span>
+                  <div className="text-left">
+                    <p className="font-bold text-gray-900 dark:text-white">{(profileData as UserDetailResponse).selected_achievement!.title}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{(profileData as UserDetailResponse).selected_achievement!.description}</p>
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-center">
-                <p className="text-sm text-gray-400">선택한 칭호가 없습니다.</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  <button
-                    onClick={() => navigate('/achievements')}
-                    className="text-purple-400 hover:text-purple-300 underline"
-                  >
-                    칭호 페이지
-                  </button>
-                  에서 획득한 칭호를 선택해보세요!
-                </p>
+              <div className="mt-4 p-4 text-center bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-500 dark:text-gray-400 italic">착용한 칭호가 없습니다.</p>
               </div>
             )}
           </div>
@@ -668,17 +659,19 @@ const ProfileView: React.FC = () => {
             </p>
           )}
         </div>
-      </div>
-      
+      </div >
+
       {/* 이미지 크롭 모달 */}
-      {showCropModal && selectedImageSrc && (
-        <ImageCropModal
-          imageSrc={selectedImageSrc}
-          onCrop={handleCropComplete}
-          onCancel={handleCropCancel}
-        />
-      )}
-    </div>
+      {
+        showCropModal && selectedImageSrc && (
+          <ImageCropModal
+            imageSrc={selectedImageSrc}
+            onCrop={handleCropComplete}
+            onCancel={handleCropCancel}
+          />
+        )
+      }
+    </div >
   );
 };
 

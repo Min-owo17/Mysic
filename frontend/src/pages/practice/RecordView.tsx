@@ -9,7 +9,7 @@ import { useAppContext } from '../../context/AppContext';
 import { practiceApi } from '../../services/api/practice';
 import { formatTime } from '../../utils/time';
 import { instruments } from '../../utils/constants';
-import { View } from '../../types';
+import { View, PracticeSession } from '../../types';
 import { commonStyles } from '../../styles/commonStyles';
 import toast from 'react-hot-toast';
 
@@ -32,12 +32,12 @@ const RecordView: React.FC = () => {
     const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
     const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
     const [sessionToCancel, setSessionToCancel] = useState<number | null>(null);
-    
+
     const [isInstrumentDropdownOpen, setIsInstrumentDropdownOpen] = useState(false);
     const instrumentDropdownRef = useRef<HTMLDivElement>(null);
 
     // 진행 중인 세션 확인
-    const { data: activeSession } = useQuery({
+    const { data: activeSession } = useQuery<PracticeSession | null, Error>({
         queryKey: ['practice', 'active-session'],
         queryFn: async () => {
             try {
@@ -53,7 +53,7 @@ const RecordView: React.FC = () => {
         refetchInterval: 30000, // 30초마다 확인
         retry: false, // 422 오류는 재시도하지 않음
         staleTime: 10 * 1000, // 10초 - 세션 상태는 10초간 fresh
-        cacheTime: 1 * 60 * 1000, // 1분 - 캐시 1분 유지
+        gcTime: 1 * 60 * 1000, // 1분 - 캐시 1분 유지
     });
 
     // 연습 세션 시작 mutation
@@ -72,7 +72,7 @@ const RecordView: React.FC = () => {
 
     // 연습 세션 종료 mutation
     const updateSessionMutation = useMutation({
-        mutationFn: ({ sessionId, data }: { sessionId: number; data: any }) => 
+        mutationFn: ({ sessionId, data }: { sessionId: number; data: any }) =>
             practiceApi.updateSession(sessionId, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['practice'] });
@@ -116,8 +116,8 @@ const RecordView: React.FC = () => {
 
     // 진행 중인 세션이 있으면 복원
     useEffect(() => {
-        if (activeSession && activeSession.status === 'in_progress') {
-            setCurrentSessionId(activeSession.session_id);
+        if (activeSession && (activeSession as PracticeSession).status === 'in_progress') {
+            setCurrentSessionId((activeSession as PracticeSession).session_id);
             // 진행 중인 세션이 있으면 녹음 상태로 복원하지 않음 (사용자가 수동으로 시작해야 함)
         }
     }, [activeSession]);
@@ -144,7 +144,7 @@ const RecordView: React.FC = () => {
                     notes: notes || undefined,
                 });
             }
-            
+
             // 연습 세션 시작 성공 후 녹음 시작
             await startRecording();
         } catch (err) {
@@ -152,7 +152,7 @@ const RecordView: React.FC = () => {
             console.error(err);
         }
     };
-    
+
     const handleStopAndAnalyze = async () => {
         setUiState('analyzingAudio');
         let tempBlob: Blob | null = null;
@@ -196,7 +196,7 @@ const RecordView: React.FC = () => {
         if (sessionToCancel) {
             await deleteSessionMutation.mutateAsync(sessionToCancel);
         }
-        
+
         resetAudio();
         setInstrument(userProfile.instrument || '');
         setNotes('');
@@ -244,9 +244,9 @@ const RecordView: React.FC = () => {
             setError('연습 세션을 찾을 수 없습니다. 다시 시작해주세요.');
             return;
         }
-        
+
         setUiState('saving');
-        
+
         try {
             // 연습 세션 종료 및 저장
             await updateSessionMutation.mutateAsync({
@@ -269,7 +269,7 @@ const RecordView: React.FC = () => {
                     summary,
                 });
             }
-            
+
             setShowSuccessModal(true);
             setCurrentSessionId(null);
         } catch (err) {
@@ -308,12 +308,12 @@ const RecordView: React.FC = () => {
     const handleContinueSession = () => {
         if (activeSession) {
             // 기존 세션 정보 복원
-            setCurrentSessionId(activeSession.session_id);
-            if (activeSession.instrument) {
-                setInstrument(activeSession.instrument);
+            setCurrentSessionId((activeSession as PracticeSession).session_id);
+            if ((activeSession as PracticeSession).instrument) {
+                setInstrument((activeSession as PracticeSession).instrument!);
             }
-            if (activeSession.notes) {
-                setNotes(activeSession.notes);
+            if ((activeSession as PracticeSession).notes) {
+                setNotes((activeSession as PracticeSession).notes!);
             }
             // 세션 정보를 표시하고 녹음을 시작할 수 있도록 준비
             toast.success('기존 세션을 불러왔습니다. 녹음을 시작하세요.');
@@ -323,7 +323,17 @@ const RecordView: React.FC = () => {
     // 진행 중인 세션 취소하기
     const handleCancelActiveSession = () => {
         if (activeSession) {
-            setSessionToCancel(activeSession.session_id);
+            setSessionToCancel((activeSession as PracticeSession).session_id);
+            setShowCancelConfirmModal(true);
+        }
+    };
+
+    const handleCancelCurrentSession = () => {
+        if (currentSessionId) {
+            setSessionToCancel(currentSessionId);
+            setShowCancelConfirmModal(true);
+        } else if (activeSession && (activeSession as PracticeSession).session_id) {
+            setSessionToCancel((activeSession as PracticeSession).session_id);
             setShowCancelConfirmModal(true);
         }
     };
@@ -337,72 +347,63 @@ const RecordView: React.FC = () => {
     };
 
     return (
-        <div className="p-4 md:p-6 max-w-md mx-auto min-h-[calc(100vh-8rem)] flex flex-col">
+        <div className={commonStyles.pageContainerFullHeight}>
             {error && <div className="bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 p-3 rounded-md my-4 text-sm">{error}</div>}
 
             {uiState === 'idle' && (
                 <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
                     <p className="text-gray-500 dark:text-gray-400 mb-8">버튼을 눌러 기록을 시작하세요</p>
-                    {activeSession && activeSession.status === 'in_progress' && (
+                    {activeSession && (activeSession as PracticeSession).status === 'in_progress' && (
                         <div className="mb-6 w-full max-w-sm">
                             <div className="p-4 bg-yellow-100 dark:bg-yellow-900/30 rounded-md text-sm text-yellow-800 dark:text-yellow-200 mb-4">
                                 <p className="font-semibold mb-2">진행 중인 연습 세션이 있습니다.</p>
-                                {activeSession.start_time && (
-                                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                                        시작 시간: {new Date(activeSession.start_time).toLocaleString('ko-KR')}
+                                {(activeSession as PracticeSession).start_time && (
+                                    <p className="mb-2">
+                                        시작 시간: {new Date((activeSession as PracticeSession).start_time!).toLocaleTimeString()}
                                     </p>
                                 )}
-                                {activeSession.instrument && (
-                                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                                        악기: {activeSession.instrument}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="flex gap-3">
+                                <p className="mb-2">
+                                    악기: {(activeSession as PracticeSession).instrument || '기본'}
+                                </p>
                                 <button
-                                    onClick={handleContinueSession}
-                                    className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} flex-1 py-2 text-sm`}
+                                    onClick={() => setInstrument((activeSession as PracticeSession).instrument || '')}
+                                    className="text-yellow-700 dark:text-yellow-300 underline font-semibold"
                                 >
-                                    예, 계속하기
-                                </button>
-                                <button
-                                    onClick={handleCancelActiveSession}
-                                    disabled={deleteSessionMutation.isPending}
-                                    className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} flex-1 py-2 text-sm disabled:opacity-50`}
-                                >
-                                    {deleteSessionMutation.isPending ? (
-                                        <Spinner size="sm" />
-                                    ) : (
-                                        '아니오, 취소'
-                                    )}
+                                    연습 이어하기
                                 </button>
                             </div>
+                            <button
+                                onClick={() => setSessionToCancel((activeSession as PracticeSession).session_id)}
+                                className="w-full text-center text-red-500 text-sm py-2"
+                            >
+                                현재 세션 취소
+                            </button>
                         </div>
                     )}
-                    <button 
-                        onClick={handleStartRecording} 
+                    <button
+                        onClick={handleStartRecording}
                         disabled={createSessionMutation.isPending}
                         className="w-48 h-48 bg-purple-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-purple-600/30 transform hover:scale-105 transition-transform duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {createSessionMutation.isPending ? (
                             <Spinner size="lg" />
                         ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5zM8 0a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V3a3 3 0 0 0-3-3z"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24" fill="currentColor" viewBox="0 0 16 16"><path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z" /><path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5zM8 0a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V3a3 3 0 0 0-3-3z" /></svg>
                         )}
                     </button>
                 </div>
             )}
-            
+
             {uiState === 'recording' && (
                 <div className="flex-1 flex flex-col items-center justify-center">
                     <div className="text-6xl font-mono text-purple-600 dark:text-purple-300 animate-pulse">{formatTime(recordingTime)}</div>
                     <p className="text-gray-500 dark:text-gray-400 mt-4">녹음 중...</p>
                     <button onClick={handleStopAndAnalyze} className="mt-12 w-32 h-32 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-red-600/30">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="currentColor" viewBox="0 0 16 16"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="currentColor" viewBox="0 0 16 16"><path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z" /></svg>
                     </button>
                 </div>
             )}
-            
+
             {uiState === 'analyzingAudio' && (
                 <div className="flex-1 flex flex-col items-center justify-center">
                     <Spinner size="lg" />
@@ -412,16 +413,16 @@ const RecordView: React.FC = () => {
             )}
 
             {uiState === 'recorded' && audioBlob && (
-                 <div className="flex-1 flex flex-col space-y-4">
+                <div className="flex-1 flex flex-col space-y-4">
                     <h2 className="text-xl font-semibold text-purple-600 dark:text-purple-300 mt-4">세션 저장</h2>
                     <div className="bg-gray-100 dark:bg-gray-800/50 p-3 rounded-md">
-                         <p className="text-gray-500 dark:text-gray-400 text-sm">분석된 연주 시간</p>
-                         <p className="font-mono text-purple-600 dark:text-purple-300 text-2xl">{formatTime(analyzedDuration ?? 0)}</p>
-                         <p className="text-xs text-gray-400 dark:text-gray-500 text-right">(총 녹음 시간: {formatTime(recordingTime)})</p>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm">분석된 연주 시간</p>
+                        <p className="font-mono text-purple-600 dark:text-purple-300 text-2xl">{formatTime(analyzedDuration ?? 0)}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 text-right">(총 녹음 시간: {formatTime(recordingTime)})</p>
                     </div>
 
                     <audio src={URL.createObjectURL(audioBlob)} controls className="w-full"></audio>
-                     
+
                     <div className="relative" ref={instrumentDropdownRef}>
                         <input
                             type="text"
@@ -432,10 +433,10 @@ const RecordView: React.FC = () => {
                             autoComplete="off"
                             className={commonStyles.textInput}
                         />
-                         {isInstrumentDropdownOpen && (
+                        {isInstrumentDropdownOpen && (
                             <ul className="absolute z-30 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md mt-1 max-h-48 overflow-y-auto shadow-lg animate-fade-in">
                                 {filteredInstruments.length > 0 ? (
-                                    filteredInstruments.map(inst => (
+                                    instruments.map((inst: string) => (
                                         <li
                                             key={inst}
                                             onClick={() => handleInstrumentSelect(inst)}
@@ -461,16 +462,16 @@ const RecordView: React.FC = () => {
                     <input type="text" placeholder="제목" value={title} onChange={e => setTitle(e.target.value)} className={commonStyles.textInput} />
                     {summary && <p className="text-sm bg-gray-100 dark:bg-gray-800 p-3 rounded-md text-gray-600 dark:text-gray-300 italic">"{summary}"</p>}
 
-                     <div className="flex gap-4 pt-4">
-                        <button 
-                            onClick={handleDiscard} 
+                    <div className="flex gap-4 pt-4">
+                        <button
+                            onClick={handleDiscard}
                             disabled={deleteSessionMutation.isPending}
                             className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton} py-3 disabled:opacity-50`}
                         >
                             취소
                         </button>
-                        <button 
-                            onClick={handleSave} 
+                        <button
+                            onClick={handleSave}
                             disabled={updateSessionMutation.isPending || analyzedDuration === null}
                             className={`${commonStyles.buttonBase} ${commonStyles.primaryButton} py-3 disabled:opacity-50 flex items-center justify-center gap-2`}
                         >
@@ -483,23 +484,23 @@ const RecordView: React.FC = () => {
                                 '저장'
                             )}
                         </button>
-                     </div>
-                 </div>
+                    </div>
+                </div>
             )}
-             {uiState === 'saving' && (
+            {uiState === 'saving' && (
                 <div className="flex-1 flex flex-col items-center justify-center">
                     <Spinner size="lg" />
                     <p className="text-gray-500 dark:text-gray-400 mt-4">연주를 저장하는 중...</p>
                 </div>
-             )}
-            
+            )}
+
             {showSuccessModal && (
                 <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
                     <div className={`${commonStyles.modalContainer} p-6 text-center flex flex-col items-center`}>
                         <CheckCircleIcon />
                         <h3 className={`${commonStyles.mainTitle} mt-4`}>저장 완료!</h3>
                         <p className="text-gray-500 dark:text-gray-400 mt-2">연습 성과를 친구들과 공유해보세요.</p>
-                        
+
                         <div className={`w-full my-6 ${commonStyles.divider}`}></div>
 
                         <div className="w-full flex justify-center gap-4">
@@ -516,7 +517,7 @@ const RecordView: React.FC = () => {
                                 <KakaoTalkIcon />
                             </button>
                         </div>
-                        
+
                         <div className="w-full mt-6">
                             <button
                                 onClick={handleCloseSuccessModal}
@@ -578,7 +579,7 @@ const Spinner = ({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) => {
 
 const SparklesIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v2.586l1.707-1.707a1 1 0 111.414 1.414L12.414 8H15a1 1 0 110 2h-2.586l1.707 1.707a1 1 0 11-1.414 1.414L11 11.586V15a1 1 0 11-2 0v-3.414l-1.707 1.707a1 1 0 11-1.414-1.414L7.586 10H5a1 1 0 110 2h2.586L5.793 6.293a1 1 0 011.414-1.414L9 6.586V4a1 1 0 011-1zM3 10a1 1 0 011-1h.01a1 1 0 110 2H4a1 1 0 01-1-1zm13 0a1 1 0 011-1h.01a1 1 0 110 2H17a1 1 0 01-1-1zM7 16a1 1 0 011-1h.01a1 1 0 110 2H8a1 1 0 01-1-1zm7 0a1 1 0 011-1h.01a1 1 0 110 2H15a1 1 0 01-1-1z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v2.586l1.707-1.707a1 1 0 111.414 1.414L12.414 8H15a1 1 0 110 2h-2.586l1.707 1.707a1 1 0 11-1.414 1.414L11 11.586V15a1 1 0 11-2 0v-3.414l-1.707 1.707a1 1 0 11-1.414-1.414L7.586 10H5a1 1 0 110 2h2.586L5.793 6.293a1 1 0 011.414-1.414L9 6.586V4a1 1 0 011-1zM3 10a1 1 0 011-1h.01a1 1 0 110 2H4a1 1 0 01-1-1zm13 0a1 1 0 011-1h.01a1 1 0 110 2H17a1 1 0 01-1-1zM7 16a1 1 0 011-1h.01a1 1 0 110 2H8a1 1 0 01-1-1zm7 0a1 1 0 011-1h.01a1 1 0 110 2H15a1 1 0 01-1-1z" clipRule="evenodd" />
     </svg>
 );
 
@@ -598,20 +599,20 @@ const InstagramIcon = () => (
 
 const ThreadsIcon = () => (
     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M13.568 5.424a5.166 5.166 0 0 0-5.142 4.125h-1.03V12h1.03a5.165 5.165 0 0 0 5.142 4.125 5.165 5.165 0 0 0 5.142-4.125h1.03V9.549h-1.03a5.166 5.166 0 0 0-5.142-4.125zm0 1.25a3.916 3.916 0 0 1 3.892 3.125h-7.784a3.916 3.916 0 0 1 3.892-3.125zM8.426 12h7.784a3.916 3.916 0 0 1-3.892 3.125 3.916 3.916 0 0 1-3.892-3.125z"></path>
+        <path d="M13.568 5.424a5.166 5.166 0 0 0-5.142 4.125h-1.03V12h1.03a5.165 5.165 0 0 0 5.142 4.125 5.165 5.165 0 0 0 5.142-4.125h1.03V9.549h-1.03a5.166 5.166 0 0 0-5.142-4.125zm0 1.25a3.916 3.916 0 0 1 3.892 3.125h-7.784a3.916 3.916 0 0 1 3.892-3.125zM8.426 12h7.784a3.916 3.916 0 0 1-3.892 3.125 3.916 3.916 0 0 1-3.892-3.125z"></path>
     </svg>
 );
 
 const XIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
 );
 
 const KakaoTalkIcon = () => (
-  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.486 2 2 5.589 2 10c0 2.908 1.898 5.485 4.713 6.936-.01.01-.019.021-.028.031-.836.918-2.453 2.385-2.625 2.529-.172.144-.225.385-.12.59.104.205.328.314.552.288.106-.012 2.328-.27 3.938-1.57.17-.138.358-.262.556-.368.834.205 1.703.314 2.59.314 5.514 0 10-3.589 10-8s-4.486-8-10-8z"/>
-  </svg>
+    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.486 2 2 5.589 2 10c0 2.908 1.898 5.485 4.713 6.936-.01.01-.019.021-.028.031-.836.918-2.453 2.385-2.625 2.529-.172.144-.225.385-.12.59.104.205.328.314.552.288.106-.012 2.328-.27 3.938-1.57.17-.138.358-.262.556-.368.834.205 1.703.314 2.59.314 5.514 0 10-3.589 10-8s-4.486-8-10-8z" />
+    </svg>
 );
 
 export default RecordView;

@@ -1,4 +1,6 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import React, { useMemo, useState, useContext, ReactNode, useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom'
+import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query'
 import { AppContext } from './context/AppContext'
 import { ThemeProvider } from './context/ThemeProvider'
 import AuthView from './pages/auth/AuthView'
@@ -14,9 +16,6 @@ import AchievementView from './pages/profile/AchievementView'
 import BottomNavBar from './components/BottomNavBar'
 import SideNavBar from './components/SideNavBar'
 import { Header } from './components/layout/Header'
-import { useMemo, useState, useContext, ReactNode, useEffect } from 'react'
-import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query'
-import { useParams, useNavigate } from 'react-router-dom'
 import { View } from './types'
 import { authApi } from './services/api/auth'
 import { useAuthStore } from './store/slices/authSlice'
@@ -30,6 +29,23 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!contextValue?.isAuthenticated) {
     return <Navigate to="/auth" state={{ from: location }} replace />
+  }
+
+  return <>{children}</>
+}
+
+// Admin Route Component
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { user } = useAuthStore()
+  const contextValue = useContext(AppContext)
+  const location = useLocation()
+
+  if (!contextValue?.isAuthenticated) {
+    return <Navigate to="/auth" state={{ from: location }} replace />
+  }
+
+  if (!user?.is_admin) {
+    return <Navigate to="/record" replace />
   }
 
   return <>{children}</>
@@ -79,9 +95,9 @@ function MainLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SideNavBar currentView={currentView} />
-      <div className="md:ml-64 pb-16 md:pb-0">
+      <div className="md:ml-64 flex flex-col min-h-screen relative">
         <Header />
-        <main className="pt-20 p-4 md:p-8 min-h-[calc(100vh-5rem)]">
+        <main className="flex-1">
           {children}
         </main>
       </div>
@@ -291,6 +307,19 @@ function App() {
                   <AchievementView />
                 </MainLayout>
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <MainLayout>
+                  <div className="max-w-4xl mx-auto p-6 md:mt-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 shadow-sm">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">관리자 대시보드</h1>
+                    <p className="text-gray-600 dark:text-gray-400">관리자 전용 페이지입니다. 구현 1~3단계가 성공적으로 완료되었습니다.</p>
+                  </div>
+                </MainLayout>
+              </AdminRoute>
             }
           />
           <Route path="/" element={<Navigate to={isAuthenticated ? "/record" : "/auth"} replace />} />

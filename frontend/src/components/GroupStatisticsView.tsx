@@ -32,9 +32,9 @@ const GroupStatisticsView: React.FC<GroupStatisticsViewProps> = ({ groupId, onBa
   // 이번 주 데이터 계산 (월~일) - 백엔드에서 이미 월~일 순서로 반환됨
   const thisWeekData = React.useMemo(() => {
     if (!groupStatistics) return [];
-    
+
     const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
-    
+
     return groupStatistics.weekly_practice_data.map((time, index) => ({
       name: dayNames[index],
       시간: time,
@@ -63,11 +63,11 @@ const GroupStatisticsView: React.FC<GroupStatisticsViewProps> = ({ groupId, onBa
   }
 
   return (
-    <div className="p-4 md:p-6 md:pt-[calc(1.5rem+4rem)] max-w-md md:max-w-3xl lg:max-w-5xl mx-auto animate-fade-in">
+    <div className="p-4 md:p-6 max-w-md md:max-w-3xl lg:max-w-5xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">
-          <button 
-            onClick={onBack} 
+          <button
+            onClick={onBack}
             className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-800 dark:hover:text-white transition-colors mr-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -79,21 +79,19 @@ const GroupStatisticsView: React.FC<GroupStatisticsViewProps> = ({ groupId, onBa
         <div className="flex gap-2">
           <button
             onClick={() => setPeriod('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              period === 'all'
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${period === 'all'
                 ? 'bg-purple-600 text-white'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-            }`}
+              }`}
           >
             전체 기간
           </button>
           <button
             onClick={() => setPeriod('week')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              period === 'week'
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${period === 'week'
                 ? 'bg-purple-600 text-white'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-            }`}
+              }`}
           >
             이번 주
           </button>
@@ -127,12 +125,12 @@ const GroupStatisticsView: React.FC<GroupStatisticsViewProps> = ({ groupId, onBa
           <BarChart data={thisWeekData} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
             <XAxis dataKey="name" stroke="#9CA3AF" />
-            <YAxis 
+            <YAxis
               stroke="#9CA3AF"
               tickFormatter={(value) => `${Math.round(value / 60)}`}
               hide
             />
-            <Tooltip 
+            <Tooltip
               formatter={(value: number) => [formatTime(value), '연습 시간']}
               contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px' }}
             />
@@ -140,9 +138,9 @@ const GroupStatisticsView: React.FC<GroupStatisticsViewProps> = ({ groupId, onBa
               {thisWeekData.map((entry, index) => (
                 <Cell key={`cell-${index}`} />
               ))}
-              <LabelList 
-                dataKey="시간" 
-                position="top" 
+              <LabelList
+                dataKey="시간"
+                position="top"
                 formatter={(value: number) => formatTime(value)}
                 style={{ fill: '#9CA3AF', fontSize: '12px', fontWeight: '500' }}
               />
@@ -156,10 +154,10 @@ const GroupStatisticsView: React.FC<GroupStatisticsViewProps> = ({ groupId, onBa
         <div className={commonStyles.card + ' mb-6'}>
           <h3 className="text-lg font-semibold text-purple-300 mb-3">가장 활발한 멤버</h3>
           <div className="flex items-center gap-3">
-            <img 
-              src={groupStatistics.most_active_member.profile_image_url || defaultAvatar(groupStatistics.most_active_member.nickname)} 
-              alt={groupStatistics.most_active_member.nickname} 
-              className="w-12 h-12 rounded-full object-cover bg-gray-700" 
+            <img
+              src={groupStatistics.most_active_member.profile_image_url || defaultAvatar(groupStatistics.most_active_member.nickname)}
+              alt={groupStatistics.most_active_member.nickname}
+              className="w-12 h-12 rounded-full object-cover bg-gray-700"
             />
             <div className="flex-1">
               <p className="font-semibold text-gray-200">{groupStatistics.most_active_member.nickname}</p>
@@ -181,10 +179,10 @@ const GroupStatisticsView: React.FC<GroupStatisticsViewProps> = ({ groupId, onBa
             {memberStatistics.members.map((member) => (
               <div key={member.user_id} className="flex flex-col p-3 bg-gray-900/50 rounded-md">
                 <div className="flex items-center gap-3 mb-2">
-                  <img 
-                    src={member.profile_image_url || defaultAvatar(member.nickname)} 
-                    alt={member.nickname} 
-                    className="w-10 h-10 rounded-full object-cover bg-gray-700" 
+                  <img
+                    src={member.profile_image_url || defaultAvatar(member.nickname)}
+                    alt={member.nickname}
+                    className="w-10 h-10 rounded-full object-cover bg-gray-700"
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-200 truncate">{member.nickname}</p>

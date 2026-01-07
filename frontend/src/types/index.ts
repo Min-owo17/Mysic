@@ -21,6 +21,7 @@ export interface User {
   unique_code: string;
   profile_image_url?: string;
   is_active: boolean;
+  is_admin: boolean;
   last_login_at?: string;
   created_at: string;
   updated_at?: string;
@@ -72,6 +73,7 @@ export interface UserDetailResponse {
   unique_code: string;
   profile_image_url?: string | null;
   is_active: boolean;
+  is_admin: boolean;
   last_login_at?: string | null;
   selected_achievement_id?: number | null;
   created_at: string;

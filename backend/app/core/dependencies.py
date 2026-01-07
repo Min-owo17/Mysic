@@ -138,3 +138,25 @@ async def get_current_active_user(
         )
     return current_user
 
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """
+    현재 사용자가 관리자인지 확인하는 의존성 함수
+    
+    Args:
+        current_user: get_current_active_user에서 반환된 사용자
+    
+    Returns:
+        User: 관리자 권한을 가진 사용자 객체
+    
+    Raises:
+        HTTPException: 관리자 권한이 없는 경우
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 권한이 필요합니다."
+        )
+    return current_user

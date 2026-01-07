@@ -72,6 +72,7 @@ class UserDetailResponse(BaseModel):
     unique_code: str
     profile_image_url: Optional[str] = None
     is_active: bool
+    is_admin: bool
     last_login_at: Optional[datetime] = None
     selected_achievement_id: Optional[int] = None
     created_at: datetime
