@@ -23,7 +23,9 @@ export interface Post {
   tags?: string[] | null;  // manual_tags (이전에 manual_tags로 저장된 태그)
   view_count: number;
   like_count: number;
+  comment_count: number;
   is_liked: boolean;
+  is_bookmarked: boolean;
   created_at: string;
   updated_at?: string | null;  // 수정된 적이 없으면 null
 }
@@ -48,6 +50,11 @@ export interface PostUpdate {
   content?: string;
   category?: string;
   manual_tags?: string[];
+}
+
+export interface PostReportCreate {
+  reason: string;
+  details?: string;
 }
 
 export interface CommentAuthor {
@@ -110,6 +117,8 @@ export const boardApi = {
     category?: string;
     tag?: string;
     search?: string;
+    author_id?: number;
+    bookmarked_only?: boolean;
   }): Promise<PostListResponse> => {
     const response = await apiClient.get<PostListResponse>('/board/posts', { params });
     return response.data;
@@ -152,6 +161,22 @@ export const boardApi = {
    */
   togglePostLike: async (postId: number): Promise<LikeResponse> => {
     const response = await apiClient.post<LikeResponse>(`/board/posts/${postId}/likes`);
+    return response.data;
+  },
+
+  /**
+   * 게시글 북마크 토글
+   */
+  togglePostBookmark: async (postId: number): Promise<{ is_bookmarked: boolean }> => {
+    const response = await apiClient.post<{ is_bookmarked: boolean }>(`/board/posts/${postId}/bookmarks`);
+    return response.data;
+  },
+
+  /**
+   * 게시글 신고
+   */
+  reportPost: async (postId: number, data: PostReportCreate): Promise<MessageResponse> => {
+    const response = await apiClient.post<MessageResponse>(`/board/posts/${postId}/report`, data);
     return response.data;
   },
 

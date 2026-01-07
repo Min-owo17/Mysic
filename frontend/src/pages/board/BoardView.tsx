@@ -11,14 +11,16 @@ import { timeAgo } from '../../utils/time';
 import { defaultAvatar } from '../../utils/avatar';
 import { commonStyles } from '../../styles/commonStyles';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '../../store/slices/authSlice';
 
 const BoardView: React.FC = () => {
-  const { 
-    userProfile, userProfiles, 
+  const {
+    userProfile, userProfiles,
     postNotifications, markPostNotificationsAsRead
   } = useAppContext();
+  const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  
+
   const [isWriting, setIsWriting] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -31,6 +33,7 @@ const BoardView: React.FC = () => {
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+  const [showMyPostsOnly, setShowMyPostsOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [isInitialTagsSet, setIsInitialTagsSet] = useState(false); // 초기 태그 설정 여부
 
@@ -43,13 +46,15 @@ const BoardView: React.FC = () => {
 
   // 게시글 목록 조회
   const { data: postsData, isLoading, error } = useQuery({
-    queryKey: ['board', 'posts', page, searchQuery, selectedCategory, selectedTags],
+    queryKey: ['board', 'posts', page, searchQuery, selectedCategory, selectedTags, showBookmarksOnly, showMyPostsOnly],
     queryFn: () => boardApi.getPosts({
       page,
       page_size: 20,
       category: selectedCategory || undefined,
       tag: selectedTags.length > 0 ? selectedTags[0] : undefined, // 첫 번째 태그만 사용
       search: searchQuery || undefined,
+      author_id: showMyPostsOnly ? user?.user_id : undefined,
+      bookmarked_only: showBookmarksOnly,
     }),
     staleTime: 2 * 60 * 1000, // 2분
   });
@@ -67,18 +72,30 @@ const BoardView: React.FC = () => {
     },
   });
 
+  // 게시글 북마크 토글 Mutation
+  const toggleBookmarkMutation = useMutation({
+    mutationFn: (postId: number) => boardApi.togglePostBookmark(postId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['board', 'posts'] });
+      queryClient.invalidateQueries({ queryKey: ['board', 'post'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || '북마크 처리에 실패했습니다.');
+    },
+  });
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-        if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target as Node)) {
-            setIsTagDropdownOpen(false);
-        }
-        if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-            setIsNotificationPanelOpen(false);
-        }
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target as Node)) {
+        setIsTagDropdownOpen(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setIsNotificationPanelOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -88,22 +105,26 @@ const BoardView: React.FC = () => {
     setReportDetails('');
   };
 
-  const handleSubmitReport = () => {
-    if (!reportReason || (reportReason === '기타' && !reportDetails.trim())) {
-        return;
+  const handleSubmitReport = async () => {
+    if (!reportingPost || !reportReason || (reportReason === '기타' && !reportDetails.trim())) {
+      return;
     }
-    // Mock submission
-    console.log({
-        targetId: reportingPost?.post_id,
-        targetType: 'post',
+
+    try {
+      await boardApi.reportPost(reportingPost.post_id, {
         reason: reportReason,
-        details: reportDetails,
-        reporter: userProfile.nickname,
-        reportedAt: new Date().toISOString(),
-    });
-    handleCloseReportModal();
-    setShowReportSuccess(true);
-    setTimeout(() => setShowReportSuccess(false), 3000);
+        details: reportDetails.trim() || undefined
+      });
+
+      handleCloseReportModal();
+      setShowReportSuccess(true);
+      setTimeout(() => setShowReportSuccess(false), 3000);
+
+      // 신고로 인해 숨김 처리될 수 있으므로 목록 갱신
+      queryClient.invalidateQueries({ queryKey: ['board', 'posts'] });
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || '신고 접수에 실패했습니다.');
+    }
   };
 
   const handleSavePost = async (postData: { title: string; content: string; tags: string[]; category?: string }) => {
@@ -124,7 +145,7 @@ const BoardView: React.FC = () => {
 
   const handleUpdatePost = async (postData: { title: string; content: string; tags: string[]; category?: string }) => {
     if (!editingPost) return;
-    
+
     try {
       await boardApi.updatePost(editingPost.post_id, {
         title: postData.title,
@@ -213,24 +234,24 @@ const BoardView: React.FC = () => {
   const allAvailableTags = useMemo(() => {
     // '우수 게시글'
     const excellentTag = ['우수 게시글'];
-    
+
     // instruments (가나다 순)
-    const instrumentTags = instrumentsData 
+    const instrumentTags = instrumentsData
       ? instrumentsData.map(inst => inst.name).sort(sortKorean)
       : [];
-    
+
     // user_types (가나다 순)
     const userTypeTags = userTypesData
       ? userTypesData.map(ut => ut.name).sort(sortKorean)
       : [];
-    
+
     // 우선순위 순서로 합치기
     return [...excellentTag, ...instrumentTags, ...userTypeTags];
   }, [instrumentsData, userTypesData]);
 
   const handleAddTag = (tag: string) => {
     if (!selectedTags.includes(tag)) {
-        setSelectedTags(prev => [...prev, tag]);
+      setSelectedTags(prev => [...prev, tag]);
     }
     setTagSearch('');
   };
@@ -238,24 +259,21 @@ const BoardView: React.FC = () => {
   const handleRemoveTag = (tagToRemove: string) => {
     setSelectedTags(prev => prev.filter(t => t !== tagToRemove));
   };
-  
+
   const filteredTags = useMemo(() => {
     return allAvailableTags.filter(tag =>
-        !selectedTags.includes(tag) &&
-        tag.toLowerCase().includes(tagSearch.toLowerCase())
+      !selectedTags.includes(tag) &&
+      tag.toLowerCase().includes(tagSearch.toLowerCase())
     );
   }, [tagSearch, selectedTags, allAvailableTags]);
 
   // 필터링 및 정렬된 게시글
   const filteredAndSortedPosts = useMemo(() => {
     if (!postsData?.posts) return [];
-    
+
     let filteredPosts = [...postsData.posts];
-    
-    // 북마크 필터는 나중에 구현 (현재는 API에 없음)
-    if (showBookmarksOnly) {
-      return [];
-    }
+
+    // 백엔드에서 이미 filtering을 수행하므로 프론트엔드 추가 필터링은 필요에 따라 유지
 
     // 태그 필터링 (백엔드에서 이미 처리되지만, 프론트엔드에서도 추가 필터링 가능)
     if (selectedTags.length > 0) {
@@ -272,7 +290,7 @@ const BoardView: React.FC = () => {
 
     // 맞춤 게시글 우선 정렬 (사용자의 악기 및 특징 정보 고려)
     const userFeaturesSet = new Set(userProfile.features || []);
-    
+
     // 사용자의 악기 이름 추출 (프로필에서)
     const userInstruments = new Set<string>();
     if (userProfileData?.profile?.instruments) {
@@ -284,7 +302,7 @@ const BoardView: React.FC = () => {
     if (userProfile.instrument) {
       userInstruments.add(userProfile.instrument);
     }
-    
+
     // 사용자의 특징 이름 추출
     const userTypeNames = new Set<string>();
     if (userProfileData?.profile?.user_types) {
@@ -292,29 +310,29 @@ const BoardView: React.FC = () => {
         userTypeNames.add(ut.user_type_name);
       });
     }
-    
+
     // 모든 사용자 관련 태그 통합
     const userRelevantTags = new Set([...userFeaturesSet, ...userInstruments, ...userTypeNames]);
-    
+
     filteredPosts.sort((a, b) => {
       const aTags = a.tags || [];
       const bTags = b.tags || [];
-      
+
       // 태그 필터가 없을 때만 맞춤 게시글 우선 정렬
       if (selectedTags.length === 0) {
         // 사용자 관련 태그가 있는 게시글에 우선순위 부여
         const aRelevantCount = aTags.filter(tag => userRelevantTags.has(tag)).length;
         const bRelevantCount = bTags.filter(tag => userRelevantTags.has(tag)).length;
-        
+
         // 관련 태그가 더 많은 게시글이 우선
         if (aRelevantCount !== bRelevantCount) {
           return bRelevantCount - aRelevantCount;
         }
-        
+
         // 관련 태그가 있으면 우선
         const aIsPrioritized = aRelevantCount > 0;
         const bIsPrioritized = bRelevantCount > 0;
-        
+
         if (aIsPrioritized && !bIsPrioritized) return -1;
         if (!aIsPrioritized && bIsPrioritized) return 1;
       }
@@ -324,28 +342,28 @@ const BoardView: React.FC = () => {
     });
 
     return filteredPosts;
-  }, [postsData, selectedTags, userProfile.features, userProfile.instrument, userProfileData, showBookmarksOnly]);
+  }, [postsData, selectedTags, userProfile.features, userProfile.instrument, userProfileData]);
 
   const unreadCount = useMemo(() => postNotifications.filter(n => !n.read).length, [postNotifications]);
 
   const handleToggleNotifications = () => {
-      setIsNotificationPanelOpen(prev => {
-          if (!prev && unreadCount > 0) {
-              markPostNotificationsAsRead();
-          }
-          return !prev;
-      });
+    setIsNotificationPanelOpen(prev => {
+      if (!prev && unreadCount > 0) {
+        markPostNotificationsAsRead();
+      }
+      return !prev;
+    });
   };
 
   const handlePostNotificationClick = (postId: string) => {
-      // API에서 게시글 조회
-      const postIdNum = parseInt(postId, 10);
-      if (!isNaN(postIdNum)) {
-        boardApi.getPost(postIdNum).then(post => {
-          setSelectedPost(post);
-          setIsNotificationPanelOpen(false);
-        });
-      }
+    // API에서 게시글 조회
+    const postIdNum = parseInt(postId, 10);
+    if (!isNaN(postIdNum)) {
+      boardApi.getPost(postIdNum).then(post => {
+        setSelectedPost(post);
+        setIsNotificationPanelOpen(false);
+      });
+    }
   };
 
   const getProfile = (nickname: string) => {
@@ -354,19 +372,19 @@ const BoardView: React.FC = () => {
   };
 
   if (editingPost) {
-    return <CreatePostView 
-      postToEdit={editingPost} 
-      onSave={handleUpdatePost} 
-      onCancel={() => setEditingPost(null)} 
+    return <CreatePostView
+      postToEdit={editingPost}
+      onSave={handleUpdatePost}
+      onCancel={() => setEditingPost(null)}
     />;
   }
   if (isWriting) {
-    return <CreatePostView 
-      onSave={handleSavePost} 
-      onCancel={() => setIsWriting(false)} 
+    return <CreatePostView
+      onSave={handleSavePost}
+      onCancel={() => setIsWriting(false)}
     />;
   }
-  
+
   if (selectedPost) {
     return <PostDetailView
       post={selectedPost}
@@ -381,128 +399,171 @@ const BoardView: React.FC = () => {
 
   return (
     <div className={commonStyles.pageContainerFullHeight}>
-       {reportingPost && (
-         <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
-            <div className={`${commonStyles.modalContainer} p-6`}>
-                <h3 className="text-xl font-bold text-red-400 mb-4">게시물 신고</h3>
-                <p className="text-sm text-gray-400 mb-1">신고 사유를 선택해주세요.</p>
-                <div className="space-y-2">
-                    {reportReasons.map(reason => (
-                        <label key={reason} className="flex items-center space-x-3 bg-gray-900/50 p-3 rounded-md cursor-pointer hover:bg-gray-700/50">
-                            <input
-                                type="radio"
-                                name="reportReason"
-                                value={reason}
-                                checked={reportReason === reason}
-                                onChange={(e) => setReportReason(e.target.value)}
-                                className="h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 focus:ring-purple-500"
-                            />
-                            <span className="text-gray-200">{reason}</span>
-                        </label>
-                    ))}
-                </div>
-                {reportReason === '기타' && (
-                    <textarea
-                        value={reportDetails}
-                        onChange={(e) => setReportDetails(e.target.value)}
-                        placeholder="상세 사유를 입력해주세요."
-                        rows={3}
-                        className={`${commonStyles.textInputDarkerP3} mt-3 resize-none`}
-                    />
-                )}
-                <div className="flex gap-4 mt-6">
-                    <button onClick={handleCloseReportModal} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
-                    <button
-                        onClick={handleSubmitReport}
-                        disabled={!reportReason || (reportReason === '기타' && !reportDetails.trim())}
-                        className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} disabled:bg-red-800`}
-                    >
-                        제출
-                    </button>
-                </div>
+      {reportingPost && (
+        <div className={commonStyles.modalOverlay} aria-modal="true" role="dialog">
+          <div className={`${commonStyles.modalContainer} p-6`}>
+            <h3 className="text-xl font-bold text-red-400 mb-4">게시물 신고</h3>
+            <p className="text-sm text-gray-400 mb-1">신고 사유를 선택해주세요.</p>
+            <div className="space-y-2">
+              {reportReasons.map(reason => (
+                <label key={reason} className="flex items-center space-x-3 bg-gray-900/50 p-3 rounded-md cursor-pointer hover:bg-gray-700/50">
+                  <input
+                    type="radio"
+                    name="reportReason"
+                    value={reason}
+                    checked={reportReason === reason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 focus:ring-purple-500"
+                  />
+                  <span className="text-gray-200">{reason}</span>
+                </label>
+              ))}
             </div>
-         </div>
-       )}
-
-        {showReportSuccess && (
-            <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-green-500/90 text-white text-sm font-semibold py-2 px-4 rounded-full animate-fade-in z-50">
-                신고가 정상적으로 접수되었습니다.
+            {reportReason === '기타' && (
+              <textarea
+                value={reportDetails}
+                onChange={(e) => setReportDetails(e.target.value)}
+                placeholder="상세 사유를 입력해주세요."
+                rows={3}
+                className={`${commonStyles.textInputDarkerP3} mt-3 resize-none`}
+              />
+            )}
+            <div className="flex gap-4 mt-6">
+              <button onClick={handleCloseReportModal} className={`${commonStyles.buttonBase} ${commonStyles.secondaryButton}`}>취소</button>
+              <button
+                onClick={handleSubmitReport}
+                disabled={!reportReason || (reportReason === '기타' && !reportDetails.trim())}
+                className={`${commonStyles.buttonBase} ${commonStyles.dangerButton} disabled:bg-red-800`}
+              >
+                제출
+              </button>
             </div>
-        )}
-
-       <div className="relative mb-4 h-8">
-            <div className="absolute top-0 left-0">
-                 <button
-                    onClick={() => {
-                        setShowBookmarksOnly(prev => !prev);
-                        if (!showBookmarksOnly) {
-                            setSearchQuery('');
-                            setSelectedTags([]);
-                        }
-                    }}
-                    className={`p-2 rounded-full hover:bg-gray-700 transition-colors ${showBookmarksOnly ? 'text-purple-400 bg-gray-700/50' : 'text-gray-400'}`}
-                    aria-label="북마크 보기"
-                >
-                    <BookmarkIcon filled={showBookmarksOnly} />
-                </button>
-            </div>
-            <div className="absolute right-0" ref={notificationRef}>
-                <button
-                    onClick={handleToggleNotifications}
-                    className={`${commonStyles.iconButton} relative`}
-                    aria-label="알림"
-                >
-                    <BellIcon />
-                    {unreadCount > 0 && (
-                        <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-gray-900 animate-pulse"></span>
-                    )}
-                </button>
-                {isNotificationPanelOpen && (
-                    <div className="absolute right-0 mt-2 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 animate-fade-in">
-                        <div className={`p-3 border-b ${commonStyles.divider}`}>
-                            <h3 className="font-semibold text-white">알림</h3>
-                        </div>
-                        <ul className="max-h-96 overflow-y-auto">
-                            {postNotifications.length > 0 ? (
-                                postNotifications.map(notif => (
-                                    <li key={notif.id} className="border-b border-gray-700/50 last:border-b-0">
-                                        <button onClick={() => handlePostNotificationClick(notif.postId!)} className="w-full text-left px-4 py-3 hover:bg-gray-700/50 transition-colors">
-                                            <p className="text-sm text-gray-200">
-                                                <span className="font-bold text-purple-300">{notif.commenter}</span>님이{' '}
-                                                {notif.type === 'reply' ? '회원님의 댓글에 답글을 남겼습니다.' : <><span className="font-bold text-purple-300 truncate inline-block max-w-[120px] align-bottom">'{notif.postTitle}'</span> 글에 댓글을 남겼습니다.</>}
-                                            </p>
-                                            <p className="text-xs text-gray-500 mt-1">{timeAgo(notif.createdAt)}</p>
-                                        </button>
-                                    </li>
-                                ))
-                            ) : (
-                                <li className="p-4 text-center text-sm text-gray-500">
-                                    새로운 알림이 없습니다.
-                                </li>
-                            )}
-                        </ul>
-                    </div>
-                )}
-            </div>
+          </div>
         </div>
+      )}
 
-      {showBookmarksOnly ? (
-         <div className="mb-4">
-             <h1 className={commonStyles.mainTitle}>북마크한 게시물</h1>
-         </div>
+      {showReportSuccess && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-green-500/90 text-white text-sm font-semibold py-2 px-4 rounded-full animate-fade-in z-50">
+          신고가 정상적으로 접수되었습니다.
+        </div>
+      )}
+
+      <div className="relative mb-4 h-8">
+        <div className="absolute top-0 left-0 flex gap-1">
+          <button
+            onClick={() => {
+              setShowBookmarksOnly(prev => !prev);
+            }}
+            className={`p-2 rounded-full hover:bg-gray-700 transition-colors ${showBookmarksOnly ? 'text-yellow-400 bg-gray-700/50' : 'text-gray-400'}`}
+            aria-label="북마크 보기"
+          >
+            <BookmarkIcon filled={showBookmarksOnly} />
+          </button>
+          <button
+            onClick={() => {
+              setShowMyPostsOnly(prev => !prev);
+            }}
+            className={`p-2 rounded-full hover:bg-gray-700 transition-colors ${showMyPostsOnly ? 'text-purple-400 bg-gray-700/50' : 'text-gray-400'}`}
+            aria-label="내 글 보기"
+          >
+            <UserIcon filled={showMyPostsOnly} />
+          </button>
+        </div>
+        <div className="absolute right-0" ref={notificationRef}>
+          <button
+            onClick={handleToggleNotifications}
+            className={`${commonStyles.iconButton} relative`}
+            aria-label="알림"
+          >
+            <BellIcon />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-gray-900 animate-pulse"></span>
+            )}
+          </button>
+          {isNotificationPanelOpen && (
+            <div className="absolute right-0 mt-2 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 animate-fade-in">
+              <div className={`p-3 border-b ${commonStyles.divider}`}>
+                <h3 className="font-semibold text-white">알림</h3>
+              </div>
+              <ul className="max-h-96 overflow-y-auto">
+                {postNotifications.length > 0 ? (
+                  postNotifications.map(notif => (
+                    <li key={notif.id} className="border-b border-gray-700/50 last:border-b-0">
+                      <button
+                        onClick={() => notif.postId && handlePostNotificationClick(notif.postId)}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-700/50 transition-colors"
+                      >
+                        <div className="flex flex-col">
+                          <p className="text-sm text-gray-200">
+                            {notif.type === 'like' && (
+                              <>
+                                <span className="font-bold text-pink-400">{notif.commenter}</span>님이{' '}
+                                <span className="font-bold text-purple-300 truncate inline-block max-w-[100px] align-bottom">'{notif.postTitle}'</span> 글을 좋아합니다. ❤️
+                              </>
+                            )}
+                            {notif.type === 'comment' && (
+                              <>
+                                <span className="font-bold text-purple-300">{notif.commenter}</span>님이{' '}
+                                <span className="font-bold text-purple-300 truncate inline-block max-w-[100px] align-bottom">'{notif.postTitle}'</span> 글에 댓글을 남겼습니다.
+                              </>
+                            )}
+                            {notif.type === 'reply' && (
+                              <>
+                                <span className="font-bold text-purple-300">{notif.commenter}</span>님이{' '}
+                                회원님의 댓글에 답글을 남겼습니다.
+                              </>
+                            )}
+                            {notif.type === 'excellent_post' && (
+                              <>
+                                🎉 축하합니다! <span className="font-bold text-yellow-400">'{notif.postTitle}'</span> 글이 우수 게시글로 선정되었습니다!
+                              </>
+                            )}
+                            {notif.type === 'report_hidden' && (
+                              <>
+                                ⚠️ 안내: <span className="font-bold text-red-400">'{notif.postTitle}'</span> 글이 신고로 인해 숨김 처리되었습니다.
+                              </>
+                            )}
+                            {notif.type === 'report_deleted' && (
+                              <>
+                                ❌ 안내: <span className="font-bold text-red-500">'{notif.postTitle}'</span> 글이 운영 정책 위반으로 삭제되었습니다.
+                              </>
+                            )}
+                          </p>
+                          <p className="text-[10px] text-gray-500 mt-1">{timeAgo(notif.createdAt)}</p>
+                        </div>
+                      </button>
+                    </li>
+                  ))
+                ) : (
+                  <li className="p-4 text-center text-sm text-gray-500">
+                    새로운 알림이 없습니다.
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showBookmarksOnly || showMyPostsOnly ? (
+        <div className="mb-4">
+          <h1 className={commonStyles.mainTitle}>
+            {showBookmarksOnly && showMyPostsOnly ? '북마크한 내 글' : showBookmarksOnly ? '북마크한 게시물' : '내가 작성한 글'}
+          </h1>
+        </div>
       ) : (
         <div className="mb-4 space-y-3">
           <div className="relative">
-              <input
-                  type="text"
-                  placeholder="게시물 검색..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className={`${commonStyles.textInputP3} pl-10`}
-              />
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+            <input
+              type="text"
+              placeholder="게시물 검색..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className={`${commonStyles.textInputP3} pl-10`}
+            />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </div>
 
           {/* 카테고리 필터 */}
@@ -534,51 +595,51 @@ const BoardView: React.FC = () => {
           </div>
 
           <div className="relative" ref={tagDropdownRef}>
-            <div 
+            <div
               className="w-full bg-gray-800 border border-gray-700 rounded-md p-2 focus-within:ring-2 focus-within:ring-purple-500 transition-colors flex flex-wrap gap-2 items-center"
             >
-                {selectedTags.map(tag => (
-                    <span key={tag} className="bg-purple-600/50 text-purple-200 text-sm font-medium pl-2 pr-1 py-1 rounded-full flex items-center gap-1">
-                        {tag}
-                        <button onClick={() => handleRemoveTag(tag)} className="text-purple-200 hover:text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </span>
-                ))}
-                <input
-                    type="text"
-                    id="tag-filter"
-                    value={tagSearch}
-                    onChange={(e) => setTagSearch(e.target.value)}
-                    onFocus={() => setIsTagDropdownOpen(true)}
-                    placeholder={selectedTags.length === 0 ? "태그 검색 및 추가..." : ""}
-                    autoComplete="off"
-                    className="bg-transparent flex-1 focus:outline-none p-1 min-w-[120px]"
-                />
+              {selectedTags.map(tag => (
+                <span key={tag} className="bg-purple-600/50 text-purple-200 text-sm font-medium pl-2 pr-1 py-1 rounded-full flex items-center gap-1">
+                  {tag}
+                  <button onClick={() => handleRemoveTag(tag)} className="text-purple-200 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                id="tag-filter"
+                value={tagSearch}
+                onChange={(e) => setTagSearch(e.target.value)}
+                onFocus={() => setIsTagDropdownOpen(true)}
+                placeholder={selectedTags.length === 0 ? "태그 검색 및 추가..." : ""}
+                autoComplete="off"
+                className="bg-transparent flex-1 focus:outline-none p-1 min-w-[120px]"
+              />
             </div>
             {isTagDropdownOpen && (
-                <ul className="absolute z-30 w-full bg-gray-700 border border-gray-600 rounded-md mt-1 max-h-48 overflow-y-auto shadow-lg animate-fade-in">
-                    {filteredTags.length > 0 ? (
-                        filteredTags.map(tag => (
-                            <li
-                                key={tag}
-                                onClick={() => handleAddTag(tag)}
-                                className="px-4 py-2 text-sm text-gray-200 cursor-pointer hover:bg-purple-600 hover:text-white"
-                            >
-                                {tag}
-                            </li>
-                        ))
-                    ) : (
-                         <li className="px-4 py-2 text-sm text-gray-400">결과 없음</li>
-                    )}
-                </ul>
+              <ul className="absolute z-30 w-full bg-gray-700 border border-gray-600 rounded-md mt-1 max-h-48 overflow-y-auto shadow-lg animate-fade-in">
+                {filteredTags.length > 0 ? (
+                  filteredTags.map(tag => (
+                    <li
+                      key={tag}
+                      onClick={() => handleAddTag(tag)}
+                      className="px-4 py-2 text-sm text-gray-200 cursor-pointer hover:bg-purple-600 hover:text-white"
+                    >
+                      {tag}
+                    </li>
+                  ))
+                ) : (
+                  <li className="px-4 py-2 text-sm text-gray-400">결과 없음</li>
+                )}
+              </ul>
             )}
           </div>
         </div>
       )}
-      
+
       <div className="flex-1 space-y-4 overflow-y-auto pr-2 -mr-2 pb-24 md:pb-20">
         {isLoading ? (
           <div className="text-center py-10 text-gray-500">
@@ -603,8 +664,8 @@ const BoardView: React.FC = () => {
             const isExcellentPost = post.like_count >= 30;
 
             return (
-              <div 
-                key={post.post_id} 
+              <div
+                key={post.post_id}
                 className={`${commonStyles.cardHover} cursor-pointer`}
                 onClick={() => setSelectedPost(post)}
               >
@@ -616,71 +677,88 @@ const BoardView: React.FC = () => {
                     </div>
                   )}
                   <div className="flex items-center gap-3 mb-2">
-                      <img src={post.author.profile_image_url || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-9 h-9 rounded-full bg-gray-700" />
-                      <div>
-                          <div className="flex items-center gap-2">
-                            {post.author.selected_achievement && (
-                              <span className="text-xs text-purple-300 font-medium flex items-center gap-1">
-                                [
-                                {post.author.selected_achievement.icon_url ? (
-                                  <img 
-                                    src={post.author.selected_achievement.icon_url} 
-                                    alt={post.author.selected_achievement.title}
-                                    className="w-3 h-3 object-contain inline"
-                                  />
-                                ) : (
-                                  <span>🏆</span>
-                                )}
-                                {' '}
-                                {post.author.selected_achievement.title}]
-                              </span>
+                    <img src={post.author.profile_image_url || defaultAvatar(post.author.nickname)} alt={post.author.nickname} className="w-9 h-9 rounded-full bg-gray-700" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        {post.author.selected_achievement && (
+                          <span className="text-xs text-purple-300 font-medium flex items-center gap-1">
+                            [
+                            {post.author.selected_achievement.icon_url ? (
+                              <img
+                                src={post.author.selected_achievement.icon_url}
+                                alt={post.author.selected_achievement.title}
+                                className="w-3 h-3 object-contain inline"
+                              />
+                            ) : (
+                              <span>🏆</span>
                             )}
-                            <p className="font-semibold text-gray-200 leading-tight">{post.author.nickname}</p>
-                          </div>
-                          {authorProfile?.title && <p className="text-xs text-yellow-300 leading-tight">{authorProfile.title}</p>}
+                            {' '}
+                            {post.author.selected_achievement.title}]
+                          </span>
+                        )}
+                        <p className="font-semibold text-gray-200 leading-tight">{post.author.nickname}</p>
                       </div>
+                      {authorProfile?.title && <p className="text-xs text-yellow-300 leading-tight">{authorProfile.title}</p>}
+                    </div>
                   </div>
                   <h2 className="text-lg font-bold text-purple-300 mt-1 pr-16">{post.title}</h2>
                 </div>
                 <p className="text-gray-300 mt-2 line-clamp-2">{post.content}</p>
                 {((post.tags && post.tags.length > 0) || isExcellentPost) && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                        {isExcellentPost && (
-                            <span className="bg-yellow-500/20 text-yellow-300 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                                <StarIcon />
-                                우수 게시글
-                            </span>
-                        )}
-                        {post.tags?.map(tag => (
-                            <span key={tag} className={commonStyles.tag}>
-                                #{tag}
-                            </span>
-                        ))}
-                    </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {isExcellentPost && (
+                      <span className="bg-yellow-500/20 text-yellow-300 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                        <StarIcon />
+                        우수 게시글
+                      </span>
+                    )}
+                    {post.tags?.map(tag => (
+                      <span key={tag} className={commonStyles.tag}>
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
                 )}
-                 <div className={`flex items-center gap-4 mt-4 pt-3 ${commonStyles.divider}/50 text-sm text-gray-400`}>
-                    <span className="flex items-center gap-1.5">
-                      <HeartIcon />
-                      {post.like_count || 0}
-                    </span>
-                    <span className="flex items-center gap-1.5">
+                <div className="flex items-center justify-between mt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <EyeIcon />
+                      <span>{post.view_count || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <HeartIcon className="h-4 w-4" />
+                      <span>{post.like_count || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
                       <CommentIcon />
-                      {post.view_count || 0}
-                    </span>
-                    <div className="flex-grow" />
-                    {post.author.nickname !== userProfile.nickname && (
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setReportingPost(post);
-                            }}
-                            className="text-gray-500 hover:text-red-400"
-                            aria-label="게시물 신고"
-                        >
-                            <SirenIcon />
-                        </button>
+                      <span>{post.comment_count || 0}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleBookmarkMutation.mutate(post.post_id);
+                      }}
+                      className={`p-1.5 rounded-full transition-colors ${post.is_bookmarked ? 'text-yellow-400 bg-yellow-500/10' : 'text-gray-500 hover:text-yellow-400 hover:bg-gray-700/50'}`}
+                      aria-label="북마크"
+                    >
+                      <BookmarkIcon filled={post.is_bookmarked} className="h-5 w-5" />
+                    </button>
+                    {post.author.nickname !== user?.nickname && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReportingPost(post);
+                        }}
+                        className="p-1.5 rounded-full text-gray-500 hover:text-red-400 hover:bg-gray-700/50 transition-colors"
+                        aria-label="게시물 신고"
+                      >
+                        <SirenIcon />
+                      </button>
                     )}
                   </div>
+                </div>
               </div>
             );
           })
@@ -690,11 +768,11 @@ const BoardView: React.FC = () => {
           </div>
         )}
       </div>
-      
-       {/* 고정된 게시물 작성 버튼 - 모바일: BottomNavBar 위, 데스크톱: 화면 하단 */}
-       <div className="fixed bottom-16 md:bottom-0 left-0 right-0 md:left-64 z-30 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 md:border-t-0 shadow-lg md:shadow-none">
+
+      {/* 고정된 게시물 작성 버튼 - 모바일: BottomNavBar 위, 데스크톱: 화면 하단 */}
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 md:left-64 z-30 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 md:border-t-0 shadow-lg md:shadow-none">
         <div className="max-w-md md:max-w-3xl lg:max-w-5xl mx-auto p-4 md:p-6">
-          <button 
+          <button
             onClick={() => setIsWriting(true)}
             className={`${commonStyles.buttonBase} ${commonStyles.indigoButton} py-3 flex items-center justify-center gap-2 w-full`}
           >
@@ -703,30 +781,35 @@ const BoardView: React.FC = () => {
           </button>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
 
 // SVG Icons
 const BookmarkIcon = ({ filled = false, className = 'h-6 w-6' }: { filled?: boolean, className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
-      <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-3.125L5 18V4z" />
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
+    <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-3.125L5 18V4z" />
+  </svg>
+);
+const UserIcon = ({ filled = false, className = 'h-6 w-6' }: { filled?: boolean, className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
+    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+  </svg>
 );
 const SirenIcon = ({ className = 'h-5 w-5' }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
+    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+  </svg>
 );
 const BellIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+  </svg>
 );
 const StarIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+  </svg>
 );
 const PencilIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -734,8 +817,14 @@ const PencilIcon = () => (
     <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
   </svg>
 );
-const HeartIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+const EyeIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
+    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.523 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+  </svg>
+);
+const HeartIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
     <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
   </svg>
 );

@@ -8,6 +8,22 @@ from typing import Optional, List
 from datetime import datetime
 
 
+# ========== 게시글 신고 스키마 ==========
+
+class PostReportCreate(BaseModel):
+    """게시글 신고 요청 스키마"""
+    reason: str = Field(..., description="신고 사유")
+    details: Optional[str] = Field(None, description="상세 사유")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "reason": "욕설/비방",
+                "details": "부적절한 언어를 사용했습니다."
+            }
+        }
+
+
 # ========== 게시글 스키마 ==========
 
 class PostCreate(BaseModel):
@@ -68,7 +84,9 @@ class PostResponse(BaseModel):
     tags: Optional[List[str]] = None  # manual_tags (이전에 manual_tags로 저장된 태그)
     view_count: int
     like_count: int
+    comment_count: int = 0  # 댓글 수 (대댓글 포함)
     is_liked: bool = False  # 현재 사용자가 좋아요를 눌렀는지 여부
+    is_bookmarked: bool = False  # 현재 사용자가 북마크를 했는지 여부
     created_at: datetime
     updated_at: Optional[datetime] = None  # 수정된 적이 없으면 None
 
@@ -175,6 +193,18 @@ class LikeResponse(BaseModel):
             "example": {
                 "is_liked": True,
                 "like_count": 10
+            }
+        }
+
+
+class BookmarkResponse(BaseModel):
+    """북마크 응답 스키마"""
+    is_bookmarked: bool = Field(..., description="북마크 상태 (true: 추가됨, false: 삭제됨)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "is_bookmarked": True
             }
         }
 

@@ -5,7 +5,7 @@
 - PostLike: 게시글 좋아요
 - CommentLike: 댓글 좋아요
 """
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, ARRAY, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, ARRAY, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -23,6 +23,8 @@ class Post(Base):
     manual_tags = Column(ARRAY(String), nullable=True)  # 사용자가 직접 추가한 태그
     view_count = Column(Integer, default=0)
     like_count = Column(Integer, default=0)
+    report_count = Column(Integer, default=0)  # 신고 누적 횟수
+    is_hidden = Column(Boolean, default=False, index=True)  # 신고 누적으로 인한 숨김 처리 여부
     deleted_at = Column(TIMESTAMP, nullable=True, index=True)  # Soft delete
     # created_at: UTC로 저장 (Python 코드에서 datetime.utcnow()로 명시적으로 설정)
     # server_default는 fallback으로만 사용됨
@@ -35,6 +37,8 @@ class Post(Base):
     user = relationship("User", back_populates="posts")
     comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
     likes = relationship("PostLike", back_populates="post", cascade="all, delete-orphan")
+    bookmarks = relationship("PostBookmark", back_populates="post", cascade="all, delete-orphan")
+    reports = relationship("PostReport", back_populates="post", cascade="all, delete-orphan")
 
 
 class Comment(Base):
@@ -98,5 +102,45 @@ class CommentLike(Base):
     # 복합 유니크 제약조건
     __table_args__ = (
         UniqueConstraint("comment_id", "user_id", name="uq_comment_like_comment_user"),
+    )
+
+
+class PostBookmark(Base):
+    """게시글 북마크 테이블"""
+    __tablename__ = "post_bookmarks"
+
+    bookmark_id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    # 관계 설정
+    post = relationship("Post", back_populates="bookmarks")
+    user = relationship("User", back_populates="bookmarks")
+
+    # 복합 유니크 제약조건
+    __table_args__ = (
+        UniqueConstraint("post_id", "user_id", name="uq_post_bookmark_post_user"),
+    )
+
+
+class PostReport(Base):
+    """게시글 신고 테이블"""
+    __tablename__ = "post_reports"
+
+    report_id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"), nullable=False, index=True)
+    reporter_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    reason = Column(String(100), nullable=False)  # 신고 사유
+    details = Column(Text, nullable=True)  # 상세 내용
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    # 관계 설정
+    post = relationship("Post", back_populates="reports")
+    reporter = relationship("User")
+
+    # 복합 유니크 제약조건 (동일 사용자의 중복 신고 방지)
+    __table_args__ = (
+        UniqueConstraint("post_id", "reporter_id", name="uq_post_report_post_reporter"),
     )
 

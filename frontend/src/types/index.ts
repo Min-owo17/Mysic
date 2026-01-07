@@ -247,13 +247,14 @@ export interface Invitation {
 }
 
 export interface Notification {
-  id: string;
+  id: string; // notification_id
   createdAt: string;
-  read: boolean;
-  recipient: string; // The user who should receive this notification
-  type: 'comment' | 'reply' | 'group_invite' | 'group_kick' | 'group_delete';
-  
-  // for comments/replies
+  read: boolean; // is_read
+  recipient?: string;
+  type: 'like' | 'comment' | 'reply' | 'excellent_post' | 'report_hidden' | 'report_deleted' | 'group_invite' | 'group_kick' | 'group_delete';
+  senderNickname?: string;
+
+  // for comments/replies/likes
   postId?: string;
   postTitle?: string;
   commenter?: string;

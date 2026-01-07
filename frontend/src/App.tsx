@@ -15,22 +15,23 @@ import BottomNavBar from './components/BottomNavBar'
 import SideNavBar from './components/SideNavBar'
 import { Header } from './components/layout/Header'
 import { useMemo, useState, useContext, ReactNode, useEffect } from 'react'
-import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
 import { View } from './types'
 import { authApi } from './services/api/auth'
 import { useAuthStore } from './store/slices/authSlice'
 import { groupsApi } from './services/api/groups'
+import { notificationsApi } from './services/api/notifications'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const contextValue = useContext(AppContext)
   const location = useLocation()
-  
+
   if (!contextValue?.isAuthenticated) {
     return <Navigate to="/auth" state={{ from: location }} replace />
   }
-  
+
   return <>{children}</>
 }
 
@@ -54,14 +55,14 @@ function GroupStatisticsViewWrapper() {
     // GroupsView에서 해당 그룹을 자동으로 선택하여 그룹 상세 페이지를 표시
     navigate('/groups', { state: { selectGroupId: Number(groupId) } })
   }
-  
+
   return <GroupStatisticsView groupId={Number(groupId)} onBack={handleBack} />
 }
 
 // Main Layout Component
 function MainLayout({ children }: { children: ReactNode }) {
   const location = useLocation()
-  
+
   // View enum과 URL 경로 매핑
   const pathToView: Record<string, View> = {
     '/record': View.RECORD,
@@ -72,9 +73,9 @@ function MainLayout({ children }: { children: ReactNode }) {
     '/achievements': View.PROFILE, // 칭호 페이지는 프로필 탭으로 인식
     '/settings': View.SETTINGS,
   }
-  
+
   const currentView = pathToView[location.pathname] || View.RECORD
-  
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SideNavBar currentView={currentView} />
@@ -122,11 +123,33 @@ function App() {
     checkAuth()
   }, [queryClient, setUser])
 
+  const { data: notificationsData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => notificationsApi.getNotifications(),
+    enabled: isAuthenticated,
+    refetchInterval: 60 * 1000,
+  })
+
+  const markAllAsReadMutation = useMutation({
+    mutationFn: () => notificationsApi.markAllAsRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+
   const contextValue = useMemo(() => ({
-    // 실제로 사용되는 필드만 유지
     records: [],
-    addRecord: () => {},
-    resetRecords: () => {},
+    addRecord: () => { },
+    resetRecords: () => { },
+    posts: [],
+    addPost: () => { },
+    updatePost: () => { },
+    deletePost: () => { },
+    addComment: () => { },
+    addReply: () => { },
+    togglePostLike: () => { },
+    toggleCommentLike: () => { },
+    togglePostBookmark: () => { },
     userProfile: {
       nickname: '',
       instrument: '',
@@ -135,20 +158,41 @@ function App() {
       userCode: '',
       bookmarkedPosts: []
     },
-    updateProfile: () => {},
-    deleteAccount: () => {},
+    updateProfile: () => { },
+    deleteAccount: () => { },
     userProfiles: {},
-    postNotifications: [],
-    markPostNotificationsAsRead: () => {},
+    allUsers: [],
+    groups: [],
+    addGroup: () => { },
+    leaveGroup: () => { },
+    kickMember: () => { },
+    deleteGroup: () => { },
+    transferOwnership: () => { },
+    sendGroupInvitation: () => { },
+    acceptInvitation: () => { },
+    declineInvitation: () => { },
+    postNotifications: notificationsData?.notifications.map(n => ({
+      id: n.notification_id.toString(),
+      createdAt: n.created_at,
+      read: n.is_read,
+      type: n.type,
+      postId: n.post_id?.toString(),
+      postTitle: n.content || '',
+      commenter: n.sender_nickname || '알 수 없음',
+      senderNickname: n.sender_nickname || ''
+    })) || [],
+    groupNotifications: [],
+    markPostNotificationsAsRead: () => markAllAsReadMutation.mutate(),
+    markGroupNotificationsAsRead: () => { },
+    setCurrentView: () => { },
     isAuthenticated,
     login: () => setIsAuthenticated(true),
     logout: () => {
       localStorage.removeItem('access_token')
       setIsAuthenticated(false)
-      // React Query 캐시 클리어 - 이전 사용자의 데이터가 남지 않도록
       queryClient.clear()
     }
-  }), [isAuthenticated, queryClient])
+  }), [isAuthenticated, queryClient, notificationsData, markAllAsReadMutation])
 
   // 인증 확인 중일 때는 로딩 표시 (선택사항)
   if (isCheckingAuth) {

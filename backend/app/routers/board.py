@@ -11,12 +11,14 @@ from sqlalchemy import and_, or_, desc, func, text
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
-from app.models.board import Post, Comment, PostLike, CommentLike
+from app.models.board import Post, Comment, PostLike, CommentLike, PostBookmark, PostReport
+from app.models.notification import Notification
 from app.models.achievement import Achievement
 from app.core.utils import get_achievement_response
 from app.schemas.board import (
     PostCreate,
     PostUpdate,
+    PostReportCreate,
     PostResponse,
     PostListResponse,
     CommentCreate,
@@ -24,6 +26,7 @@ from app.schemas.board import (
     CommentResponse,
     CommentListResponse,
     LikeResponse,
+    BookmarkResponse,
     MessageResponse,
     PostAuthorResponse
 )
@@ -56,9 +59,13 @@ def _build_post_response(post: Post, db: Session, current_user_id: Optional[int]
     
     # 좋아요 여부 확인
     is_liked = False
+    is_bookmarked = False
     if current_user_id:
         like = next((l for l in post.likes if l.user_id == current_user_id), None)
         is_liked = like is not None
+        
+        bookmark = next((b for b in post.bookmarks if b.user_id == current_user_id), None)
+        is_bookmarked = bookmark is not None
     
     # UTC timezone 정보 추가 (naive datetime이면 UTC로 명시)
     created_at_aware = post.created_at
@@ -68,6 +75,12 @@ def _build_post_response(post: Post, db: Session, current_user_id: Optional[int]
     updated_at_aware = post.updated_at
     if updated_at_aware and updated_at_aware.tzinfo is None:
         updated_at_aware = updated_at_aware.replace(tzinfo=timezone.utc)
+    
+    # 댓글 수 (대댓글 포함, 삭제된 댓글 제외)
+    comment_count = db.query(Comment).filter(
+        Comment.post_id == post.post_id,
+        Comment.deleted_at.is_(None)
+    ).count()
     
     return PostResponse(
         post_id=post.post_id,
@@ -79,7 +92,9 @@ def _build_post_response(post: Post, db: Session, current_user_id: Optional[int]
         tags=post.manual_tags,  # manual_tags를 tags로 반환
         view_count=post.view_count,
         like_count=post.like_count,
+        comment_count=comment_count,
         is_liked=is_liked,
+        is_bookmarked=is_bookmarked,
         created_at=created_at_aware,
         updated_at=updated_at_aware
     )
@@ -159,6 +174,8 @@ async def get_posts(
     category: Optional[str] = Query(None, description="카테고리 필터 (tip, question, free, general)"),
     tag: Optional[str] = Query(None, description="태그 필터"),
     search: Optional[str] = Query(None, description="검색어 (제목, 내용)"),
+    author_id: Optional[int] = Query(None, description="작성자 ID 필터"),
+    bookmarked_only: bool = Query(False, description="이미 내가 북마크한 글만 보기"),
     current_user: Optional[User] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -168,8 +185,13 @@ async def get_posts(
     - 페이지네이션 지원
     - 카테고리, 태그, 검색어 필터링 지원
     """
-    # 기본 쿼리: Soft Delete 제외
-    query = db.query(Post).filter(Post.deleted_at.is_(None))
+    # 기본 쿼리: Soft Delete 제외, 숨김 처리된 게시글 제외
+    query = db.query(Post).filter(
+        and_(
+            Post.deleted_at.is_(None),
+            or_(Post.is_hidden == False, Post.is_hidden.is_(None))
+        )
+    )
     
     # 카테고리 필터
     if category:
@@ -200,13 +222,27 @@ async def get_posts(
             )
         )
     
+    # 작성자 필터
+    if author_id:
+        query = query.filter(Post.user_id == author_id)
+        
+    # 북마크 필터
+    if bookmarked_only:
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="북마크 필터를 사용하려면 로그인이 필요합니다."
+            )
+        query = query.filter(Post.bookmarks.any(PostBookmark.user_id == current_user.user_id))
+    
     # 전체 개수
     total = query.count()
     
     # 정렬 및 페이지네이션 (관계 데이터 미리 로드하여 N+1 쿼리 방지)
     posts = query.options(
         joinedload(Post.user).joinedload(User.selected_achievement),
-        joinedload(Post.likes)
+        joinedload(Post.likes),
+        joinedload(Post.bookmarks)
     ).order_by(desc(Post.created_at)).offset((page - 1) * page_size).limit(page_size).all()
     
     # 응답 변환
@@ -280,7 +316,8 @@ async def get_post(
     ).filter(
         and_(
             Post.post_id == post_id,
-            Post.deleted_at.is_(None)
+            Post.deleted_at.is_(None),
+            or_(Post.is_hidden == False, Post.is_hidden.is_(None))
         )
     ).first()
     
@@ -455,11 +492,164 @@ async def toggle_post_like(
     # onupdate가 제거되었으므로 updated_at은 자동으로 변경되지 않음
     db.commit()
     db.refresh(post)
+
+    # 알림 생성 (좋아요 추가 시에만)
+    if is_liked and post.user_id != current_user.user_id:
+        # 게시글 제목 요약 (최대 50자)
+        post_title = (post.title[:50] + '...') if len(post.title) > 50 else post.title
+        
+        # 좋아요 알림
+        new_notification = Notification(
+            receiver_id=post.user_id,
+            sender_id=current_user.user_id,
+            type="like",
+            post_id=post.post_id,
+            content=post_title
+        )
+        db.add(new_notification)
+
+        # 우수 게시글 알림 (좋아요 30개 도달 시)
+        if post.like_count == 30:
+            excellent_notification = Notification(
+                receiver_id=post.user_id,
+                type="excellent_post",
+                post_id=post.post_id,
+                content=post_title
+            )
+            db.add(excellent_notification)
+        
+        db.commit()
     
     return LikeResponse(
         is_liked=is_liked,
         like_count=post.like_count
     )
+
+
+@router.post("/posts/{post_id}/bookmarks", response_model=BookmarkResponse)
+async def toggle_post_bookmark(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    게시글 북마크 토글
+    """
+    post = db.query(Post).filter(
+        and_(
+            Post.post_id == post_id,
+            Post.deleted_at.is_(None)
+        )
+    ).first()
+    
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="게시글을 찾을 수 없습니다."
+        )
+    
+    # 기존 북마크 확인
+    existing_bookmark = db.query(PostBookmark).filter(
+        and_(
+            PostBookmark.post_id == post_id,
+            PostBookmark.user_id == current_user.user_id
+        )
+    ).first()
+    
+    if existing_bookmark:
+        # 북마크 취소
+        db.delete(existing_bookmark)
+        is_bookmarked = False
+    else:
+        # 북마크 추가
+        new_bookmark = PostBookmark(
+            post_id=post_id,
+            user_id=current_user.user_id
+        )
+        db.add(new_bookmark)
+        is_bookmarked = True
+    
+    db.commit()
+    
+    return BookmarkResponse(is_bookmarked=is_bookmarked)
+
+
+@router.post("/posts/{post_id}/report", response_model=MessageResponse)
+async def report_post(
+    post_id: int,
+    report_data: PostReportCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    게시글 신고
+    - 한 사용자는 게시글당 1회만 신고 가능
+    - 신고 5건 누적 시 자동 숨김 처리
+    - 숨김 처리 시 작성자에게 알림 발송
+    """
+    post = db.query(Post).filter(
+        and_(
+            Post.post_id == post_id,
+            Post.deleted_at.is_(None)
+        )
+    ).first()
+    
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="게시글을 찾을 수 없습니다."
+        )
+    
+    # 본인 게시글 신고 불가
+    if post.user_id == current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="본인의 게시글은 신고할 수 없습니다."
+        )
+        
+    # 이미 신고했는지 확인
+    existing_report = db.query(PostReport).filter(
+        and_(
+            PostReport.post_id == post_id,
+            PostReport.reporter_id == current_user.user_id
+        )
+    ).first()
+    
+    if existing_report:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 신고한 게시글입니다."
+        )
+    
+    # 신고 저장
+    new_report = PostReport(
+        post_id=post_id,
+        reporter_id=current_user.user_id,
+        reason=report_data.reason,
+        details=report_data.details
+    )
+    db.add(new_report)
+    
+    # 신고 횟수 증가
+    post.report_count += 1
+    
+    # 5건 이상 시 자동 숨김 처리
+    if post.report_count >= 5 and not post.is_hidden:
+        post.is_hidden = True
+        
+        # 작성자에게 알림 발송
+        post_title = (post.title[:50] + '...') if len(post.title) > 50 else post.title
+        notification = Notification(
+            receiver_id=post.user_id,
+            type="report_hidden",
+            post_id=post.post_id,
+            content=post_title
+        )
+        db.add(notification)
+        
+    db.commit()
+    
+    return MessageResponse(message="신고가 정상적으로 접수되었습니다.")
 
 
 # ========== 댓글 엔드포인트 ==========
@@ -579,6 +769,44 @@ async def create_comment(
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
+
+    # 알림 생성
+    # 1. 게시글 작성자에게 알림 (본인이 작성한 경우에는 제외)
+    # 2. 답글인 경우 원댓글 작성자에게 알림 (본인이 작성한 경우에는 제외)
+    
+    post_title = (post.title[:50] + '...') if len(post.title) > 50 else post.title
+    
+    notifications_to_add = []
+    
+    # 게시글 작성자 알림
+    if post.user_id != current_user.user_id:
+        notifications_to_add.append(Notification(
+            receiver_id=post.user_id,
+            sender_id=current_user.user_id,
+            type="comment",
+            post_id=post.post_id,
+            comment_id=new_comment.comment_id,
+            content=post_title
+        ))
+    
+    # 답글인 경우 원댓글 작성자 알림
+    if comment_data.parent_comment_id:
+        parent_comment = db.query(Comment).filter(Comment.comment_id == comment_data.parent_comment_id).first()
+        if parent_comment and parent_comment.user_id != current_user.user_id:
+            # 게시글 작성자와 원댓글 작성자가 다른 경우에만 중복 알림 방지를 위해 체크하거나, 
+            # 사용자 경험에 따라 둘 다 보낼 수도 있음. 여기서는 둘 다 보내는 것으로 함.
+            notifications_to_add.append(Notification(
+                receiver_id=parent_comment.user_id,
+                sender_id=current_user.user_id,
+                type="reply",
+                post_id=post.post_id,
+                comment_id=new_comment.comment_id,
+                content=new_comment.content[:50] # 답글은 부모 댓글 내용을 보여주거나 본인의 내용을 일부 보여줌
+            ))
+
+    if notifications_to_add:
+        db.add_all(notifications_to_add)
+        db.commit()
     
     # 관계 데이터 미리 로드하여 N+1 쿼리 방지 (refresh 후 다시 조회)
     comment_with_relations = db.query(Comment).options(
