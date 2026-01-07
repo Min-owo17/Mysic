@@ -749,10 +749,18 @@ const BoardView: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (post.is_reported) {
+                            toast('이미 신고하신 게시글입니다.', { icon: '🔔' });
+                            return;
+                          }
                           setReportingPost(post);
                         }}
-                        className="p-1.5 rounded-full text-gray-500 hover:text-red-400 hover:bg-gray-700/50 transition-colors"
-                        aria-label="게시물 신고"
+                        className={`p-1.5 rounded-full transition-colors ${post.is_reported
+                            ? 'text-red-500 bg-red-500/10 cursor-default'
+                            : 'text-gray-500 hover:text-red-400 hover:bg-gray-700/50'
+                          }`}
+                        aria-label={post.is_reported ? "이미 신고함" : "게시물 신고"}
+                        title={post.is_reported ? "이미 신고한 게시글입니다" : "게시물 신고"}
                       >
                         <SirenIcon />
                       </button>

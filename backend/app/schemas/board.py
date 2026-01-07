@@ -87,6 +87,7 @@ class PostResponse(BaseModel):
     comment_count: int = 0  # 댓글 수 (대댓글 포함)
     is_liked: bool = False  # 현재 사용자가 좋아요를 눌렀는지 여부
     is_bookmarked: bool = False  # 현재 사용자가 북마크를 했는지 여부
+    is_reported: bool = False  # 현재 사용자가 신고를 했는지 여부
     created_at: datetime
     updated_at: Optional[datetime] = None  # 수정된 적이 없으면 None
 

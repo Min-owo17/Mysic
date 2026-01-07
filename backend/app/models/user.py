@@ -39,6 +39,7 @@ class User(Base):
     group_invitations_received = relationship("GroupInvitation", foreign_keys="[GroupInvitation.invitee_id]", back_populates="invitee", cascade="all, delete-orphan")
     achievements = relationship("UserAchievement", back_populates="user", cascade="all, delete-orphan")
     bookmarks = relationship("PostBookmark", back_populates="user", cascade="all, delete-orphan")
+    supports = relationship("CustomerSupport", back_populates="user", cascade="all, delete-orphan")
     selected_achievement = relationship("Achievement", foreign_keys=[selected_achievement_id])
 
 

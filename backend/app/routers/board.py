@@ -57,15 +57,19 @@ def _build_post_response(post: Post, db: Session, current_user_id: Optional[int]
         selected_achievement=selected_achievement_data
     )
     
-    # 좋아요 여부 확인
     is_liked = False
     is_bookmarked = False
+    is_reported = False
     if current_user_id:
         like = next((l for l in post.likes if l.user_id == current_user_id), None)
         is_liked = like is not None
         
         bookmark = next((b for b in post.bookmarks if b.user_id == current_user_id), None)
         is_bookmarked = bookmark is not None
+
+        # 신고 여부 확인 (PostReport 모델의 reporter_id 필드 사용)
+        report = next((r for r in post.reports if r.reporter_id == current_user_id), None)
+        is_reported = report is not None
     
     # UTC timezone 정보 추가 (naive datetime이면 UTC로 명시)
     created_at_aware = post.created_at
@@ -95,6 +99,7 @@ def _build_post_response(post: Post, db: Session, current_user_id: Optional[int]
         comment_count=comment_count,
         is_liked=is_liked,
         is_bookmarked=is_bookmarked,
+        is_reported=is_reported,
         created_at=created_at_aware,
         updated_at=updated_at_aware
     )
@@ -242,7 +247,8 @@ async def get_posts(
     posts = query.options(
         joinedload(Post.user).joinedload(User.selected_achievement),
         joinedload(Post.likes),
-        joinedload(Post.bookmarks)
+        joinedload(Post.bookmarks),
+        joinedload(Post.reports)
     ).order_by(desc(Post.created_at)).offset((page - 1) * page_size).limit(page_size).all()
     
     # 응답 변환
@@ -312,7 +318,9 @@ async def get_post(
     # 관계 데이터 미리 로드하여 N+1 쿼리 방지
     post = db.query(Post).options(
         joinedload(Post.user).joinedload(User.selected_achievement),
-        joinedload(Post.likes)
+        joinedload(Post.likes),
+        joinedload(Post.bookmarks),
+        joinedload(Post.reports)
     ).filter(
         and_(
             Post.post_id == post_id,
@@ -351,7 +359,9 @@ async def update_post(
     # 관계 데이터 미리 로드하여 N+1 쿼리 방지
     post = db.query(Post).options(
         joinedload(Post.user).joinedload(User.selected_achievement),
-        joinedload(Post.likes)
+        joinedload(Post.likes),
+        joinedload(Post.bookmarks),
+        joinedload(Post.reports)
     ).filter(
         and_(
             Post.post_id == post_id,

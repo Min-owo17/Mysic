@@ -2,36 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/slices/authSlice';
 import { View } from '../types';
 import { usersApi } from '../services/api/users';
+import { supportApi, SupportCreate } from '../services/api/support';
 import { commonStyles } from '../styles/commonStyles';
 import { PasswordInput } from './common/PasswordInput';
 
-// Mock data for feedback history
-const MOCK_FEEDBACK_HISTORY = [
-    {
-        id: 'fh1',
-        type: 'inquiry' as const,
-        title: '녹음 파일 분석 오류',
-        content: '연주 시간 분석 기능이 가끔 실제 연주 시간보다 훨씬 짧게 측정되는 것 같습니다. 확인 부탁드립니다.',
-        createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), // 3 days ago
-        status: 'answered' as const,
-        answer: {
-            content: '안녕하세요, Virtuoso님. 소중한 의견 감사합니다. 해당 문제는 내부적으로 인지하고 있으며, AI 모델 개선을 통해 정확도를 높이는 작업을 진행 중입니다. 빠른 시일 내에 업데이트하도록 하겠습니다. 이용에 불편을 드려 죄송합니다.',
-            answeredAt: new Date(Date.now() - 86400000 * 1).toISOString(), // 1 day ago
-        },
-    },
-    {
-        id: 'fh2',
-        type: 'suggestion' as const,
-        title: '악보 보기 기능 추가 건의',
-        content: '연습 기록을 할 때 관련 악보(PDF, 이미지)를 함께 첨부하고 볼 수 있는 기능이 있으면 좋겠습니다.',
-        createdAt: new Date(Date.now() - 86400000 * 10).toISOString(), // 10 days ago
-        status: 'pending' as const,
-    }
-];
+// Mock data for feedback history removed
 
 const GoogleIcon = () => (<svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.222 0-9.618-3.226-11.283-7.66l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.012 36.49 44 30.863 44 24c0-1.341-.138-2.65-.389-3.917z"></path></svg>);
 const KakaoIcon = () => (<svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2c-5.523 0-10 3.582-10 8 0 2.924 1.933 5.518 4.783 6.91-1.23.974-3.58 2.55-3.58 2.55s.87.21 2.33.02c.025-.002.05-.005.075-.008.31-.03.626-.067.95-.11.91-.12 1.85-.29 2.82-.49 4.38-1.02 6.62-4.23 6.62-7.87 0-4.418-4.477-8-10-8Z" /></svg>);
@@ -83,7 +62,29 @@ const SettingsView: React.FC = () => {
 
     // --- History Modal State ---
     const [showHistoryModal, setShowHistoryModal] = useState(false);
-    const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+    const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
+
+    // --- Support API Queries & Mutations ---
+    const { data: supportHistory } = useQuery({
+        queryKey: ['supportHistory'],
+        queryFn: () => supportApi.getMySupports(),
+        enabled: showHistoryModal || showFeedbackModal,
+    });
+
+    const createSupportMutation = useMutation({
+        mutationFn: (data: SupportCreate) => supportApi.createSupport(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['supportHistory'] });
+            setShowFeedbackModal(false);
+            setShowFeedbackSuccess(true);
+            setTimeout(() => setShowFeedbackSuccess(false), 2500);
+            setFeedbackTitle('');
+            setFeedbackContent('');
+        },
+        onError: (error: any) => {
+            alert(error.response?.data?.detail || '문의 제출 중 오류가 발생했습니다.');
+        }
+    });
 
 
     useEffect(() => {
@@ -341,10 +342,11 @@ const SettingsView: React.FC = () => {
     };
 
     const handleSendFeedback = () => {
-        // This is a mock function as requested
-        setShowFeedbackModal(false);
-        setShowFeedbackSuccess(true);
-        setTimeout(() => setShowFeedbackSuccess(false), 2500);
+        createSupportMutation.mutate({
+            type: feedbackType,
+            title: feedbackTitle,
+            content: feedbackContent
+        });
     };
 
     return (
@@ -529,30 +531,37 @@ const SettingsView: React.FC = () => {
                             <button onClick={() => setShowHistoryModal(false)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                            {MOCK_FEEDBACK_HISTORY.map(item => (
-                                <div key={item.id} className="bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-                                    <button onClick={() => setExpandedHistoryId(expandedHistoryId === item.id ? null : item.id)} className="w-full flex justify-between items-center p-4 text-left">
-                                        <div>
-                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${item.status === 'answered' ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300'}`}>{item.status === 'answered' ? '답변완료' : '검토중'}</span>
-                                            <p className="font-semibold text-gray-800 dark:text-gray-200 mt-1">{item.title}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{new Date(item.createdAt).toLocaleDateString('ko-KR')}</p>
-                                        </div>
-                                        <svg className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${expandedHistoryId === item.id ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                                    </button>
-                                    {expandedHistoryId === item.id && (
-                                        <div className={`px-4 pb-4 ${commonStyles.divider} animate-fade-in`}>
-                                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap py-3">{item.content}</p>
-                                            {item.answer && (
-                                                <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
-                                                    <p className="font-bold text-purple-600 dark:text-purple-300 text-sm">답변</p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-500">{new Date(item.answer.answeredAt).toLocaleDateString('ko-KR')}</p>
-                                                    <p className="text-sm text-gray-800 dark:text-gray-200 mt-2 whitespace-pre-wrap">{item.answer.content}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                            {supportHistory?.supports && supportHistory.supports.length > 0 ? (
+                                supportHistory.supports.map(item => (
+                                    <div key={item.support_id} className="bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                                        <button onClick={() => setExpandedHistoryId(expandedHistoryId === item.support_id ? null : item.support_id)} className="w-full flex justify-between items-center p-4 text-left">
+                                            <div>
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${item.status === 'answered' ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300'}`}>{item.status === 'answered' ? '답변완료' : '검토중'}</span>
+                                                <span className="ml-2 text-[10px] text-gray-400 capitalize">{item.type === 'inquiry' ? '문의' : '제안'}</span>
+                                                <p className="font-semibold text-gray-800 dark:text-gray-200 mt-1">{item.title}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString('ko-KR')}</p>
+                                            </div>
+                                            <svg className={`h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform ${expandedHistoryId === item.support_id ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                        </button>
+                                        {expandedHistoryId === item.support_id && (
+                                            <div className={`px-4 pb-4 ${commonStyles.divider} animate-fade-in`}>
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap py-3">{item.content}</p>
+                                                {item.answer_content && (
+                                                    <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
+                                                        <p className="font-bold text-purple-600 dark:text-purple-300 text-sm">답변</p>
+                                                        {item.answered_at && <p className="text-xs text-gray-500 dark:text-gray-500">{new Date(item.answered_at).toLocaleDateString('ko-KR')}</p>}
+                                                        <p className="text-sm text-gray-800 dark:text-gray-200 mt-2 whitespace-pre-wrap">{item.answer_content}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-10">
+                                    <p className="text-gray-500">문의 내역이 없습니다.</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 </div>

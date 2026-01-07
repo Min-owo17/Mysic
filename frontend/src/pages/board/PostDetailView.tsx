@@ -564,7 +564,21 @@ const PostDetailView: React.FC<PostDetailViewProps> = ({ post: initialPost, onBa
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => setReportingItem({ id: post.post_id, type: 'post' })} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-full transition-colors" aria-label="게시물 신고">
+                  <button
+                    onClick={() => {
+                      if (post.is_reported) {
+                        toast('이미 신고하신 게시글입니다.', { icon: '🔔' });
+                        return;
+                      }
+                      setReportingItem({ id: post.post_id, type: 'post' });
+                    }}
+                    className={`p-2 rounded-full transition-colors ${post.is_reported
+                      ? 'text-red-500 bg-red-500/10 cursor-default'
+                      : 'text-gray-400 hover:text-red-400 hover:bg-gray-700'
+                      }`}
+                    aria-label={post.is_reported ? "이미 신고함" : "게시물 신고"}
+                    title={post.is_reported ? "이미 신고한 게시글입니다" : "게시물 신고"}
+                  >
                     <SirenIcon />
                   </button>
                 )}

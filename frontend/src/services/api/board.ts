@@ -26,6 +26,7 @@ export interface Post {
   comment_count: number;
   is_liked: boolean;
   is_bookmarked: boolean;
+  is_reported: boolean;
   created_at: string;
   updated_at?: string | null;  // 수정된 적이 없으면 null
 }

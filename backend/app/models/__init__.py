@@ -11,9 +11,10 @@ from app.models.user_type import UserType
 from app.models.user_profile import UserProfileInstrument, UserProfileUserType
 from app.models.practice import PracticeSession, RecordingFile
 from app.models.group import Group, GroupMember, GroupInvitation
-from app.models.board import Post, Comment, PostLike, CommentLike, PostBookmark
+from app.models.board import Post, Comment, PostLike, CommentLike, PostBookmark, PostReport
 from app.models.achievement import Achievement, UserAchievement
 from app.models.notification import Notification
+from app.models.support import CustomerSupport
 
 __all__ = [
     # Base
@@ -47,4 +48,8 @@ __all__ = [
     "UserAchievement",
     # Notification model
     "Notification",
+    # Support model
+    "CustomerSupport",
+    # PostReport model
+    "PostReport",
 ]
