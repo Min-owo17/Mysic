@@ -17,13 +17,110 @@ from app.schemas.achievements import (
     AchievementResponse,
     UserAchievementResponse,
     AchievementListResponse,
-    UserAchievementListResponse
+    UserAchievementListResponse,
+    AchievementCreate,
+    AchievementUpdate
 )
 from app.schemas.users import MessageResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/achievements", tags=["칭호"])
+
+
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges",
+        )
+    return current_user
+
+
+@router.post("", response_model=AchievementResponse, status_code=status.HTTP_201_CREATED)
+async def create_achievement(
+    achievement_data: AchievementCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    칭호 생성 (관리자용)
+    """
+    try:
+        new_achievement = Achievement(
+            title=achievement_data.title,
+            description=achievement_data.description,
+            condition_type=achievement_data.condition_type,
+            condition_value=achievement_data.condition_value,
+            icon_url=achievement_data.icon_url
+        )
+        db.add(new_achievement)
+        db.commit()
+        db.refresh(new_achievement)
+        
+        return AchievementResponse.model_validate(new_achievement)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"칭호 생성 실패: {e}")
+        raise HTTPException(status_code=500, detail="칭호 생성에 실패했습니다.")
+
+
+@router.patch("/{achievement_id}", response_model=AchievementResponse)
+async def update_achievement(
+    achievement_id: int,
+    achievement_data: AchievementUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    칭호 수정 (관리자용)
+    """
+    achievement = db.query(Achievement).filter(Achievement.achievement_id == achievement_id).first()
+    if not achievement:
+        raise HTTPException(status_code=404, detail="칭호를 찾을 수 없습니다.")
+        
+    try:
+        if achievement_data.title is not None:
+            achievement.title = achievement_data.title
+        if achievement_data.description is not None:
+            achievement.description = achievement_data.description
+        if achievement_data.condition_type is not None:
+            achievement.condition_type = achievement_data.condition_type
+        if achievement_data.condition_value is not None:
+            achievement.condition_value = achievement_data.condition_value
+        if achievement_data.icon_url is not None:
+            achievement.icon_url = achievement_data.icon_url
+            
+        db.commit()
+        db.refresh(achievement)
+        return AchievementResponse.model_validate(achievement)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"칭호 수정 실패: {e}")
+        raise HTTPException(status_code=500, detail="칭호 수정에 실패했습니다.")
+
+
+@router.delete("/{achievement_id}", response_model=MessageResponse)
+async def delete_achievement(
+    achievement_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    칭호 삭제 (관리자용)
+    """
+    achievement = db.query(Achievement).filter(Achievement.achievement_id == achievement_id).first()
+    if not achievement:
+        raise HTTPException(status_code=404, detail="칭호를 찾을 수 없습니다.")
+        
+    try:
+        db.delete(achievement)
+        db.commit()
+        return MessageResponse(message="칭호가 삭제되었습니다.")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"칭호 삭제 실패: {e}")
+        raise HTTPException(status_code=500, detail="칭호 삭제에 실패했습니다.")
 
 
 @router.get("", response_model=AchievementListResponse)

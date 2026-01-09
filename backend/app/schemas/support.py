@@ -3,6 +3,8 @@ from typing import Optional, List
 from datetime import datetime
 
 
+from app.schemas.users import UserSearchResponse
+
 class SupportCreate(BaseModel):
     """고객 지원 문의/제안 생성 요청 스키마"""
     type: str = Field(..., description="'inquiry'(문의) 또는 'suggestion'(제안)")
@@ -36,6 +38,7 @@ class SupportResponse(BaseModel):
     answered_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    user: Optional[UserSearchResponse] = None
 
     class Config:
         from_attributes = True
@@ -45,3 +48,4 @@ class SupportListResponse(BaseModel):
     """고객 지원 목록 응답 스키마"""
     supports: List[SupportResponse]
     total: int
+

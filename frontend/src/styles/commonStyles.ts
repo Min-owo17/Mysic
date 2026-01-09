@@ -23,6 +23,7 @@ export const commonStyles = {
   textInput: 'w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-2 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-purple-500 focus:outline-none',
   textInputP3: 'w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-purple-500 focus:outline-none transition-colors',
   textInputDarkerP3: 'w-full bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md p-3 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-purple-500 focus:outline-none transition-colors',
+  textarea: 'w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md p-3 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-purple-500 focus:outline-none transition-colors resize-none',
 
   // Cards & Containers
   card: 'bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md',

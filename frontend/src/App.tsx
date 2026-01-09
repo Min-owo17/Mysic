@@ -11,7 +11,13 @@ import GroupDetailView from './components/GroupDetailView'
 import GroupStatisticsView from './components/GroupStatisticsView'
 import BoardView from './pages/board/BoardView'
 import ProfileView from './pages/profile/ProfileView'
+import UserManagementView from './pages/admin/UserManagementView'
+import InquiryManagementView from './pages/admin/InquiryManagementView'
+import PostManagementView from './pages/admin/PostManagementView'
+import PostDetailView from './pages/admin/PostDetailView'
+import AchievementManagementView from './pages/admin/AchievementManagementView'
 import SettingsView from './components/SettingsView'
+
 import AchievementView from './pages/profile/AchievementView'
 import BottomNavBar from './components/BottomNavBar'
 import SideNavBar from './components/SideNavBar'
@@ -75,9 +81,11 @@ function GroupStatisticsViewWrapper() {
   return <GroupStatisticsView groupId={Number(groupId)} onBack={handleBack} />
 }
 
+
 // Main Layout Component
 function MainLayout({ children }: { children: ReactNode }) {
   const location = useLocation()
+  const isAdminPath = location.pathname.startsWith('/admin')
 
   // View enum과 URL 경로 매핑
   const pathToView: Record<string, View> = {
@@ -94,14 +102,14 @@ function MainLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <SideNavBar currentView={currentView} />
+      <SideNavBar currentView={currentView} mode={isAdminPath ? 'admin' : 'default'} />
       <div className="md:ml-64 flex flex-col min-h-screen relative">
         <Header />
         <main className="flex-1">
           {children}
         </main>
       </div>
-      <BottomNavBar currentView={currentView} />
+      <BottomNavBar currentView={currentView} mode={isAdminPath ? 'admin' : 'default'} />
     </div>
   )
 }
@@ -311,13 +319,54 @@ function App() {
           />
           <Route
             path="/admin"
+            element={<Navigate to="/admin/users" replace />}
+          />
+          <Route
+            path="/admin/users"
             element={
               <AdminRoute>
                 <MainLayout>
-                  <div className="max-w-4xl mx-auto p-6 md:mt-4 border border-gray-100 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 shadow-sm">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">관리자 대시보드</h1>
-                    <p className="text-gray-600 dark:text-gray-400">관리자 전용 페이지입니다. 구현 1~3단계가 성공적으로 완료되었습니다.</p>
-                  </div>
+                  <UserManagementView />
+                </MainLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/inquiries"
+            element={
+              <AdminRoute>
+                <MainLayout>
+                  <InquiryManagementView />
+                </MainLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/posts"
+            element={
+              <AdminRoute>
+                <MainLayout>
+                  <PostManagementView />
+                </MainLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/posts/:postId"
+            element={
+              <AdminRoute>
+                <MainLayout>
+                  <PostDetailView />
+                </MainLayout>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/achievements"
+            element={
+              <AdminRoute>
+                <MainLayout>
+                  <AchievementManagementView />
                 </MainLayout>
               </AdminRoute>
             }

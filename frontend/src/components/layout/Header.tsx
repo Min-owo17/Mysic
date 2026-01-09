@@ -101,14 +101,14 @@ export const Header = () => {
           <nav className="flex items-center space-x-4">
             {user?.is_admin && (
               <button
-                onClick={() => navigate(location.pathname === '/admin' ? '/record' : '/admin')}
-                className={`p-2 rounded-full transition-colors ${location.pathname === '/admin'
+                onClick={() => navigate(location.pathname.startsWith('/admin') ? '/record' : '/admin')}
+                className={`p-2 rounded-full transition-colors ${location.pathname.startsWith('/admin')
                   ? 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-gray-800'
                   : 'text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-100 dark:hover:bg-gray-800'
                   }`}
-                title={location.pathname === '/admin' ? '일반 대시보드' : '관리자 대시보드'}
+                title={location.pathname.startsWith('/admin') ? '일반 대시보드' : '관리자 대시보드'}
               >
-                <AdminIcon filled={location.pathname === '/admin'} />
+                <AdminIcon filled={location.pathname.startsWith('/admin')} />
               </button>
             )}
           </nav>

@@ -44,4 +44,23 @@ class UserAchievementListResponse(BaseModel):
     total: int
 
 
+class AchievementCreate(BaseModel):
+    """칭호 생성 요청 스키마"""
+    title: str
+    description: Optional[str] = None
+    condition_type: Optional[str] = None
+    condition_value: Optional[int] = None
+    icon_url: Optional[str] = None
+
+
+class AchievementUpdate(BaseModel):
+    """칭호 수정 요청 스키마"""
+    title: Optional[str] = None
+    description: Optional[str] = None
+    condition_type: Optional[str] = None
+    condition_value: Optional[int] = None
+    icon_url: Optional[str] = None
+
+
+
 

@@ -74,6 +74,7 @@ export interface UserDetailResponse {
   profile_image_url?: string | null;
   is_active: boolean;
   is_admin: boolean;
+  membership_tier: string;
   last_login_at?: string | null;
   selected_achievement_id?: number | null;
   created_at: string;
@@ -297,6 +298,31 @@ export interface UserAchievementListResponse {
   total: number;
 }
 
+export interface AchievementCreateRequest {
+  title: string;
+  description?: string;
+  condition_type?: string;
+  condition_value?: number;
+  icon_url?: string;
+}
+
+export interface AchievementUpdateRequest {
+  title?: string;
+  description?: string;
+  condition_type?: string;
+  condition_value?: number;
+  icon_url?: string;
+}
+
+
+export interface AdminUserListResponse {
+  users: UserDetailResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 export interface AppContextType {
   records: PerformanceRecord[];
   addRecord: (record: Omit<PerformanceRecord, 'id'>) => void;
@@ -334,3 +360,79 @@ export interface AppContextType {
   logout: () => void;
 }
 
+// Support types
+export interface SupportResponse {
+  support_id: number;
+  user_id: number;
+  type: string;
+  title: string;
+  content: string;
+  status: string;
+  answer_content?: string | null;
+  answered_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  user?: {
+    user_id: number;
+    nickname: string;
+    profile_image_url?: string | null;
+  } | null;
+}
+
+export interface SupportListResponse {
+  supports: SupportResponse[];
+  total: number;
+}
+
+export interface SupportCreateRequest {
+  type: 'inquiry' | 'suggestion';
+  title: string;
+  content: string;
+}
+
+export interface AdminAnswerRequest {
+  answer_content: string;
+}
+
+
+// Post types (Admin & Board)
+export interface PostAuthorResponse {
+  user_id: number;
+  nickname: string;
+  profile_image_url?: string | null;
+  selected_achievement?: AchievementResponse | null;
+}
+
+export interface PostResponse {
+  post_id: number;
+  user_id: number;
+  author: PostAuthorResponse;
+  title: string;
+  content: string;
+  category: string;
+  tags?: string[] | null;
+  view_count: number;
+  like_count: number;
+  comment_count: number;
+  is_liked: boolean;
+  is_bookmarked: boolean;
+  is_reported: boolean;
+  report_count?: number;
+  is_hidden?: boolean;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface PostListResponse {
+  posts: PostResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface PostStatusUpdateRequest {
+  is_hidden?: boolean;
+  is_deleted?: boolean;
+}

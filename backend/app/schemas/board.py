@@ -88,11 +88,21 @@ class PostResponse(BaseModel):
     is_liked: bool = False  # 현재 사용자가 좋아요를 눌렀는지 여부
     is_bookmarked: bool = False  # 현재 사용자가 북마크를 했는지 여부
     is_reported: bool = False  # 현재 사용자가 신고를 했는지 여부
+    report_count: int = 0  # 신고 횟수
+    is_hidden: bool = False  # 숨김 여부
+    deleted_at: Optional[datetime] = None  # 삭제 시간 (Soft Delete)
     created_at: datetime
     updated_at: Optional[datetime] = None  # 수정된 적이 없으면 None
 
     class Config:
         from_attributes = True
+
+
+class PostStatusUpdate(BaseModel):
+    """게시글 상태 변경 요청 스키마 (관리자용)"""
+    is_hidden: Optional[bool] = None
+    is_deleted: Optional[bool] = None  # True: 삭제, False: 복구
+
 
 
 class PostListResponse(BaseModel):

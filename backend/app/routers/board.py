@@ -28,7 +28,8 @@ from app.schemas.board import (
     LikeResponse,
     BookmarkResponse,
     MessageResponse,
-    PostAuthorResponse
+    PostAuthorResponse,
+    PostStatusUpdate
 )
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,9 @@ def _build_post_response(post: Post, db: Session, current_user_id: Optional[int]
         is_liked=is_liked,
         is_bookmarked=is_bookmarked,
         is_reported=is_reported,
+        report_count=post.report_count,
+        is_hidden=post.is_hidden,
+        deleted_at=post.deleted_at.replace(tzinfo=timezone.utc) if post.deleted_at and post.deleted_at.tzinfo is None else post.deleted_at,
         created_at=created_at_aware,
         updated_at=updated_at_aware
     )
@@ -981,4 +985,145 @@ async def toggle_comment_like(
         is_liked=is_liked,
         like_count=comment.like_count
     )
+
+
+# ========== 관리자 엔드포인트 ==========
+
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges",
+        )
+    return current_user
+
+
+@router.get("/admin/posts", response_model=PostListResponse)
+async def get_admin_posts(
+    page: int = Query(1, ge=1, description="페이지 번호"),
+    page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
+    category: Optional[str] = Query(None, description="카테고리 필터"),
+    search: Optional[str] = Query(None, description="검색어"),
+    status_filter: Optional[str] = Query(None, description="상태 필터 (active, hidden, deleted)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    관리자용 게시글 목록 조회
+    - 삭제된 글, 숨김 글 포함 모든 글 조회 가능
+    """
+    query = db.query(Post)
+    
+    # 상태 필터
+    if status_filter == 'deleted':
+        query = query.filter(Post.deleted_at.isnot(None))
+    elif status_filter == 'hidden':
+        query = query.filter(Post.is_hidden == True)
+    elif status_filter == 'active':
+        query = query.filter(and_(Post.deleted_at.is_(None), Post.is_hidden == False))
+    
+    # 카테고리 필터
+    if category and category != 'all':
+        query = query.filter(Post.category == category)
+    
+    # 검색어 필터
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Post.title.ilike(search_pattern),
+                Post.content.ilike(search_pattern),
+                Post.user.has(User.nickname.ilike(search_pattern))
+            )
+        )
+    
+    total = query.count()
+    
+    posts = query.options(
+        joinedload(Post.user).joinedload(User.selected_achievement),
+        joinedload(Post.likes),
+        joinedload(Post.bookmarks),
+        joinedload(Post.reports)
+    ).order_by(desc(Post.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+    
+    post_responses = [_build_post_response(post, db, current_user.user_id) for post in posts]
+    
+    total_pages = (total + page_size - 1) // page_size
+    
+    return PostListResponse(
+        posts=post_responses,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages
+    )
+
+
+@router.patch("/admin/posts/{post_id}/status", response_model=PostResponse)
+async def update_post_status_admin(
+    post_id: int,
+    status_update: PostStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    게시글 상태 변경 (숨김/복구/삭제)
+    """
+    post = db.query(Post).filter(Post.post_id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
+    
+    if status_update.is_hidden is not None:
+        post.is_hidden = status_update.is_hidden
+        
+    if status_update.is_deleted is not None:
+        if status_update.is_deleted:
+            post.deleted_at = datetime.now(timezone.utc)
+        else:
+            post.deleted_at = None
+            
+    db.commit()
+    db.refresh(post)
+    
+    return _build_post_response(post, db, current_user.user_id)
+
+
+@router.delete("/admin/posts/{post_id}", response_model=MessageResponse)
+async def delete_post_admin(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    게시글 삭제 (Soft Delete) - 관리자용
+    """
+    post = db.query(Post).filter(Post.post_id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
+        
+    post.deleted_at = datetime.now(timezone.utc)
+    db.commit()
+    
+    return MessageResponse(message="게시글이 삭제되었습니다.")
+
+
+@router.get("/admin/posts/{post_id}", response_model=PostResponse)
+async def get_admin_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """
+    관리자용 게시글 상세 조회
+    - 삭제된 글, 숨김 글 포함 조회 가능
+    """
+    post = db.query(Post).filter(Post.post_id == post_id).first()
+    
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="게시글을 찾을 수 없습니다."
+        )
+    
+    return _build_post_response(post, db, current_user.user_id)
 
